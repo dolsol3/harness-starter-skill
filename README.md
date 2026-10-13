@@ -1,0 +1,298 @@
+# harness-starter
+
+AI와 개발할 때 코드가 비대해지는 것을 막는 "간결함 하네스"를 프로젝트에 씌우는 스킬이다.
+Claude Code, Codex, Antigravity, OpenClaw에서 쓸 수 있다.
+
+## 설치되는 것
+
+| 장치 | 파일 | 강제력 |
+|---|---|---|
+| 간결함 원칙 | `AGENTS.md`의 표시 구역, `CLAUDE.md`(`@AGENTS.md`) | 없음(요청), 모든 도구 |
+| git 훅 | `.git/hooks/pre-commit` → `harness/check.mjs --staged` | 커밋 차단(`--no-verify`로 우회 가능), 모든 도구 |
+| 고친 직후 알림 훅 | `.claude/settings.json`, `.codex/hooks.json`, `.agents/hooks.json` → `harness/check.mjs --hook` | 고친 직후 AI에게 알림, Claude Code·Codex·Antigravity |
+| 간결함 리뷰 | `.agents/skills/lean-review/`, `.claude/skills/lean-review/` | 없음(절차), 모든 도구 |
+| 작업 장부 | `harness/backlog.mjs`, `ledger.mjs`, `questions.mjs`, `page.mjs`, `patch.mjs`, `serve.mjs`. 장부 `harness/backlog.json`, 잠금 `backlog.lock`, 질문 페이지 `questions.html`은 `.git/info/exclude`로 git에서 뺀다 | 상태 규칙, 나눠 줄 작업 고르기, 도구 배정·상한·검토, 사람이 정할 일의 질문, 같은 파일을 수정 커밋으로 자꾸 고치는 곳의 신호 |
+| 막는 훅 | `.claude/settings.json`·`.codex/hooks.json`·`.agents/hooks.json`의 `PreToolUse` → `harness/guard.mjs --hook`, pre-commit → `guard.mjs --staged` | 도구 쓰기 전에 거절(Claude Code·Codex·Antigravity), 커밋 차단(모든 도구) |
+| 멈출 때 설명 훅 | `.claude/settings.json`의 `Stop` → `harness/stop.mjs`(작업 장부와 함께) | 진행중 작업이 있는데 멈추려 하면 한 번 이유를 설명하게 함, Claude Code |
+| 제미나이 읽기 전용 역할 | `.agents/agents/readonly.md`, `.agents/agents/research.md`(`antigravity-hook` 장치) | 쓰기 도구를 뺀 검토 역할(`agy --agent readonly`)과 웹 검색·주소 읽기 도구를 더한 조사용 역할(`agy --agent research`), Antigravity |
+
+`harness/check.mjs`는 새로 더한 줄에서 긴 줄, 예외를 삼키는 코드, 경고를 끄는 주석을 찾는다.
+한도를 넘은 채 커진 파일과 너무 큰 커밋도 잡는다. 커밋은 더한 줄 수(`maxCommitLines`)와 고친 파일 수(`maxCommitFiles`, 설정에 없으면 15) 두 가지로 센다.
+둘 다 커밋할 때(`--staged`, pre-commit)만 센다. 파일 수는 더한 줄이 1줄 이상인 한도 있는 종류의 파일만 센다(지우기만·옮기기만 한 파일, `ignore`, 병합 중 상대 브랜치에서 그대로 온 파일은 세지 않는다).
+한도는 파일 종류마다 다르고 `harness/config.json`의 `kinds`에 있다. 종류에 없는 파일은 검사하지 않고 커밋 크기에도 세지 않는다.
+숫자는 설치할 때 그 스택의 공식 문서를 조회해 정하고, 출처와 날짜를 `basis`에 남긴다.
+
+작업 장부는 `node harness/backlog.mjs <명령>`으로 쓴다. 명령, 상태, 칸 이름이 모두 한글이다.
+**이 명령은 AI가 쓴다. 사람이 치지 않는다.** 사람이 하는 일은 설치 승인, 질문 페이지의 `답`, 그 페이지를 여는 `서버` 켜기뿐이다.
+이 문서의 "메인"은 사용자와 대화하며 서브에이전트에게 일을 나눠 주는 메인 AI(메인 에이전트)이고, "메인 폴더"는 저장소의 원래 작업 폴더다.
+`추가`·`시작`·`완료`·`반려`는 메인 에이전트가 적고, `올림`은 일을 한 구현 담당(서브에이전트)이 적는다. 서브에이전트는 그 밖의 장부를 고치지 않는다.
+`추가 "제목"` → `시작 T-1 --영역 … --확인방법 …`(수정 작업은 `--원인`, `--방향`도) → `올림 T-1 --커밋 … --증거 …`
+→ 병합한 뒤 `완료 T-1`. 메인이 받아들이지 않으면 `반려 T-1 --사유 "…"`로 `진행중`에 돌려보낸다. `반려` 밖에서 거꾸로 가거나 증거 없이 올리거나 병합 전에 끝내면 거절한다. 장부는 메인 폴더 한 곳에만 있고
+워크트리 안에서 불러도 같은 장부를 쓴다. 시작은 비어 있는 칸만 채우고, 명령마다 쓸 수 있는 옵션이 정해져 있다.
+기본 브랜치는 `config.json`의 `backlog.baseBranch`(기본 `main`, 로컬 브랜치)다. `main`이 아니면 설치할 때 적는다(그 뒤에는 막는 훅이 AI의 수정을 거절한다).
+
+**일을 나눠 줄 때.** `준비`는 지금 같이 시작해도 되는 작업과 미룬 이유를 보여 준다.
+후보는 선행이 모두 `완료`인 `할일`이고, 다른 작업을 더 많이 막고 있는 것부터 본다.
+영역이 비었거나, 이미 쓰는 곳(`진행중`·`올림` 작업, 앞서 고른 작업)과 같거나 그 폴더 안팎이면 미룬다(`src/a`와 `src/a/x.js`는 겹치고 `src/a`와 `src/ab`는 겹치지 않는다).
+끝의 `/`, `/*`, `/**`만 걷어 내고 `src/a/*.js`나 `**` 같은 그 밖의 와일드카드는 풀지 않는다. 저장소 전체를 건드리는 작업은 사람이 직접 나눈다. 작업 8개가 있을 때의 출력이다.
+```
+$ node harness/backlog.mjs 준비
+같이 시작해도 되는 작업:
+T-3 [할일] 기능 기반  영역: src/core  막는 작업 2개
+T-2 [할일] 기능 결제  영역: src/pay
+T-8 [할일] 기능 공지  영역: src/notice
+미룬 작업:
+T-1 영역이 겹친다 (T-3의 src/core)
+T-4 선행 작업 T-3이(가) 완료되지 않았다
+T-5 영역이 겹친다 (T-2의 src/pay)
+T-6 영역이 비어 있다
+T-7 선행 작업 T-3이(가) 완료되지 않았다
+```
+여러 도구에 나눠 주려면 `harness/config.json`에 `backlog.limits`(도구마다 동시에 `진행중`일 수 있는 작업 수)와 `defaultTool`을 적는다.
+적지 않으면 이 규칙은 꺼져 있다. 숫자는 근거 없는 예시이고 사용자가 고른다.
+```json
+"backlog": { "limits": { "claude": 3, "codex": 1 }, "defaultTool": "claude" }
+```
+- `시작 T-3 --배정 codex`: 구현을 맡을 도구를 적는다(안 쓰면 `defaultTool`). 그 도구의 `진행중` 작업이 상한에 차 있으면 거절하고, `올림`이 된 작업은 세지 않는다.
+- `올림 T-3 --커밋 … --증거 … --검토 claude`: 도구가 둘 이상이면 작성한 도구(`배정`)와 다른 도구가 검토했다고 적어야 올릴 수 있다. 병합 전에 확인하려고 `완료`가 아니라 `올림`에 둔다.
+  도구가 하나뿐이면 `--검토`는 선택이다. `limits`에 없는 도구 이름은 거절한다. AI는 `config.json`을 고칠 수 없으므로(막는 훅) 상한은 사람이 정한다.
+- 서브에이전트(`isolation: worktree`)가 변경을 남기면 워크트리 `<메인>/.claude/worktrees/agent-<id>`와 브랜치 `worktree-agent-<id>`가 남고, 메인은 완료 알림의 경로와 브랜치 이름을 받는다. 병합한 뒤 지운다.
+- 다른 도구는 각 CLI를 직접 부르고, 구현 워크트리가 아니라 버릴 복사본에서 읽기 전용으로 돌린다(물레방아가 쓰는 모양).
+  `mktemp -d`로 워크트리 밖에 임시 폴더(아래 `<임시>`)를 만든다.
+  `cd <워크트리> && git clone . <임시>/copy`로 복사하고 `cd <임시>/copy && git checkout --detach <커밋>`으로 검토할 커밋을 꺼낸다.
+  검토 요청은 `<임시>/prompt.txt`에, 결과는 `<임시>/result.txt`에 둔다. 둘 다 복사본 밖이다.
+  Codex는 `codex exec -s read-only --ephemeral -C <임시>/copy -o <임시>/result.txt - < <임시>/prompt.txt`로 부른다.
+  제미나이는 먼저 복사본에 `.agents/agents/readonly.md`가 있는지 본다. 없으면 부르지 않는다.
+  있으면 `cd <임시>/copy && HARNESS_READ_ONLY=1 agy -p "$(cat <임시>/prompt.txt)" --agent readonly --output-format json --print-timeout 5m > <임시>/result.txt`로 부른다.
+  제미나이가 끝나면 `cd <임시>/copy && git status --porcelain`이 비어 있는지 본다.
+  검토가 끝나거나 실패해도 언제나 `rm -rf <임시>`로 지운다.
+  `HARNESS_READ_ONLY`는 제미나이에게만 준다. Codex는 읽기 도구가 없어 셸로 파일을 읽으므로, 이 변수를 주면 막는 훅의 `Bash` 거절이 읽기까지 막는다.
+  `codex exec`에는 시간 제한 옵션이 없어 부르는 쪽이 중단한다.
+
+**에이전트 구성.** 작업 장부를 설치하고 Claude Code를 쓰면 스킬이 기획 담당·구현 담당·조사 담당·리뷰어 넷을 이 프로젝트에 맞게 제안하고, 승인하면 `.claude/agents/`에 만든다.
+바탕은 `templates/agents/`이고 `## 이 프로젝트` 절(확인 명령, 영역 관례)만 프로젝트에 맞게 채운다. 에이전트를 나누는 기준은 맥락을 공유하지 않는 것이다.
+기획 담당은 요청을 작업으로 쪼개고 명세(`docs/tasks/T-N.md`)를 쓴다. 구현 담당은 명세를 읽고 끝 기준 번호마다 증거를 적어 `올림`을 적는다. 리뷰어는 읽기만 하고 구현 담당과 맥락을 나누지 않는다.
+조사 담당은 메인이 질문을 주어 부르고, 메인은 그 결과를 데이터로 받아 기획 담당에게 넘긴다.
+메인은 손으로 만들지 않고 사용자 말을 넘기고 판단해서 `완료`하거나 `반려`한다. 예외로 결정이 바뀌지 않는 몇 줄짜리 문서 수정은 메인이 직접 고치고 리뷰어가 커밋 전에 본다(자세한 것은 원칙). Claude Code 형식만 만든다. 리뷰어는 `Read`·`Grep`·`Glob`·`Bash`만 허용해서(허용 목록이라 편집·MCP·`Agent` 도구가 없다) `Bash`로 파일을 쓰는 것은 막지 못한다.
+조사 담당도 허용 목록이고 여기에 `WebSearch`·`WebFetch`만 더했다(`Read`·`Grep`·`Glob`·`Bash`·`WebSearch`·`WebFetch`). 리뷰어처럼 `Bash`로 파일을 쓰는 것은 막지 못한다.
+
+**조사 담당.** 먼저 내부 문서(결정 기록 등)를 보고, 도구 동작처럼 직접 해 볼 수 있는 것은 저장소 밖 임시 폴더에서 실험해 본다. 거기 없는 것만 밖에서 조사한다.
+나누기는 질문 종류대로 한다. 쉬운 사실은 조사 담당 혼자, 어려운 사실은 Codex에 같은 질문을 두 번 따로 맡기고 원문이 뒷받침하는 답을 고르고, 넓은 질문은 쪼개 자기와 Codex에 나눠 주고,
+순서대로 따라가야 하는 조사는 혼자, 영상·녹음·긴 문서는 제미나이만 쓴다. 웹 조사에는 제미나이를 쓰지 않는다.
+누구에게 맡길지는 역할 파일의 배정표에 날짜와 근거를 적고, 새 모델이 나오면 배정표를 다시 따져 고친다.
+합칠 때는 모델 동의 수로 정하지 않고 주장마다 출처로 판정한다. 출처가 그 말을 하는지는 원래 답을 안 본 채로 따로 확인하고, 같은 원출처를 인용한 것은 한 표로 센다.
+서로 반대면 날짜·버전 차이부터 다시 조사하고, 그래도 남은 충돌만 사용자에게 보고한다. 출처 품질은 공식 문서·논문 → 실무자 경험담 → 2차 블로그 순이다.
+보고는 짧게 하고 전문은 저장소 밖 파일에 쓴다. 유료 검색 API는 쓰지 않는다. 자세한 규칙은 `templates/agents/researcher.md`에 있다.
+
+**물레방아.** 에이전트를 만들 때 스킬이 `.claude/workflows/mullebanga.js`도 함께 깐다(역할을 만들지 않으면 깔지 않는다). Claude Code에서 `/물레방아`로 부르면 배정이 codex가 아닌 진행중 작업을 모두 돌리고,
+`/물레방아 T-28`이나 `/물레방아 T-28, T-29`처럼 뒤에 작업 번호를 글자로 주면(공백·쉼표로 나눔) 그 작업만 돈다. `args`로 작업 번호 목록(예: `["T-30","T-31"]`)을 줘도 같다. 흐름은 작업마다 명세 → 대조 → 구현 → 검사 → 교차 리뷰(리뷰어와, `backlog.limits`에 다른 도구가 있으면 그 도구) → 검사 실패·높음 고치기(합쳐서 최대 3번) → 올림이다.
+메인은 `docs/tasks/T-N.md` 맨 위에 `## 사용자 원래 말` 절(사용자 말 원문)을 적고 `시작`한 뒤 돌린다. 기획 담당은 메인 폴더의 `docs/tasks/T-N.md`에 나머지를 쓰고 커밋하지 않는다(구현 워크트리는 `보기`로 메인 폴더 문서를 읽는다).
+명세에 `## 끝 기준`이 이미 있으면 명세 쓰기를 건너뛰고 대조부터 한다. 리뷰어는 '사용자가 정한 것' 표시를 그 절과 대조한다.
+답을 기다리는 질문이 있거나 기획 담당이 질문·실험 필요로 돌려주면 명세 단계에서 멈추고, 대조에 높음·중간이 있거나 `## 사용자 원래 말` 절이 없으면(옛 명세) 대조에서 멈춘다(메인이 절을 넣고 다시 돌린다). 실험·조사가 필요해 멈추면 메인이 조사 담당을 불러 확인한 뒤 다시 돌린다.
+반려된 작업은 장부의 마지막 반려 커밋이 든 `ai/…` 브랜치에서 이어 고친다(워크트리가 지워졌으면 그 브랜치로 새 워크트리를 만든다).
+물레방아 안에서는 구현 담당이 `올림`하지 않고 커밋까지만 하며, 검사를 통과하고 높음이 없을 때 물레방아가 끝에 올린다. 3번 고쳐도 남으면 올리지 않고 진행중으로 둔다.
+물레방아가 쓰는 장부는 `올림`과 기획 담당의 `질문`·`처리함`이다. 메인은 작업마다 돌려주는 칸(`raised`·`raiseOutput`·`checkPassed`·`checkFailures`·`highs`·`others`·`resumed`·`spec`·`specReview`, 단계가 멈추면 `stopped`, 이유를 담아 멈출 때는 `reason`도)을 보고 병합·`완료`·정리·`반려`·`질문`을 정한다.
+작업마다 워크트리(`.claude/worktrees/wf_…`)와 브랜치 `ai/…`·`worktree-wf_…`가 남으므로(`worktree`·`branches` 칸) `완료`한 뒤 지운다(`완료` 전에는 지우지 않는다).
+
+**사람이 정해야 할 때.** 진짜 데이터를 지우거나 바꾸는 일(`삭제`), 이미 남이 쓰는 약속을 바꾸는 일(`약속변경`), 밖으로 내보내는 일(`외부발행`), 진짜 돈이 움직이는 일(`결제`)은
+AI가 하지 않고 `질문`으로 묻는다. 설명, 보기마다 달라지는 것, 추천과 이유를 모두 적어야 하고(비면 거절), 이 넷에 들지 않으면 거절하며 `처리함`으로 남기라고 알린다.
+```
+$ node harness/backlog.mjs 질문 T-1 "운영 DB의 쓰지 않는 열 old_flag를 지울까요" --행동 삭제 --설명 "…" --보기 "지운다=열과 안의 값이 영구히 사라집니다|둔다=아무 일도 일어나지 않습니다" --추천 둔다 --이유 "…"
+질문: Q-1 [대기] T-1 삭제 운영 DB의 쓰지 않는 열 old_flag를 지울까요  (추천: 둔다)
+$ node harness/backlog.mjs 시작 T-1
+backlog: T-1 시작 거절: 답을 기다리는 질문 Q-1이(가) 있다. 다른 작업을 하고 사람이 답한 뒤에 다시 한다
+```
+답을 기다리는 질문이 있는 작업은 `다음`·`준비`에서 빠지고 `시작`·`올림`·`완료`를 거절한다. 그 작업에 의존하는 작업도 선행이 끝나지 않아 멈추고, 나머지는 계속한다.
+`질문목록`(기본은 대기 중, `--상태 답함`), `답 Q-1 둔다`(보기 이름) 또는 `답 Q-1 --직접 "글"`, `처리함 T-1 "제목" --설명 … --이유 …`(AI가 스스로 정한 일)이 있다.
+장부를 쓰는 명령이 끝날 때마다 `harness/questions.html`이 다시 쓰이고, 사람이 `node harness/backlog.mjs 서버`로 켜면 브라우저에서 보기를 고르거나 직접 적어 답한다.
+```
+$ node harness/backlog.mjs 서버
+질문 페이지: http://127.0.0.1:55236/?token=…
+이 컴퓨터에서만 열린다. 끄려면 Ctrl+C
+```
+페이지는 알아서 처리한 것 → 결정할 것 → 답한 것 → 덧댄 곳 → 진행 현황 순이고, 맨 위에 결정할 것·덧댄 곳·병합 대기(`올림`)·진행중·할일·완료 수가 있다.
+서버는 127.0.0.1에서만 열고, 켤 때마다 새 토큰을 주소에 붙이며 토큰이 없거나 틀린 요청은 거절한다. 서버는 장부를 읽기만 하고 답은 `답` 명령으로 적는다.
+쓰는 명령은 `harness/backlog.lock`을 잡고 읽기→바꾸기→저장을 하므로 여러 명령을 동시에 불러도 기록이 사라지지 않는다.
+
+**같은 곳을 자꾸 고칠 때(덧대기 신호).** 기본 브랜치의 최근 커밋 50개 중 제목이 `fix`나 🐛로 시작하는 수정 커밋을 모아, 같은 파일이 3번 이상 들어 있으면 페이지의 "덧댄 곳"에 파일, 횟수, 그 커밋 제목을 보인다.
+한도를 정한 종류(`kinds`)의 파일만 세므로 문서·설정은 세지 않는다. 수정 작업을 `시작`할 때 그 작업의 영역이 신호가 뜬 파일과 겹치면 겹치는 파일마다 한 줄을 더 보인다. 알리기만 하고 거절하지는 않는다.
+```
+$ node harness/backlog.mjs 시작 T-4
+시작: T-4 [진행중] 수정 로그인 빈 값
+주의: src/api.ts은(는) 최근 커밋 50개 중 수정 커밋 3번에 들어 있다 (🐛 토큰 만료 / 🐛 로그인 빈 값 / 🐛 세션 만료). 같은 곳을 또 덧대는 것이 아닌지 원인부터 다시 본다
+```
+기준은 `config.json`의 `patch`에서 바꾼다. 적지 않으면 아래 값이다. 프로젝트의 커밋 제목 규칙이 다르면 `fixPattern`을 맞춘다(스킬이 설치할 때 최근 커밋 제목을 보고 확인한다).
+```json
+"patch": { "times": 3, "lastCommits": 50, "fixPattern": "^(fix\\b|🐛)" }
+```
+
+막는 훅(`harness/guard.mjs`)은 작업 장부를 설치했을 때 같이 들어가고, 아래를 종료 코드 2와 올바른 길을 알리는 글로 거절한다.
+- 장부 파일(`harness/backlog.json`)을 직접 읽거나 고치는 것 → "명령으로 다룬다"
+- 진행중인 작업이 없을 때 코드 파일을 고치는 것 → "작업을 만들고 `시작`한다". 코드 파일은 `kinds` 중 한도(줄 수, 줄 길이, 금지 패턴)를 정한 종류의 파일이다.
+  한도를 정하지 않은 종류(문서, 설정 등)는 제외한다. 검사기의 `ignore` 목록은 보지 않으므로 한도 있는 종류에 든 이미지나 `vendor/` 파일도 코드로 본다.
+- 검사 설정과 하네스 파일(`harness/config.json`, `check.mjs`, `guard.mjs`, `backlog.mjs`, `ledger.mjs`, `questions.mjs`, `page.mjs`, `patch.mjs`, `serve.mjs`)을 고치는 것. 단 `kinds`가 비어 있는 설치 직후에는 `config.json`을 채울 수 있다.
+- 셸 명령의 `--no-verify`
+
+pre-commit은 코드 파일을 커밋하는데 진행중인 작업이 없으면 거절한다(충돌을 풀어 병합할 때는 상대 브랜치에서 그대로 온 파일을 세지 않는다).
+설정이나 장부를 읽지 못하는 등 확인하지 못하면 통과시키지 않고 거절한다. 그때는 사람이 `harness/config.json`이나 `harness/backlog.json`을 고친다.
+서브에이전트의 워크트리에서도 같은 훅이 돌고, 입력의 `cwd`를 따라 메인 폴더의 장부를 찾는다.
+이것은 Claude Code에서 확인한 것이다. Codex·Antigravity는 시험하지 않았으니 아래 '한계' 절을 본다.
+
+멈출 때 설명 훅(`harness/stop.mjs`)도 작업 장부를 설치했을 때 같이 들어가고 Claude Code에만 건다.
+장부에 진행중 작업이 있을 때만, AI가 멈추려 하면 한 번 "왜 멈추는지 짧게 설명하라"(끝났는지, 질문을 기다리는지, 막혔는지)를 넣는다.
+설명한 뒤 다시 멈출 때는 입력의 `stop_hook_active`가 참이라 통과한다. 진행중 작업이 없으면 아무것도 하지 않는다.
+출력은 `hookSpecificOutput.additionalContext`라서 훅 오류로 보이지 않는다. 계속 일하게 붙잡는 장치가 아니다.
+
+## 쓰는 법
+
+이 폴더를 각 도구의 스킬 위치에 두고 "하네스 씌워줘"라고 한다.
+스킬이 프로젝트를 살피고, 질문 몇 개를 한 뒤, 미리보기를 보여 주고 승인을 받아 설치한다.
+
+| 도구 | 전역 스킬 위치 |
+|---|---|
+| Claude Code | `~/.claude/skills/harness-starter` |
+| Codex, OpenClaw | `~/.agents/skills/harness-starter` (둘 다 이 위치를 읽는다) |
+| Antigravity CLI | `~/.gemini/antigravity-cli/skills/harness-starter` |
+| Antigravity IDE | `~/.gemini/config/skills/harness-starter` |
+
+네 곳 모두 `SKILL.md`, `scripts/`, `templates/`를 복사해 둔다. 개발 중인 저장소를 가리키는 심링크는
+저장소가 있는 디스크가 빠지거나 고치는 중인 상태가 그대로 쓰이므로 쓰지 않는다.
+이 저장소를 고친 뒤에는 저장소 폴더에서 아래 명령으로 네 곳을 갱신한다.
+
+```sh
+for d in ~/.claude/skills ~/.agents/skills ~/.gemini/antigravity-cli/skills ~/.gemini/config/skills; do
+  rm -rf "$d/harness-starter/scripts" "$d/harness-starter/templates"
+  mkdir -p "$d/harness-starter" && cp -R SKILL.md scripts templates "$d/harness-starter/"
+done
+```
+
+설치 스크립트를 직접 돌려도 된다.
+
+```sh
+node scripts/install.mjs <대상 폴더>            # 미리보기
+node scripts/install.mjs <대상 폴더> --apply    # 설치
+node scripts/install.mjs <대상 폴더> --apply --without=codex-hook,antigravity-hook
+node scripts/install.mjs <대상 폴더> --upgrade   # 옛 설치를 새 버전으로 바꾼다: 검사기·설정, 장부 명령 파일, 제미나이 역할 파일, pre-commit의 막는 훅 줄(미리보기)
+```
+
+대상은 git 저장소의 맨 위 폴더다(하위 폴더면 git 훅은 건너뛴다).
+프로젝트만의 규칙은 `AGENTS.md` 표시 구역 밖과 `harness/config.json`의 `patterns`에 더한다(스킬이 물어보고 넣는다).
+경로에 딸린 규칙은 `.claude/rules/<이름>.md`(머리말 `paths:`에 경로 목록)에 두고, `AGENTS.md`의 `## 이 프로젝트 규칙`에 "`src/ui`를 고치기 전에 `.claude/rules/ui.md`를 읽는다" 같은 한 줄을 둔다.
+Claude Code는 경로가 맞는 파일을 다룰 때 규칙 파일을 스스로 불러오고, Codex·Antigravity는 그 한 줄을 보고 따른다. 스킬은 프로젝트가 화면·서버처럼 나뉘어 있을 때만 만들자고 묻고, 승인하면 만든다.
+이미 있는 파일은 덮어쓰지 않는다. `CLAUDE.md`는 표시 구역 안만 바꾸고 나머지는 그대로 둔다.
+원칙은 `AGENTS.md`에 넣고, `CLAUDE.md`가 없으면 `@AGENTS.md` 한 줄로 만든다. `CLAUDE.md`가 이미 있는데 불러오지 않으면 같은 원칙 구역을 넣는다.
+
+## 한계
+
+- 원칙은 요청일 뿐이다. 강제는 훅이 한다.
+- 경로별 규칙도 지침이고 강제가 아니다. Claude Code는 경로가 맞는 파일을 다룰 때 자동으로 불러오지만, Codex에는 경로 조건 규칙이 없어 `AGENTS.md`의 한 줄을 읽고 따르라는 글 부탁일 뿐이다.
+  Antigravity가 `.claude/rules`를 읽는지는 공식 문서에 없다(공식 형식은 `.agents/rules`이고 만들지 않는다). OpenClaw는 확인하지 않았다.
+  워크트리 루트의 `.claude/rules`는 불러오지 않는다고 문서에 있고 시험하지 않았다. 그래서 기획 담당이 필요한 규칙을 작업 문서에 옮겨 적는 방식을 그대로 둔다.
+  출처(2026-10-12 조회): https://code.claude.com/docs/en/memory , https://code.claude.com/docs/en/worktrees , https://learn.chatgpt.com/docs/agent-configuration/agents-md , https://antigravity.google/docs/rules/
+- 막는 훅은 도구 호출과 셸 명령 글만 본다. 셸 명령으로 파일을 바꾸는 것(`sed -i`, `>`, `rm`, `git checkout`), 파일을 스크립트 안에서 여는 우회(`node -e` 등),
+  `git commit -n`, `Grep`으로 장부 내용을 찾는 것, AI가 `.claude/settings.json`이나 `.git/hooks`를 고쳐 훅을 끄는 것은 막지 못한다.
+  그래서 편집 도구가 막혀도 셸로 코드와 `config.json`을 고칠 수 있고, `config.json`은 코드 종류가 아니라서 pre-commit도 걸러 주지 못한다.
+  장부는 git에 올리지 않아 pre-commit도 장부 접근은 거르지 못한다.
+  `올림` 뒤에 지적을 받으면 `반려`로 `진행중`에 돌려보내고 같은 작업으로 계속한다(2026-10-10 사용자 결정. 같은 날 앞서 둔 "되돌리는 명령은 두지 않는다"를 바꿨다).
+  `반려`는 `limits`의 도구별 동시 상한을 다시 검사하지 않아서, 그동안 같은 도구로 다른 작업을 시작했다면 상한을 넘길 수 있다.
+  구현 담당이 쓰는 `올림 --증거`나 `반려 --사유` 글에 장부 파일 이름이나 `--no-verify`가 들어 있으면 막는 훅이 명령을 거절한다.
+  `반려` 기록의 증거와 검토는 장부에 쌓이지만 `보기`에는 커밋과 사유만 보인다.
+  경로는 `check.mjs`처럼 `/`로 바꿔 비교하지만 실제 Windows에서는 시험하지 못했다.
+  셸 명령 글에 `backlog.json`이나 `--no-verify`가 들어 있으면 읽는 명령이든 커밋 메시지든 거절한다.
+  막는 훅은 Claude Code·Codex·Antigravity에 연결했다(OpenClaw는 pre-commit이 코드 커밋만 거른다). 세 도구의 입력 모양이 달라 `guard.mjs`가 한 모양으로 맞춰 읽는다:
+  Codex는 파일 편집이 `apply_patch`이고 고치는 파일을 패치 글의 `*** Add/Update/Delete File:`·`Move to:` 줄에서 읽는다. 실제 Codex의 패치 읽기는 헤더 줄 앞 공백을 허용하고(직접 확인) 셸에서 `apply_patch <<'EOF'`로도 부르므로
+  앞 공백을 허용하고 `Bash` 명령 글에서도 같은 헤더를 찾는다. 그래서 Update 본문의 문맥 줄이 우연히 `*** Add File:`로 시작하면 정상 편집을 거절할 수 있다(드묾, 안전한 쪽으로 틀린다).
+  `cd 다른폴더 && apply_patch <<EOF`의 상대 경로는 훅의 작업 폴더 기준으로만 본다. Antigravity는 `toolCall.name`과 `args`(`TargetFile`·`AbsolutePath`·`CommandLine`)를 읽는다.
+  Codex에는 읽기 전용 도구가 없어서 장부 읽기는 `Bash` 명령 글로만 거른다.
+  입력 모양과 거절 전달은 실제 두 CLI에서 기록 훅으로 확인했지만(종료 코드 2의 글이 모델에 닿는다) 기록으로 본 도구는 Codex `apply_patch`·`Bash`와 Antigravity `write_to_file`·`run_command`뿐이다.
+  Antigravity `replace_file_content`·`multi_replace_file_content`·`view_file`의 인자 이름은 공식 문서 근거만 있다. 설치된 `guard.mjs`가 실제 세션에서 거절하는 전 과정은 시험하지 않았다.
+  Antigravity의 `sed_file`·`notebook_edit`은 걸러지지 않는다(실제 CLI의 도구 목록에는 있고 공식 문서의 지원 도구 목록에는 없다. 인자 이름을 몰라 넣지 않았다). 통과할 때는 아무것도 출력하지 않는데,
+  문서는 `decision`을 "필수"라고 적고 기록 시험은 모두 허용하는 모드였어서, 기본 권한 모드에서 사용자 승인창이 그대로 뜨는지는 확인하지 못했다. Antigravity는 훅 프로세스가 `hooks.json`이 있는 `.agents`에서 돌아 저장소 안이라고 보고 `workspacePaths`는 쓰지 않는다.
+  이미 `harness/guard.mjs`라는 글이 들어 있는 훅이나 pre-commit은(주석이어도) 설치된 것으로 보고 더하지 않는다.
+  Codex는 프로젝트 `.codex/`와 훅 정의를 신뢰해야 켜지고(문서, 훅이 바뀌면 `/hooks`에서 다시 신뢰) 기본 동작은 직접 보지 못했다. 두 도구 모두 `PreToolUse`가 서브에이전트·워크트리 안에서도 도는지는 문서에 없고 시험하지 않았다.
+  Codex 문서도 "훅은 완전한 강제 경계가 아니다"라고 한다.
+- 장부는 git에 올라가지 않으므로 다른 컴퓨터로 옮기려면 `harness/backlog.json`을 직접 복사한다.
+- 도구 배분의 한계: 사용량은 잴 방법이 없어 동시 실행 수 상한과 "자동으로 되풀이해 부르지 않는다"는 지침으로 대신한다.
+  시간 제한은 지침이고(`codex exec`에는 시간 제한 옵션이 없다), 읽기 전용은 Codex는 옵션(`-s read-only`)이, 제미나이는 아래 '제미나이 읽기 전용' 세 겹이 지킨다(`agy`에는 `codex exec -s read-only`에 해당하는 옵션이 없다. `--sandbox`는 터미널 제한이고 `--mode plan`이 쓰기를 막는지는 시험하지 못했다).
+  검토 도구의 실행 수는 장부가 모르므로 상한에 세지 않고, 검토를 했는지는 `올림`을 적은 쪽(구현 담당)이 적은 말을 믿는다(`증거`와 같다). 재작업·지적 수를 도구별로 세지는 않는다.
+  `준비`는 영역 문자열만 비교하므로 영역을 잘못 적으면 겹침을 놓친다.
+  `limits`를 켜기 전에 이미 시작한 작업은 작성한 도구를 몰라서 `올림`에 `limits`에 있는 도구의 `--검토`만 있으면 되고 상한에도 세지 않는다(거절하면 그 작업은 올릴 수 없게 된다).
+- 쓰기 잠금(`harness/backlog.lock`)은 명령이 죽어 파일이 남아도 자동으로 지우지 않는다(남이 쓰는 중인 잠금과 구별할 수 없다). 5초 기다린 뒤 파일 이름을 알리며 거절하고,
+  쓰는 명령이 없는데 남아 있으면 사람이 지운다. 저장 도중 죽으면 `backlog.json.tmp`가 남을 수 있어 git 제외 목록에도 올렸다. `시작`을 병렬로 4개 부르면 이전에는 1개만 남았고 지금은 4개가 모두 남는다(시험).
+  잠금은 한 컴퓨터의 한 폴더 안에서만 지킨다.
+- 질문 페이지의 한계. 주소에 토큰이 들어 있어서 주소를 아는 사람은 서버를 끌 때까지 누구나 답할 수 있다(브라우저 기록·화면 공유로 새지 않게 한다). 서버는 이 컴퓨터에서만 열리고
+  원격에서 보려면 사용자 환경에서 포트를 전달해야 하고 접속 설정은 하네스가 정하지 않는다.
+  이 저장소에서 직접 확인한 것은 Aside 브라우저에서 답을 보내는 것뿐이고 다른 브라우저와 Windows는 시험하지 않았다.
+  페이지는 저절로 새로 고쳐지지 않는다(쓰던 글이 지워지지 않게). 답을 보낸 카드는 흐려지지만 위의 개수와 "답한 것"은 새로 고침해야 바뀐다.
+  `--보기`는 `이름=결과|이름=결과`라서 이름에 `|`와 `=`를 쓸 수 없다(결과에는 `=`를 쓸 수 있다). 답을 기다리는 작업만 멈추고, 네 가지 행동을 질문 없이 실행하는 것은 막지 못한다(지침이고 훅이 아니다).
+  `답`도 사람인지 AI인지 구별하지 못한다. 막는 훅은 `답` 명령을 거절하지 않으므로 AI가 자기 질문에 스스로 답하는 것은 지침(위임 지침 "`답`은 사람의 몫")만 막는다.
+  질문 없이 행동하는 쪽이 훨씬 쉬운 우회라서 `답`만 훅으로 막는 것은 하지 않았다. 답은 20,000자까지 받고 그 이상은 413으로 거절한다.
+  답을 고르다가 직접 적기로 바꾸는 것처럼 브라우저 안의 동작은 자동 시험이 없고 실제 브라우저(Aside)로만 확인했다.
+- 덧대기 신호의 한계. 수정 커밋은 제목 글(`fixPattern`)로만 알아본다. 제목에 `fix`나 🐛를 쓰지 않는 프로젝트는 패턴을 맞추기 전까지 신호가 뜨지 않고, 수정을 `✨`처럼 다른 제목으로 커밋하면 놓친다.
+  세는 것은 파일이 든 커밋 수라서 한 작업을 여러 커밋으로 나눠 고친 것도 여러 번으로 센다. 기본 브랜치만 보므로 아직 병합하지 않은 `올림` 작업의 수정은 병합된 뒤에야 센다.
+  병합 커밋 자체는 파일이 없는 것으로 보이고(병합된 브랜치의 커밋은 각각 센다) 이름을 바꾼 파일은 새 이름으로 따로 센다(직접 확인). `시작`의 주의는 영역 글과 파일 경로를 `준비`와 같은 방식(같거나 폴더 안팎)으로만 비교한다.
+  설정(`patch`)은 명령과 서버가 켜질 때 읽으므로 바꾼 뒤에는 서버를 다시 켠다. 기본 브랜치를 찾지 못하면 신호가 없는 것으로 본다. `lastCommits`가 숫자가 아니거나 `baseBranch`가 틀려도(git이 숫자 종료 코드로 실패하면) 오류 없이 신호가 없다.
+  `fixPattern`이 올바른 정규식이 아니면 반대로 장부 명령 전부가 실행 전에 `backlog: config.json의 patch.fixPattern이 올바른 정규식이 아니다 (…)` 한 줄로 멈춘다(종료 코드 1, 장부는 바뀌지 않는다. 스킬이 설정을 적은 직후 `목록`으로 확인한다). 그때는 사람이 `config.json`을 고친다.
+  `check.mjs`의 `ignore` 목록은 보지 않으므로 한도 있는 종류에 든 `dist/`·`vendor/` 파일도 센다(막는 훅과 같다).
+- 작업 장부는 `.git` 폴더가 작업 폴더 안에 있는 일반 저장소에서만 쓴다. 분리된 `.git` 폴더, 서브모듈, bare 저장소에서는 거절한다.
+- `--upgrade`는 검사기와 설정, 설치된 장부 명령 파일(`backlog.mjs`·`ledger.mjs`·`questions.mjs`·`page.mjs`·`patch.mjs`·`serve.mjs`·`stop.mjs`·`guard.mjs`)과 제미나이 역할 파일(`.agents/agents/readonly.md`·`research.md`)을 템플릿으로 바꾸고(미리보기의 `[고침]`),
+  `.git/info/exclude`의 새 줄을 더하고, 우리가 만든(검사기 줄이 있는) `pre-commit` 끝에 막는 훅 줄을 더한다(시험). 손으로 고친 파일은 사라지고 되돌릴 백업은 없으므로 `[고침]`으로 나온 파일은 먼저 `diff`로 보고(스킬이 보여 준다) 대상에서 커밋해 둔다. 꺼 둔(실행 권한이 없는) pre-commit은 줄만 더하고 권한은 그대로 둔다.
+  다른 도구가 만든 `pre-commit`과 훅 폴더(`core.hooksPath`)를 쓰는 도구의 `pre-commit`에는 줄을 더해 주지 않고 안내만 한다. 더하는 줄은 파일 맨 끝에 붙으므로 앞에서 `exit`로 끝나는 `pre-commit`은 직접 확인한다(시험하지 않았다).
+  업그레이드하면 옛 설치에도 커밋 파일 수 상한 15가 바로 켜진다(검사기가 설정에 `maxCommitFiles`가 없으면 15를 쓴다). 줄 수 상한은 설정에 `maxCommitLines`가 없으면 꺼진 그대로라 둘이 다르다.
+- 작업 장부의 작은 한계: 따옴표 없는 제목은 첫 단어만 쓰고, `보기`는 긴 문서를 100줄에서 자른다(잘릴 때 안내는 명령마다 다르다. `목록`은 `--상태`, `보기`는 작업 문서를 직접 읽기, `준비`는 안내가 없다).
+  이미 `main`에 있는 커밋이나 같은 커밋을 여러 작업에 올릴 수 있고(바로 완료된다), 틀린 `--상태` 값은 "작업이 없다"로 답한다.
+  워크트리에서 `보기`는 메인 폴더의 `docs/tasks`만 본다.
+- 물레방아의 한계. Claude Code에서만 돌고, 스스로 돌지 않는다. 사용자가 `/물레방아`로 부르거나, 사용자가 맡기면 메인이 부른다. 한글 이름으로 불리는 것은 문서 보장이 없고 실제로 등록되는 것만 봤다(세션 중 만든 워크플로는 바로는 못 찾고 몇 분 뒤 목록에 나타났다).
+  워크플로 워크트리에서 막는 훅(PreToolUse)이 도는 것은 봤지만 고친 직후 알림(PostToolUse)은 시험하지 않았다. 세션 중 새로 만든 역할은 다시 시작해야 찾는다.
+  T-18 리뷰에서 낮음으로 남긴 것 둘:
+  다른 도구 검토가 실패하면 검토 도구 이름이 비어 `--검토` 없이 올림을 한 번 시도한다. 도구가 둘 이상이면 장부가 거절해 `raised: false`와 `raiseOutput`으로 돌아오므로 결과는 맞지만 agent 한 번을 헛쓴다. 실제로 다른 도구 검토가 실패하면(예: Codex "Selected model is at capacity") 올림이 되지 않고, 메인이 검토를 다시 받아 올린다(2026-10-12 관찰).
+  `others`(중간·낮음)에는 마지막 회차 리뷰의 지적만 남고, 앞 회차의 중간·낮음은 결과에서 빠진다.
+  물레방아의 다른 도구 검토 지시문(`templates/workflows/mullebanga.js`의 `otherReviewPrompt`)은 첫머리에서 "명령마다 `cd <워크트리> && …`"라고 하고 뒤에서 복사본 명령은 `cd <임시>/copy && …`라고 해서 두 지시가 겹쳐 읽힐 수 있다(실제로 틀린 동작은 없다).
+  반려된 작업을 이어 고치는 구현 담당이 격리 없이(메인 폴더에서 떠서 그 워크트리로 `cd`) 도는 것은 가짜 agent 시험으로만 확인했다(실제 `/물레방아`로는 시험하지 않았다).
+- 제미나이 읽기 전용의 한계. 제미나이(`agy`)에는 읽기 전용 스위치가 없다. 그래서 세 겹으로 건다.
+  역할 파일(`.agents/agents/readonly.md`)의 `tools`가 쓰기 도구를 빼고, 막는 훅이 `HARNESS_READ_ONLY=1`이면 쓰기·명령을 거절하고(종료 코드 2만으로 막힌다), 버릴 복사본에서 돌린 뒤 지운다.
+  `agy`는 종료 코드가 항상 0이고 JSON 출력에 거절 기록(`denied_actions`)이 없다. 그래서 끝난 뒤 `git status --porcelain`으로 복사본이 바뀌었는지 본다.
+  `agy agents` 목록에는 `readonly`가 보이지 않는다(머리말에 `name`과 `description`이 있어야 `--agent readonly`로 잡힌다).
+  역할 파일 머리말에 `name`과 `description` 둘 중 하나라도 없으면 `agy`가 역할을 못 찾고 쓰기 도구가 있는 기본 역할로 돈다. 그래도 종료 코드는 0이라 밖에서는 모른다.
+  공식 문서(https://antigravity.google/docs/subagents)도 둘을 필수로 적는다. 없을 때 기본 역할로 돌고 종료 코드가 0인 것은 공식 문서에 없고 실험으로만 확인했다.
+  역할이 잡혔는지는 로그(`~/.gemini/antigravity-cli/log/`)에 `agent=true`가 있는지, `not found`가 있는지로만 안다.
+  머리말과 상관없이 `list_resources`·`read_resource`·`manage_task` 도구가 붙는다. 전역 MCP를 부르는 `call_mcp_tool`은 `inheritMcp: false`로 뺐다.
+  `--print-timeout`이 다 되면 stdout 첫 줄에 `[agy] print timeout … returning partial output`이 붙어 JSON으로 바로 읽을 수 없고, 응답은 빈 글이 된다.
+  이미 옛 `readonly.md`를 깐 프로젝트는 `--upgrade`가 새 버전으로 바꾼다(손으로 고친 역할은 사라지니 `[고침]`을 먼저 템플릿(`templates/antigravity/readonly.md`)과 비교한다).
+  앞선 T-22 실험에서 머리말 넷짜리 역할이 잡혔던 까닭은 확인하지 못했다.
+  저장소 하위 폴더에서 `agy`를 돌릴 때 `.agents/agents/readonly.md`를 찾는지는 확인하지 못했다.
+  복사본에 `.agents/hooks.json`이 없으면(대상 프로젝트가 Antigravity 훅을 커밋하지 않았으면) 막는 훅 겹이 빠진다.
+  검토 요청을 `-p "$(cat …)"`로 넘기므로 diff가 크면 명령 인자 길이 한도에 걸릴 수 있다.
+- 조사 담당의 한계. 조사 담당이 다른 모델을 직접 부르므로, 합칠 때 어느 모델이 썼는지 완전히 가리지 못한다. 결과를 A·B·C로만 부르는 것으로 대신한다.
+  제미나이 `research` 역할이 작업 폴더 밖 파일(`~/.gemini/config/plugins/…`)을 읽은 일이 있다(2026-10-12 메인 실험, 전역 설정 `allowNonWorkspaceAccess: true` 때문). 전역 설정은 건드리지 않는다.
+  Codex를 git이 아닌 폴더에서 부르면 "Not inside a trusted directory and --skip-git-repo-check was not specified"로 거절하므로 `--skip-git-repo-check`를 준다.
+  Codex 웹 검색은 기본이 cached라 `-c web_search='"live"'`를 준다.
+  Antigravity CLI의 `agy models` 목록에 다른 회사 모델이 보였다(실제로 돌려 보지는 않음). `agy` 1.3.3의 `agy models`가 Gemini와 함께 Claude Opus·Sonnet과 GPT-OSS 120B를 보였다(2026-10-12 직접 확인).
+  공식 문서(https://www.antigravity.google/docs/cli/headless/ , 2026-10-12 조회)는 `--model`로 고르는 법만 적고 예시에는 Gemini만 있어, 다른 회사 모델을 고를 수 있다는 말은 문서에서 확인하지 못했다.
+  합치기 규칙은 "동의 수는 따로 적는다"인데 보고 전문 목록(`templates/agents/researcher.md`의 `## 보고`)에는 동의 수가 없다(템플릿이라 이번엔 고치지 않음).
+  제미나이 조사용 역할 `research`는 웹 도구를 그대로 갖지만 조사 담당은 웹 조사에 제미나이를 쓰지 않는다(2026-10-12 메인 실험에서 제미나이 출처 5개 모두 실패).
+- Claude Code의 `NotebookEdit`는 막는 훅의 matcher(`Read|Edit|Write|MultiEdit|Bash`, `scripts/install.mjs`)에 없어 훅이 불리지 않는다. `guard.mjs`는 이 이름이 오면 거절하지만 지금은 오지 않는다.
+- 멈출 때 설명 훅의 한계. Claude Code만이고 `SubagentStop`은 걸지 않았다. 진행중 작업이 있는 동안은 메인의 답마다 설명이 한 번 더 붙는다(`harness/stop.mjs`는 진행중 작업이 있으면 매번 설명을 시킨다).
+- 고친 직후 알림 훅은 Claude Code·Codex·Antigravity에 있다. OpenClaw는 git 훅이 커밋 때 막는다.
+- Codex 훅은 프로젝트 `.codex/`를 신뢰해야 켜진다. Codex·Antigravity 훅과 git 훅은 git 저장소 맨 위에만 설치한다.
+- Codex에서 파일을 옮기면(`Move to`) 고친 직후 알림은 옮긴 파일 전체를 새 코드로 본다(커밋 검사는 정상). Antigravity의 알림 전달은 문서에 없고 CLI 1.2.17에서 확인한 동작이다.
+- OpenClaw는 작업 폴더(workspace)가 대상 프로젝트일 때만 그 프로젝트의 `AGENTS.md`와 `.agents/skills`를 읽는다.
+- Claude 훅은 파일을 고친 뒤에 알린다. 되돌리지는 않는다.
+- git 훅은 건너뛸 수 있고, `.git/hooks`는 저장소에 올라가지 않는다.
+- `.`으로 시작하는 폴더·파일은 `**`와 `*`에 맞지 않아서 `.github/**`처럼 `files`에 따로 적어야 한다. 안 적으면 조용히 빠진다.
+- 파일을 한도 없는 종류에서 있는 종류로 옮기기만 하면(`git mv`) 새 코드로 세지 않아 한도를 피한다.
+- `tests/self.test.mjs`는 종류에 없는 폴더에 새로 둔 코드를 보지 못한다. 검사기는 Node 22.20 이상에서 돈다.
+- 검사는 크기와 몇 가지 패턴만 본다. 설계 판단은 `lean-review`와 사람이 한다.
+- 여러 줄에 걸친 `catch`도 잡지만, 정규식 검사라 모든 형태를 잡지는 못한다.
+
+## 개발
+
+```sh
+npm test    # node --test tests/*.test.mjs (임시 git 저장소로 설치·검사를 확인한다)
+```
+
+Node 22.20 이상, 표준 라이브러리만 쓴다.
+
+## 라이선스
+
+MIT. [LICENSE](LICENSE)를 본다.

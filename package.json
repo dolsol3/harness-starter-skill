@@ -1,0 +1,12 @@
+{
+  "name": "harness-starter",
+  "version": "0.2.0",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.20"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  }
+}

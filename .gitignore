@@ -1,0 +1,45 @@
+# Local profiles/plans/probe results: never commit real user data
+/.local/
+/fixtures-local/
+*.profile.local.json
+*.plan.local.json
+
+# Credentials, local settings and private material
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+/secrets/
+/credentials/
+/CLAUDE.local.md
+
+# Runtime agent state/config at this repository root (not package templates)
+/.claude/
+/.codex/
+/.omx/
+/.omc/
+/.antigravity/
+
+# Logs, recordings and local scratch artifacts
+*.log
+/logs/
+/recordings/
+/tmp/
+/.cache/
+
+# Common generated outputs; no dependencies are installed in this bootstrap
+/node_modules/
+/dist/
+/build/
+/coverage/
+.venv/
+__pycache__/
+*.py[cod]
+
+# Editor/OS state
+.DS_Store
+.idea/
+.vscode/
+*.swp
