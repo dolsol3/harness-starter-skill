@@ -4,7 +4,7 @@ export const meta = {
   whenToUse: '진행중 작업을 구현 담당에게 맡기고 검사와 리뷰까지 한 번에 돌릴 때. args로 작업 번호 목록(예: ["T-30","T-31"])을 주면 그것만 돈다.',
   phases: [
     { title: '고르기', detail: 'args가 없으면 배정이 codex가 아닌 진행중 작업을 고른다' },
-    { title: '명세', detail: '기획 담당이 명세의 나머지를 쓴다(끝 기준이 있으면 건너뜀). 질문·실험 필요면 멈춘다' },
+    { title: '명세', detail: '기획 담당이 명세의 나머지를 쓴다(끝 기준이 있으면 건너뜀). 허락·실험 필요면 멈춘다' },
     { title: '대조', detail: '리뷰어가 명세를 맨 위 사용자 원래 말 절과 대조한다. 높음·중간이 있으면 멈춘다' },
     { title: '구현', detail: '작업마다 자기 워크트리의 ai/ 브랜치에서 구현하고 커밋한다. 반려된 작업은 그 브랜치에서 이어 고친다' },
     { title: '검사', detail: '새 agent가 확인 명령과 harness/check.mjs를 돌린다' },
@@ -23,13 +23,13 @@ const PICKED = {
   properties: { tasks: { type: 'array', items: { type: 'string' }, description: '작업 번호, 예: T-30' } },
   required: ['tasks'],
 };
-// 질문·실험 필요면 그 작업은 대조·구현으로 가지 않는다. 반려 칸은 어느 결과든 채운다(이어 고치기에 쓴다).
-const SPEC_STOPS = ['질문', '실험 필요'];
+// 허락·실험 필요면 그 작업은 대조·구현으로 가지 않는다. 반려 칸은 어느 결과든 채운다(이어 고치기에 쓴다).
+const SPEC_STOPS = ['허락', '실험 필요'];
 const SPEC = {
   type: 'object',
   properties: {
     outcome: { type: 'string', enum: ['썼음', '건너뜀', ...SPEC_STOPS] },
-    reason: { type: 'string', description: '질문·실험 필요로 멈춘 이유. 아니면 빈 문자열' },
+    reason: { type: 'string', description: '허락·실험 필요로 멈춘 이유. 아니면 빈 문자열' },
     rejectedCommit: { type: 'string', description: '보기의 마지막 반려 줄의 커밋. 반려가 없으면 빈 문자열' },
     rejectedReason: { type: 'string', description: '보기의 마지막 반려 줄의 사유. 반려가 없으면 빈 문자열' },
     pendingQuestions: { type: 'array', items: { type: 'string' }, description: '보기의 [대기] 질문 줄. 없으면 빈 목록' },
@@ -103,15 +103,16 @@ const pickPrompt = () => [
 const specPrompt = id => [
   `작업 ${id}의 명세를 맡는다. 먼저 \`node harness/backlog.mjs 보기 ${id}\`로 명세와 장부 칸을 읽는다. 출력이 잘리면(\`…줄 더 있다\` 안내가 보이면) 메인 폴더(\`git rev-parse --git-common-dir\`의 부모)의 \`docs/tasks/${id}.md\` 전체를 읽는다.`,
   '`보기` 출력에 `반려: <커밋> <사유>` 줄이 있으면 마지막 반려 줄의 커밋과 사유를 돌려준다. 없으면 둘 다 빈 문자열이다. 아래 어느 경우든 돌려준다.',
-  '`보기` 출력의 `질문: … [대기] …` 줄(답을 기다리는 질문)을 그대로 pendingQuestions로 돌려준다. 하나라도 있으면 끝 기준을 보기 전에 멈춘다: 명세를 쓰지 않고 새 질문도 하지 않고 질문으로 돌려준다.',
+  '`보기` 출력의 `질문: … [대기] …` 줄(답을 기다리는 질문)을 그대로 pendingQuestions로 돌려준다. 하나라도 있으면 끝 기준을 보기 전에 멈춘다: 명세를 쓰지 않고 새 질문도 하지 않고 허락으로 돌려준다.',
   '명세에 `## 끝 기준`이 이미 있으면 명세를 쓰지 않고 건너뜀으로 돌려준다.',
   `없으면 메인 폴더(\`git rev-parse --git-common-dir\`의 부모)의 \`docs/tasks/${id}.md\`에 나머지를 쓴다: 왜 하나 / 어디까지·하지 않을 것 / 이미 정한 것 / 참고할 파일 / 끝 기준.`,
   '맨 위 `## 사용자 원래 말` 절은 한 글자도 바꾸지 않는다. \'사용자가 정한 것\' 표시는 그 절에 있는 말에만 붙인다.',
   '명세는 커밋하지 않는다. 구현 담당은 `보기`로 메인 폴더의 문서를 읽는다.',
-  `사람이 정해야 할 일(진짜 데이터를 지우거나 바꾸는 일, 이미 남이 쓰는 약속을 바꾸는 일, 배포·발송·게시, 진짜 돈이 움직이는 일)이 나오면 \`node harness/backlog.mjs 질문 ${id} …\`으로 묻고 질문으로 돌려준다. 그 작업은 멈춘다.`,
-  `그 밖의 결정은 스스로 정하고 \`node harness/backlog.mjs 처리함 ${id} …\`에 무엇을 왜 정했는지 남긴다.`,
+  `허락 다섯(진짜 데이터를 지우거나 바꾸는 일, 이미 남이 쓰는 약속을 바꾸는 일, 배포·발송·게시, 진짜 돈이 움직이는 일, 지키는 장치를 끄거나 넓히는 일)이 나오면 \`node harness/backlog.mjs 허락 ${id} … --행동 삭제|약속변경|외부발행|결제|장치풀기\`로 묻고 허락으로 돌려준다. 그 작업은 멈춘다.`,
+  `확인 셋(문서끼리 말이 달라 어느 쪽을 따를지 골라야 할 때, 실제 데이터·개인정보를 지우거나 남기거나 드러내는 방식을 정할 때, 새 의존성을 들이거나 폴더 구조·아키텍처를 바꿀 때)이 나오면 하나를 골라(추천) 명세를 끝까지 쓰고 \`node harness/backlog.mjs 확인 ${id} … --까닭 문서충돌|실데이터|구조변경\`을 남긴다. 그 작업은 멈추지 않는다(썼음으로 돌려준다). 고른 것은 '이미 정한 것'에 기획 담당 결정으로 적는다.`,
+  `그 밖의 결정은 스스로 정하고 \`node harness/backlog.mjs 기록 ${id} …\`에 무엇을 왜 정했는지 남긴다.`,
   '임시 실험 코드가 있어야 명세를 쓸 수 있으면 쓰지 않고 실험 필요와 그 이유를 돌려준다. 물레방아 안에는 실험을 맡을 메인이 없다.',
-  '장부는 질문과 처리함 말고는 쓰지 않는다.',
+  '장부는 허락·확인·기록 말고는 쓰지 않는다.',
 ].join('\n');
 
 const specReviewPrompt = id => [
@@ -208,7 +209,7 @@ const stop = (task, reason) => ({ ...task, stopped: true, reason });
 const unlessStopped = stage => async task => (task.stopped ? task : stage(task));
 
 // 칸을 직접 읽어, 기획 담당이 null이면 여기서 던져 작업을 멈춘다.
-// 끝 기준까지 쓰고 질문으로 멈춘 작업을 답 없이 다시 돌리면 건너뜀이 나오므로, 대기 질문은 outcome과 따로 본다.
+// 끝 기준까지 쓰고 허락으로 멈춘 작업을 답 없이 다시 돌리면 건너뜀이 나오므로, 대기 질문은 outcome과 따로 본다.
 async function writeSpec(id) {
   const spec = await agent(specPrompt(id), { label: `기획 담당 ${id}`, phase: '명세', agentType: 'planner', schema: SPEC });
   const task = { id, spec };

@@ -152,17 +152,16 @@ test('medium and low findings are not fixed: the task is raised and the findings
   assert.deepEqual(result[0].others, findings);
 });
 
-test('no prompt writes the ledger beyond 올림, apart from the planner asking 질문 and logging 처리함, or uses git -C; every step after building runs each command as one cd && line', async () => {
+test('no prompt writes the ledger beyond 올림, apart from the planner asking 허락·확인 and logging 기록, or uses git -C; every step after building runs each command as one cd && line', async () => {
   const { calls, result } = await run({ checks: [{ passed: false, failures: 'x' }], reviews: [[high('h')]] });
   const resumedRun = await run({ args: ['T-1'], spec: { rejectedCommit: 'abc1234', rejectedReason: 'r' } });
   for (const { prompt, agentType, label } of [...calls, ...resumedRun.calls]) {
-    assert.doesNotMatch(prompt, ledgerCommand('추가|시작|완료|반려|답'), label);
-    if (agentType !== 'planner') assert.doesNotMatch(prompt, ledgerCommand('질문|처리함'), label);
+    assert.doesNotMatch(prompt, ledgerCommand('추가|시작|완료|반려|답|질문|처리함'), label);
+    if (agentType !== 'planner') assert.doesNotMatch(prompt, ledgerCommand('허락|확인|기록'), label);
     assert.doesNotMatch(prompt, /git -C/, label);
   }
   const planner = calls.find(call => call.agentType === 'planner');
-  assert.match(planner.prompt, ledgerCommand('질문'));
-  assert.match(planner.prompt, ledgerCommand('처리함'));
+  for (const name of ['허락', '확인', '기록']) assert.match(planner.prompt, ledgerCommand(name));
   assert.match('`node harness/backlog.mjs 완료`', ledgerCommand('완료'), 'a command closed by a backtick is still caught');
   const steps = calls.filter(call => ['검사', '교차 리뷰', '고치기', '올림'].includes(call.phase));
   assert.deepEqual(new Set(steps.map(call => call.label.split(' ')[0])), new Set(['검사', '리뷰어', '다른', '고치기', '올림']));
@@ -224,15 +223,17 @@ test('the planner (no isolation) and the reviewer check the spec before the impl
   assert.match(calls[1].prompt, /`## 사용자 원래 말` 절이 없으면 .*실패/);
 });
 
-test('the planner writes docs/tasks/T-N.md in the main folder, keeps the user words, does not commit, asks 질문 for the four human decisions and logs the rest in 처리함', async () => {
+test('the planner writes docs/tasks/T-N.md in the main folder, keeps the user words, does not commit, asks 허락 and stops for the five, leaves 확인 and goes on for the three, and logs the rest in 기록', async () => {
   const { calls } = await run({ args: ['T-3'] });
   const { prompt } = calls.find(call => call.phase === '명세');
   assert.match(prompt, /보기 T-3/);
   assert.match(prompt, /메인 폴더\(.*\)의 `docs\/tasks\/T-3\.md`에 나머지를 쓴다/);
   assert.match(prompt, /맨 위 `## 사용자 원래 말` 절은 한 글자도 바꾸지 않는다/);
   assert.match(prompt, /명세는 커밋하지 않는다/);
-  assert.match(prompt, /지우거나 바꾸는 일.*약속.*배포·발송·게시.*돈.*backlog\.mjs 질문 T-3/);
-  assert.match(prompt, /그 밖의 결정.*backlog\.mjs 처리함 T-3/);
+  assert.match(prompt, /지우거나 바꾸는 일.*약속.*배포·발송·게시.*돈.*지키는 장치.*backlog\.mjs 허락 T-3.*--행동 .*그 작업은 멈춘다/);
+  assert.match(prompt, /문서끼리 말이 달라.*개인정보.*새 의존성.*아키텍처.*backlog\.mjs 확인 T-3.*--까닭 문서충돌\|실데이터\|구조변경.*그 작업은 멈추지 않는다/);
+  assert.match(prompt, /그 밖의 결정.*backlog\.mjs 기록 T-3/);
+  assert.doesNotMatch(prompt, /다시 묻지/);
   assert.match(prompt, /`반려: <커밋> <사유>` 줄/);
 });
 
@@ -252,8 +253,8 @@ test('a spec review with a high or medium finding stops the task before the impl
   assert.deepEqual(result[0].specReview, low);
 });
 
-test('a spec step that stops for a question or an experiment runs no spec review or implementer and comes back with its reason, not null', async () => {
-  for (const outcome of ['질문', '실험 필요']) {
+test('a spec step that stops for 허락 or an experiment runs no spec review or implementer and comes back with its reason, not null', async () => {
+  for (const outcome of ['허락', '실험 필요']) {
     const { calls, result } = await run({ args: ['T-1'], spec: { outcome, reason: '배포를 묻는다' } });
     assert.deepEqual(calls.map(call => call.phase), ['명세']);
     assert.deepEqual(Object.keys(result[0]).sort(), ['id', 'reason', 'spec', 'stopped']);

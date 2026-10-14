@@ -15,7 +15,7 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
 | git 훅 | `.git/hooks/pre-commit`, `harness/` | 커밋 전에 검사해 막음 | 모두(git으로 커밋하면) |
 | 고친 직후 알림 | `.claude/settings.json`, `.codex/hooks.json`, `.agents/hooks.json`, `harness/` | 파일을 고친 직후 검사해 AI에게 알림 | Claude Code, Codex, Antigravity |
 | 간결함 리뷰 | `.agents/skills/lean-review/`, `.claude/skills/lean-review/` | 끝내기 전에 지울 것을 찾는 절차 | 모두 |
-| 작업 장부 | `harness/backlog.mjs`, `ledger.mjs`, `questions.mjs`, `page.mjs`, `patch.mjs`, `serve.mjs`, `.git/info/exclude`에 장부·잠금·질문 페이지 세 줄 | AI가 작업을 `할일→진행중→올림→완료`로 적고(`반려`는 올림을 진행중에 돌려보냄) 상태 규칙을 지킴. `준비`는 같이 시작해도 되는 작업을 고르고, `backlog.limits`를 적으면 도구 배정·동시 상한·다른 도구의 검토도 지킴. 사람만 정할 일은 `질문`으로 묻고 `서버`(사람이 켬)의 페이지에서 답함. 같은 파일을 수정 커밋으로 3번 이상 고친 곳은 페이지와 수정 작업 `시작`에서 알림 | 모두(명령을 부르면) |
+| 작업 장부 | `harness/backlog.mjs`, `ledger.mjs`, `questions.mjs`, `page.mjs`, `patch.mjs`, `serve.mjs`, `.git/info/exclude`에 장부·잠금·질문 페이지 세 줄 | AI가 작업을 `할일→진행중→올림→완료`로 적고(`반려`는 올림을 진행중에 돌려보냄) 상태 규칙을 지킴. `준비`는 같이 시작해도 되는 작업을 고르고, `backlog.limits`를 적으면 도구 배정·동시 상한·다른 도구의 검토도 지킴. 사람에게 넘길 일은 `허락`(답이 올 때까지 그 작업만 멈춤)·`확인`(진행하며 묻고 3일 뒤 확정)·`기록`(하루 요약)으로 나눠 적고 `서버`(사람이 켬)의 페이지에서 답함. 같은 파일을 수정 커밋으로 3번 이상 고친 곳은 페이지와 수정 작업 `시작`에서 알림 | 모두(명령을 부르면) |
 | 막는 훅 | `harness/guard.mjs`, `.claude/settings.json`·`.codex/hooks.json`·`.agents/hooks.json`의 `PreToolUse`, pre-commit 한 줄 | 장부 파일 직접 접근, 진행중 작업 없는 코드 편집, 검사 설정 수정, `--no-verify`를 거절 | 훅은 Claude Code·Codex·Antigravity, 커밋은 모두 |
 | 멈출 때 설명 훅 | `harness/stop.mjs`, `.claude/settings.json`의 `Stop` (작업 장부와 함께) | 진행중 작업이 있는데 멈추려 하면 한 번 이유를 설명하게 함(붙잡지 않음) | Claude Code |
 | 제미나이 읽기 전용 역할 | `.agents/agents/readonly.md`, `.agents/agents/research.md` (`antigravity-hook` 장치) | 쓰기 도구를 뺀 검토 역할(`agy --agent readonly`)과 웹 검색·주소 읽기 도구를 더한 조사용 역할(`agy --agent research`) | Antigravity |
@@ -131,7 +131,7 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
    - 도구가 훅을 실제로 부르는지는 에이전트를 다시 시작해 봐야 안다고 안내한다.
 9. **마무리.**
    - `[건너뜀]`이 있으면 사용자가 할 일을 알려 준다(예: husky의 pre-commit에 한 줄 더하기).
-   - 작업 장부를 설치했으면 사용자에게 역할을 한 번 알린다: 장부 명령(`추가`·`시작`·`올림`·`반려`·`완료`)은 AI가 쓰고 사람이 치지 않는다. 사람이 하는 일은 질문 페이지의 `답`과 그 서버(`서버`) 켜기뿐이다.
+   - 작업 장부를 설치했으면 사용자에게 역할을 한 번 알린다: 장부 명령(`추가`·`시작`·`올림`·`반려`·`완료`)은 AI가 쓰고 사람이 치지 않는다. 사람이 하는 일은 질문 페이지의 `답`과 그 서버(`서버`) 켜기뿐이다. 확인은 3일 안에 답하지 않으면 추천대로 확정된다.
    - Codex 훅은 프로젝트의 `.codex/` 폴더를 신뢰해야 켜진다. 처음 Codex를 열 때 신뢰하라고 알려 준다.
    - 설치한 파일을 커밋할지 묻는다. `.git/hooks`는 저장소에 올라가지 않으므로 팀원은 각자 설치한다.
 
@@ -169,9 +169,9 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
   큰 diff는 `-p` 인자 길이 한도에 걸릴 수 있다. 물레방아의 다른 도구 검토 지시문은 두 `cd` 지시가 겹쳐 읽힐 수 있다. 자세한 것은 README "한계".
 - Claude Code의 `NotebookEdit`는 막는 훅 matcher에 없어 훅이 불리지 않는다.
 - 멈출 때 설명 훅: Claude Code만이고 `SubagentStop`은 걸지 않았다. 진행중 작업이 있는 동안은 메인의 답마다 설명이 한 번 더 붙는다.
-- 질문 페이지: 주소에 토큰이 들어 있어 주소를 아는 사람은 서버를 끌 때까지 누구나 답할 수 있다. 네 가지 행동(삭제, 약속변경, 외부발행, 결제)을 질문 없이 하는 것과,
+- 질문 페이지: 주소에 토큰이 들어 있어 주소를 아는 사람은 서버를 끌 때까지 누구나 답할 수 있다. 허락 다섯(삭제, 약속변경, 외부발행, 결제, 장치풀기)을 묻지 않고 하거나 확인 셋(문서충돌, 실데이터, 구조변경)을 묻지 않고 정하는 것과,
   AI가 `답` 명령으로 자기 질문에 스스로 답하는 것은 막지 못한다(지침이다). 원격 접속, 다른 브라우저, Windows는 시험하지 못했다. 자세한 것은 README "한계".
-- 에이전트 정의: 리뷰어는 `Read`·`Grep`·`Glob`·`Bash`만 쓰도록 허용 목록으로 좁혔지만 `Bash`로 파일을 쓰는 것은 막지 못한다. 기획 담당이 `docs/tasks/`(물레방아 안에서는 장부 `질문`·`처리함`도) 밖을 고치지 않는 것은 지침이다.
+- 에이전트 정의: 리뷰어는 `Read`·`Grep`·`Glob`·`Bash`만 쓰도록 허용 목록으로 좁혔지만 `Bash`로 파일을 쓰는 것은 막지 못한다. 기획 담당이 `docs/tasks/`(물레방아 안에서는 장부 `허락`·`확인`·`기록`도) 밖을 고치지 않는 것은 지침이다.
   구현 담당은 `isolation: worktree`로 뜬다(원격이 없는 임시 저장소에서 뜨는 것을 확인했고, 워크트리가 원격의 기본 브랜치에서 갈라지는 것은 T-5 서브에이전트에서 봤다).
   Claude Code 형식만 만든다(공식 문서의 `.claude/agents/` 머리말 칸으로 확인했고, 역할이 셋이던 때 임시 프로젝트에서 `claude`가 세 정의를 읽는 것까지 봤다). 파일을 채우는 일은 AI가 하므로 같은 입력에도 글이 조금 다를 수 있다.
 - 조사 담당(자세한 것은 README "한계"):

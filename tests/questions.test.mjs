@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { repo, ok, refused } from './helpers.mjs';
+import { repo, ok, refused, rewrite } from './helpers.mjs';
 
 // 질문 명령의 인자. change로 칸을 바꾸고, 값이 null인 칸은 아예 적지 않는다.
 const ask = (task, title = '운영 DB의 옛 열을 지울까요', change = {}) => {
@@ -19,13 +19,13 @@ const ledgerOf = dir => JSON.parse(fs.readFileSync(path.join(dir, 'harness/backl
 test('질문 records a question for a task and shows it in the list and in the task view', t => {
   const dir = repo(t);
   ok(dir, '추가', '일');
-  assert.equal(ok(dir, ...ask('T-1')), '질문: Q-1 [대기] T-1 삭제 운영 DB의 옛 열을 지울까요  (추천: 둔다)');
+  assert.equal(ok(dir, ...ask('T-1')), '허락: Q-1 [대기] T-1 삭제 운영 DB의 옛 열을 지울까요  (추천: 둔다)');
   assert.match(ok(dir, '질문목록'), /^Q-1 \[대기\] T-1 삭제 .*\(추천: 둔다\)$/);
   assert.match(ok(dir, '보기', 'T-1'), /^질문: Q-1 \[대기\]/m);
   const [question] = ledgerOf(dir).질문;
   assert.deepEqual(question.보기, [{ 이름: '지운다', 결과: '열이 사라진다' }, { 이름: '둔다', 결과: '그대로 남는다' }]);
   assert.match(question.만든시각, /^\d{4}-\d\d-\d\dT/);
-  assert.match(ok(dir, ...ask('T-1', '또 하나')), /^질문: Q-2 /);
+  assert.match(ok(dir, ...ask('T-1', '또 하나')), /^허락: Q-2 /);
 });
 
 test('질문 refuses when something the page needs is missing or wrong, and leaves the ledger as it was', t => {
@@ -36,11 +36,50 @@ test('질문 refuses when something the page needs is missing or wrong, and leav
   }
   assert.match(refused(dir, ...ask('T-1', '')), /제목이 없다/);
   assert.match(refused(dir, ...ask('T-9')), /T-9: 그런 작업이 없다/);
-  assert.match(refused(dir, ...ask('T-1', '제목', { 행동: '정하기' })), /--행동은 삭제, 약속변경, 외부발행, 결제 중 하나다.*처리함/);
+  assert.match(refused(dir, ...ask('T-1', '제목', { 행동: '정하기' })), /--행동은 삭제, 약속변경, 외부발행, 결제, 장치풀기, 설계확인 중 하나다.*기록/);
   assert.match(refused(dir, ...ask('T-1', '제목', { 추천: '모름' })), /--추천 모름은\(는\) 보기에 없다\(지운다, 둔다\)/);
   for (const bad of ['지운다=사라진다', '지운다|둔다', '지운다=사라진다|둔다=', '지운다=사라진다|지운다=또', '=사라진다|둔다=남는다']) {
     assert.match(refused(dir, ...ask('T-1', '제목', { 보기: bad })), /--보기는 "이름=결과\|이름=결과"로 둘 이상/, bad);
   }
+});
+
+const DESIGN = { 행동: '설계확인', 까닭: '문서충돌' };
+
+test('설계확인 takes one of three reasons, shows it next to the action, and keeps it only on that question', t => {
+  const dir = repo(t);
+  ok(dir, '추가', '일');
+  assert.equal(ok(dir, ...ask('T-1', '어느 문서를 따를까요', DESIGN)), '확인: Q-1 [확인중] T-1 설계확인(문서충돌) 어느 문서를 따를까요  (추천: 둔다)');
+  assert.match(ok(dir, ...ask('T-1', '성명을 남길까요', { ...DESIGN, 까닭: '실데이터' })), /^확인: Q-2 \[확인중\] T-1 설계확인\(실데이터\) /);
+  assert.match(ok(dir, ...ask('T-1', '라이브러리를 들일까요', { ...DESIGN, 까닭: '구조변경' })), /^확인: Q-3 \[확인중\] T-1 설계확인\(구조변경\) /);
+  ok(dir, ...ask('T-1', '옛 열'));
+  assert.match(ok(dir, '보기', 'T-1'), /^질문: Q-1 \[확인중\] T-1 설계확인\(문서충돌\) /m);
+  assert.deepEqual(ledgerOf(dir).질문.map(item => item.까닭), ['문서충돌', '실데이터', '구조변경', undefined]);
+  assert.match(ok(dir, '질문목록'), /^Q-4 \[대기\] T-1 삭제 옛 열  \(추천: 둔다\)$/m);
+});
+
+test('설계확인 without a reason or with another one, and a reason on another action, are refused and use no number', t => {
+  const dir = repo(t);
+  ok(dir, '추가', '일');
+  assert.match(refused(dir, ...ask('T-1', '제목', { 행동: '설계확인' })), /확인 거절: --까닭이\(가\) 비어 있다/);
+  assert.match(refused(dir, ...ask('T-1', '제목', { ...DESIGN, 까닭: '기타' })), /--까닭은 문서충돌, 실데이터, 구조변경 중 하나로/);
+  assert.match(refused(dir, ...ask('T-1', '제목', { 까닭: '문서충돌' })), /--까닭은 --행동 설계확인일 때만 적는다/);
+  assert.equal(ok(dir, '질문목록', '--상태', '확인중'), '확인중 질문이 없다');
+  assert.match(ok(dir, ...ask('T-1', '제목', DESIGN)), /^확인: Q-1 /);
+  assert.match(refused(dir, '처리함', 'T-1', '제목', '--설명', '내용', '--이유', '이유', '--까닭', '문서충돌'), /--까닭은\(는\) 이 명령에서 쓰지 않는다/);
+});
+
+test('a waiting 설계확인 question left in an old ledger holds only its task until it is answered', t => {
+  const dir = repo(t);
+  ok(dir, '추가', '막힌 일', '--영역', 'src/a', '--확인방법', 'npm test');
+  ok(dir, '추가', '다른 일', '--영역', 'src/b', '--확인방법', 'npm test');
+  ok(dir, ...ask('T-1', '어느 문서를 따를까요', DESIGN));
+  rewrite(dir, book => { book.질문[0].상태 = '대기'; });
+  assert.match(refused(dir, '시작', 'T-1'), /답을 기다리는 질문 Q-1/);
+  assert.match(ok(dir, '다음'), /^T-2 /);
+  assert.match(ok(dir, '준비'), /같이 시작해도 되는 작업:\nT-2 /);
+  ok(dir, '시작', 'T-2');
+  ok(dir, '답', 'Q-1', '둔다');
+  ok(dir, '시작', 'T-1');
 });
 
 test('a task with a question waiting is left out of 다음 and 준비 and cannot be started, while other tasks go on', t => {
@@ -108,8 +147,10 @@ test('질문목록 shows the waiting ones by default and the answered ones with 
 test('처리함 keeps what the AI decided on its own, with the reason, and needs a task and both texts', t => {
   const dir = repo(t);
   ok(dir, '추가', '일');
-  assert.equal(ok(dir, '처리함', 'T-1', '날짜 라이브러리는 쓰지 않는다', '--설명', '표준 Date로 충분하다', '--이유', '의존을 늘리지 않으려고'), '처리함: T-1 날짜 라이브러리는 쓰지 않는다');
-  assert.deepEqual(ledgerOf(dir).처리함, [{ 작업: 'T-1', 제목: '날짜 라이브러리는 쓰지 않는다', 설명: '표준 Date로 충분하다', 이유: '의존을 늘리지 않으려고' }]);
+  assert.equal(ok(dir, '처리함', 'T-1', '날짜 라이브러리는 쓰지 않는다', '--설명', '표준 Date로 충분하다', '--이유', '의존을 늘리지 않으려고'), '기록: T-1 날짜 라이브러리는 쓰지 않는다');
+  const [{ 만든시각, ...item }] = ledgerOf(dir).처리함;
+  assert.match(만든시각, /^\d{4}-\d\d-\d\dT/);
+  assert.deepEqual(item, { 작업: 'T-1', 제목: '날짜 라이브러리는 쓰지 않는다', 설명: '표준 Date로 충분하다', 이유: '의존을 늘리지 않으려고' });
   assert.match(refused(dir, '처리함', 'T-1', '제목', '--설명', '내용'), /--이유이\(가\) 비어 있다/);
   assert.match(refused(dir, '처리함', 'T-1', '제목', '--이유', '까닭'), /--설명이\(가\) 비어 있다/);
   assert.match(refused(dir, '처리함', 'T-1', '', '--설명', '내용', '--이유', '까닭'), /제목이 없다/);

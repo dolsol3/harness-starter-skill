@@ -39,6 +39,14 @@ export function ok(dir, ...args) {
   return result.stdout.trim();
 }
 
+// 장부 파일을 명령 밖에서 바꾼다. 옛 장부나 시간이 지난 질문을 만들 때 쓴다.
+export function rewrite(dir, change) {
+  const file = path.join(dir, 'harness/backlog.json');
+  const book = JSON.parse(fs.readFileSync(file, 'utf8'));
+  change(book);
+  fs.writeFileSync(file, `${JSON.stringify(book, null, 2)}\n`);
+}
+
 // 거절돼야 하는 명령의 오류 글. 거절하면 장부 파일은 전과 똑같아야 한다.
 export function refused(dir, ...args) {
   const file = path.join(dir, 'harness/backlog.json');

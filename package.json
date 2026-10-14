@@ -1,6 +1,7 @@
 {
   "name": "harness-starter",
   "version": "0.2.0",
+  "private": true,
   "license": "MIT",
   "type": "module",
   "engines": {

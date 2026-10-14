@@ -11,12 +11,15 @@
 //   node harness/backlog.mjs 올림 T-1 --커밋 <해시> --증거 "…" [--검토 도구]   도구가 둘 이상이면 작성한 도구와 다른 도구의 검토가 필요하다
 //   node harness/backlog.mjs 반려 T-1 --사유 "…"        올림을 진행중으로 돌려보낸다. 올릴 때 적은 커밋·증거·검토는 반려 기록으로 남고, 다시 올릴 때 새로 적는다
 //   node harness/backlog.mjs 완료 T-1                  올린 커밋이 기본 브랜치에 병합됐는지 확인하고 끝낸다
-//   node harness/backlog.mjs 질문 T-1 "제목" --행동 삭제|약속변경|외부발행|결제 --설명 "…" --보기 "이름=결과|이름=결과" --추천 이름 --이유 "…"
-//                                                      사람만 정할 수 있는 일을 묻는다. 답을 기다리는 동안 그 작업은 시작·올림·완료를 하지 못한다
-//   node harness/backlog.mjs 질문목록 [--상태 대기|답함]   질문 보기(기본은 답을 기다리는 것)
+//   node harness/backlog.mjs 허락 T-1 "제목" --행동 삭제|약속변경|외부발행|결제|장치풀기 --설명 "…" --보기 "이름=결과|이름=결과" --추천 이름 --이유 "…"
+//                                                      허락받고 나서 할 일을 묻는다. 답을 기다리는 동안 그 작업만 시작·올림·완료를 하지 못한다
+//   node harness/backlog.mjs 확인 T-1 "제목" --까닭 문서충돌|실데이터|구조변경 --설명 "…" --보기 "…" --추천 이름 --이유 "…"
+//                                                      추천대로 진행하며 묻는다. 작업은 멈추지 않고, 3일 안에 답이 없으면 확정되며, 추천과 다른 답은 고칠것이 된다
+//   node harness/backlog.mjs 기록 T-1 "제목" --설명 "…" --이유 "…"   허락·확인에 들지 않아 AI가 정한 일을 적어 둔다
+//   node harness/backlog.mjs 질문목록 [--상태 대기|확인중|확정|고칠것|답함]   질문 보기(기본은 답을 기다리는 것)
 //   node harness/backlog.mjs 답 Q-1 이름|--직접 "글" [--만든시각 …]   사람의 답을 적는다. 만든 시각이 다르면(오래된 페이지의 답) 거절한다
 //   node harness/backlog.mjs 서버 [--포트 N]           질문 페이지를 열어 사람이 브라우저에서 답하게 한다. 사람이 켜고 Ctrl+C로 끈다. 이 컴퓨터에서만 열리고 주소에 토큰이 붙는다
-//   node harness/backlog.mjs 처리함 T-1 "제목" --설명 "…" --이유 "…"   위 넷에 들지 않아 AI가 정한 일을 사람이 볼 수 있게 남긴다
+//   옛 이름도 같은 뜻으로 받는다: 질문(--행동 설계확인이면 확인, 그 밖의 다섯이면 허락. 옵션은 허락과 확인을 합친 것), 처리함(기록)
 //
 // 명령마다 쓸 수 있는 옵션이 정해져 있고 그 밖의 옵션은 거절한다. 시작은 비어 있는 칸만 채운다.
 // 장부를 쓰는 명령은 잠금(harness/backlog.lock) 안에서 읽고 바꾸고 저장하고 질문 페이지(harness/questions.html)를 다시 쓴다. 읽기만 하는 명령은 잠금 없이 돈다.
@@ -48,7 +51,15 @@ const readyRow = ({ task, blocks }) =>
   [summary(task), `영역: ${task.영역.join(', ')}`, ...(blocks ? [`막는 작업 ${blocks}개`] : [])].join('  ');
 
 const questionLine = item =>
-  `${item.번호} [${item.상태}] ${item.작업} ${item.행동} ${item.제목}  ${item.상태 === '대기' ? `(추천: ${item.추천})` : `→ ${item.답}`}`;
+  `${item.번호} [${questions.shownState(item)}] ${item.작업} ${item.행동}${item.까닭 ? `(${item.까닭})` : ''} ${item.제목}  ${item.답 ? `→ ${item.답}` : `(추천: ${item.추천})`}`;
+
+// 옛 이름 질문으로 불러도 실제로 된 종류를 첫머리에 보인다.
+const asked = item => ({ rows: [`${item.행동 === '설계확인' ? '확인' : '허락'}: ${questionLine(item)}`] });
+
+const recorded = ({ ledger: book, args: [id, title], values }) => {
+  const item = questions.record(book, id, title, values);
+  return { rows: [`기록: ${item.작업} ${item.제목}`] };
+};
 
 function detail(root, book, task) {
   const rows = [summary(task)];
@@ -119,16 +130,22 @@ const commands = {
     options: [],
     run: ({ ledger: book, args: [id] }) => ({ rows: [`완료: ${summary(ledger.finish(book, id, baseBranch))}`] }),
   },
-  질문: {
+  허락: {
     writes: true,
     options: ['행동', '설명', '보기', '추천', '이유'],
-    run: ({ ledger: book, args: [id, title], values }) => ({ rows: [`질문: ${questionLine(questions.ask(book, id, title, values))}`] }),
+    run: ({ ledger: book, args: [id, title], values }) => asked(questions.permit(book, id, title, values)),
   },
+  확인: {
+    writes: true,
+    options: ['까닭', '설명', '보기', '추천', '이유'],
+    run: ({ ledger: book, args: [id, title], values }) => asked(questions.confirm(book, id, title, values)),
+  },
+  기록: { writes: true, options: ['설명', '이유'], run: recorded },
   질문목록: {
     options: ['상태'],
     run: ({ ledger: book, values }) => {
       const state = values.상태 || '대기';
-      const items = book.질문.filter(item => item.상태 === state);
+      const items = book.질문.filter(item => questions.shownState(item) === state);
       return { rows: items.length ? items.map(questionLine) : [`${state} 질문이 없다`] };
     },
   },
@@ -144,14 +161,12 @@ const commands = {
       return { rows: [] };
     },
   },
-  처리함: {
+  질문: {
     writes: true,
-    options: ['설명', '이유'],
-    run: ({ ledger: book, args: [id, title], values }) => {
-      const item = questions.handled(book, id, title, values);
-      return { rows: [`처리함: ${item.작업} ${item.제목}`] };
-    },
+    options: ['행동', '까닭', '설명', '보기', '추천', '이유'],
+    run: ({ ledger: book, args: [id, title], values }) => asked(questions.ask(book, id, title, values)),
   },
+  처리함: { writes: true, options: ['설명', '이유'], run: recorded },
 };
 const OPTIONS = Object.fromEntries(
   [...new Set(Object.values(commands).flatMap(command => command.options))].map(name => [name, { type: 'string' }]),
