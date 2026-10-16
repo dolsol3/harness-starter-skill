@@ -7,14 +7,18 @@
 // 원칙은 AGENTS.md에 넣는다(Codex·Antigravity가 읽는다). Claude Code는 CLAUDE.md의 @AGENTS.md로 불러온다.
 //
 // 사용자가 쓴 내용은 덮어쓰지 않는다. 이미 다른 내용이 있으면 건너뛰고 할 일을 알린다.
-// 예외는 --upgrade뿐이다. 옛 검사기, 옛 모양의 harness/config.json, 설치된 장부 명령 파일(backlog·ledger·questions·page·patch·serve·guard·stop), 제미나이 역할 파일(readonly·research)을 새것으로 바꾸고
+// 예외는 --upgrade뿐이다. 옛 검사기, 옛 모양의 harness/config.json, 설치된 장부 명령 파일(backlog·ledger·questions·page·patch·serve·guard·stop), 제미나이 역할 파일(readonly·research), 깐 버전(harness/VERSION)을 새것으로 바꾸고
 // 우리가 만든 pre-commit에 막는 훅 줄을 더한다. 사용자가 승인했고 미리보기에서 [고침]으로 먼저 보인다.
+// --apply면 대상 폴더를 명부(~/.harness-starter/projects.json)에 한 번 적는다. 업그레이드 명령이 이 명부로 프로젝트를 찾는다.
+// 대상이 git 워크트리면 메인 작업 폴더를 적는다. 워크트리는 작업이 끝나면 지워진다.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { addProject, registryFile } from './registry.mjs';
 
 const TEMPLATES = fileURLToPath(new URL('../templates/', import.meta.url));
+const { version: VERSION } = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const PARTS = ['instructions', 'claude-hook', 'codex-hook', 'antigravity-hook', 'git-hook', 'lean-review', 'backlog'];
 const BEGIN = '<!-- harness-starter:begin -->';
 const END = '<!-- harness-starter:end -->';
@@ -22,7 +26,7 @@ const CHECK = 'harness/check.mjs';
 const GUARD = 'harness/guard.mjs';
 const STOP = 'harness/stop.mjs';
 const LEDGER = 'harness/backlog.json';
-const UNTRACKED = [LEDGER, `${LEDGER}.tmp`, 'harness/backlog.lock', 'harness/questions.html'];
+const UNTRACKED = [LEDGER, `${LEDGER}.tmp`, 'harness/backlog.lock', 'harness/questions.html', 'harness/serve.json', 'harness/serve.json.tmp', 'harness/serve.log'];
 const CLAUDE_COMMAND = `node "$CLAUDE_PROJECT_DIR/${CHECK}" --hook`;
 const ROOT_COMMAND = `node "$(git rev-parse --show-toplevel)/${CHECK}" --hook`;
 const GUARD_ROOT_COMMAND = `node "$(git rev-parse --show-toplevel)/${GUARD}" --hook`;
@@ -80,6 +84,14 @@ function git(cwd, args) {
   }
 }
 
+// 연결된 워크트리는 git-dir과 공통 git 폴더가 다르고, 공통 git 폴더의 부모가 메인 작업 폴더다.
+function projectFolder(target) {
+  const dirs = git(target, ['rev-parse', '--path-format=absolute', '--git-dir', '--git-common-dir']);
+  if (dirs === null) return target;
+  const [gitDir, commonDir] = dirs.split('\n');
+  return gitDir === commonDir ? target : path.dirname(commonDir);
+}
+
 // 바꿀 일 하나: { rel: 대상 안 경로, action, content(쓸 내용), mode, note(알릴 말) }
 function decide(rel, now, content) {
   if (now === null) return { rel, action: 'create', content };
@@ -88,7 +100,11 @@ function decide(rel, now, content) {
 }
 
 function planCopy(target, rel, name, overwrite = false) {
-  const content = template(name);
+  return planKeep(target, rel, template(name), overwrite);
+}
+
+// 이미 다른 내용이 있으면 overwrite일 때만 바꾸고, 아니면 건너뛴다.
+function planKeep(target, rel, content, overwrite) {
   const now = read(path.join(target, rel));
   if (now !== null && now !== content && !overwrite) {
     return { rel, action: 'skip', note: '이미 다른 내용이 있어 그대로 둔다. 필요하면 직접 비교한다' };
@@ -194,7 +210,7 @@ function planGitHook(target, upgrade) {
   return { ...decide(rel, now, now ?? GIT_HOOK), mode: 0o755 };
 }
 
-// 작업 장부: 명령 파일(backlog, ledger, questions, page, patch, serve, 멈출 때 설명 훅 stop, 막는 훅 guard)을 복사하고, 장부 파일(장부, 잠금, 질문 페이지)은 git에 올리지 않게 .git/info/exclude에 더한다
+// 작업 장부: 명령 파일(backlog, ledger, questions, page, patch, serve, 멈출 때 설명 훅 stop, 막는 훅 guard)을 복사하고, 장부 파일(장부, 잠금, 질문 페이지)과 서버 상태·로그(토큰이 든 serve.json, serve.log)는 git에 올리지 않게 .git/info/exclude에 더한다
 // (워크트리마다 사본이 생겨 상태가 갈라지고, git add -A가 작업 브랜치에 실어 가기 때문이다). 장부는 저장소 맨 위의 harness/에 있어야 한다.
 function planBacklog(target, upgrade) {
   const issue = rootIssue(target);
@@ -243,6 +259,8 @@ function plan(target, without, upgrade) {
     }
   }
   if (wants('backlog')) items.push(...planBacklog(target, upgrade));
+  // 깐 버전: 업그레이드 명령이 프로젝트마다 보여 준다. 장치 선택과 상관없이 늘 적는다.
+  items.push(planKeep(target, 'harness/VERSION', `${VERSION}\n`, upgrade));
   return items;
 }
 
@@ -266,5 +284,10 @@ for (const item of plan(target, without, args.includes('--upgrade'))) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, item.content);
   if (item.mode) fs.chmodSync(file, item.mode);
+}
+if (!apply) console.log(`[명부] ${registryFile()} — --apply면 이 폴더를 적는다`);
+else {
+  const folder = fs.realpathSync(projectFolder(target));
+  console.log(`[명부] ${registryFile()} — ${folder}${addProject(folder) ? '를 적었다' : '는 이미 적혀 있다'}`);
 }
 console.log(apply ? '설치했습니다.' : '미리보기입니다. 쓰려면 --apply를 붙입니다.');

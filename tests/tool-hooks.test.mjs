@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,6 +8,10 @@ import { fileURLToPath } from 'node:url';
 import { repo, ok } from './helpers.mjs';
 
 const installer = fileURLToPath(new URL('../scripts/install.mjs', import.meta.url));
+// 설치기가 HOME 아래 명부(~/.harness-starter)에 적으므로 진짜 HOME을 건드리지 않게 임시 HOME을 준다.
+const home = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-home-'));
+after(() => fs.rmSync(home, { recursive: true, force: true }));
+const env = { ...process.env, HOME: home, USERPROFILE: home };
 const KINDS = { code: { files: ['src/**'], maxFileLines: 300 }, docs: { files: ['**/*.md'] } };
 
 // 코드(src)와 문서(md) 두 종류를 둔 임시 저장소. 입력은 각 도구가 훅에 실제로 넘긴 모양이다(2026-10-10 기록).
@@ -107,7 +111,7 @@ test('Antigravity: toolCall is read, from the .agents folder the hook process ru
 
 // 설치기: 장부를 설치하면 Codex와 Antigravity에도 쓰기 전 훅이 들어간다.
 function install(dir, ...args) {
-  const result = spawnSync(process.execPath, [installer, dir, ...args], { encoding: 'utf8' });
+  const result = spawnSync(process.execPath, [installer, dir, ...args], { encoding: 'utf8', env });
   assert.equal(result.status, 0, result.stderr);
   return result.stdout;
 }

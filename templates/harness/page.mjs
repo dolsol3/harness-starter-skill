@@ -60,7 +60,7 @@ for (const card of document.querySelectorAll('[data-q]')) {
         card.querySelectorAll('input, textarea').forEach(item => { item.disabled = true; });
       }
     } catch {
-      note.textContent = '서버에 닿지 않았습니다. node harness/backlog.mjs 서버로 연 주소에서 답해 주세요.';
+      note.textContent = '서버에 닿지 않았습니다. 켜 둔 질문 페이지 링크(AI가 알려 준 링크나 즐겨찾기)에서 답해 주세요. 페이지가 꺼져 있으면 AI에게 다시 켜 달라고 해 주세요.';
       send.disabled = false;
     }
   });

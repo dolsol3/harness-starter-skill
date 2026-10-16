@@ -1,6 +1,6 @@
 ---
 name: harness-starter
-description: 새 프로젝트나 기존 프로젝트에 "간결함 하네스"를 씌운다. AI가 코드를 비대하게 만들거나 예외에 예외를 덧대지 못하게 AGENTS.md 원칙, git pre-commit 훅, 고친 직후 알림 훅(Claude Code·Codex·Antigravity), 간결함 리뷰 스킬을 설치한다. Claude Code·Codex·Antigravity·OpenClaw에서 쓴다. "하네스 씌워줘", "harness-starter", "코드가 비대해지는 것 막아줘"라고 할 때 쓴다.
+description: 새 프로젝트나 기존 프로젝트에 "간결함 하네스"를 씌운다. AI가 코드를 비대하게 만들거나 예외에 예외를 덧대지 못하게 AGENTS.md 원칙, git pre-commit 훅, 고친 직후 알림 훅(Claude Code·Codex·Antigravity), 간결함 리뷰 스킬을 설치한다. Claude Code·Codex·Antigravity·OpenClaw에서 쓴다. "하네스 씌워줘", "harness-starter", "코드가 비대해지는 것 막아줘"라고 할 때 쓴다. 스킬과 깐 프로젝트를 새 버전으로 올릴 때("harness-starter 업그레이드 해 줘")도 쓴다.
 ---
 
 # harness-starter
@@ -12,11 +12,11 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
 | 장치 | 설치되는 파일 | 하는 일 | 적용되는 도구 |
 |---|---|---|---|
 | 간결함 원칙 | `AGENTS.md`의 표시 구역, `CLAUDE.md`(`@AGENTS.md`) | AI가 매번 읽는 짧은 원칙(요청) | 모두 |
-| git 훅 | `.git/hooks/pre-commit`, `harness/` | 커밋 전에 검사해 막음 | 모두(git으로 커밋하면) |
-| 고친 직후 알림 | `.claude/settings.json`, `.codex/hooks.json`, `.agents/hooks.json`, `harness/` | 파일을 고친 직후 검사해 AI에게 알림 | Claude Code, Codex, Antigravity |
+| git 훅 | `.git/hooks/pre-commit`, `harness/` | 커밋 전에 검사해 막음. 4단계에서 고르면 전체 린트·타입 검사 줄도(선택) | 모두(git으로 커밋하면) |
+| 고친 직후 알림 | `.claude/settings.json`, `.codex/hooks.json`, `.agents/hooks.json`, `harness/` | 파일을 고친 직후 검사해 AI에게 알림. 종류에 `afterEdit`을 적으면 그 파일에 린트·포맷 명령도 돌림 | Claude Code, Codex, Antigravity |
 | 간결함 리뷰 | `.agents/skills/lean-review/`, `.claude/skills/lean-review/` | 끝내기 전에 지울 것을 찾는 절차 | 모두 |
-| 작업 장부 | `harness/backlog.mjs`, `ledger.mjs`, `questions.mjs`, `page.mjs`, `patch.mjs`, `serve.mjs`, `.git/info/exclude`에 장부·잠금·질문 페이지 세 줄 | AI가 작업을 `할일→진행중→올림→완료`로 적고(`반려`는 올림을 진행중에 돌려보냄) 상태 규칙을 지킴. `준비`는 같이 시작해도 되는 작업을 고르고, `backlog.limits`를 적으면 도구 배정·동시 상한·다른 도구의 검토도 지킴. 사람에게 넘길 일은 `허락`(답이 올 때까지 그 작업만 멈춤)·`확인`(진행하며 묻고 3일 뒤 확정)·`기록`(하루 요약)으로 나눠 적고 `서버`(사람이 켬)의 페이지에서 답함. 같은 파일을 수정 커밋으로 3번 이상 고친 곳은 페이지와 수정 작업 `시작`에서 알림 | 모두(명령을 부르면) |
-| 막는 훅 | `harness/guard.mjs`, `.claude/settings.json`·`.codex/hooks.json`·`.agents/hooks.json`의 `PreToolUse`, pre-commit 한 줄 | 장부 파일 직접 접근, 진행중 작업 없는 코드 편집, 검사 설정 수정, `--no-verify`를 거절 | 훅은 Claude Code·Codex·Antigravity, 커밋은 모두 |
+| 작업 장부 | `harness/backlog.mjs`, `ledger.mjs`, `questions.mjs`, `page.mjs`, `patch.mjs`, `serve.mjs`, `.git/info/exclude`에 장부·잠금·질문 페이지·질문 페이지 서버 상태(`serve.json`, 토큰이 든다)·로그(`serve.log`) | AI가 작업을 `할일→진행중→올림→완료`로 적고(`반려`는 올림을 진행중에 돌려보냄) 상태 규칙을 지킴. `준비`는 같이 시작해도 되는 작업을 고르고, `backlog.limits`를 적으면 도구 배정·동시 상한·다른 도구의 검토도 지킴. 사람에게 넘길 일은 `허락`(답이 올 때까지 그 작업만 멈춤)·`확인`(진행하며 묻고 3일 뒤 확정)·`기록`(하루 요약)으로 나눠 적고 사람은 AI가 켜 둔(`켜두기`) 질문 페이지에서 답함. 같은 파일을 수정 커밋으로 3번 이상 고친 곳은 페이지와 수정 작업 `시작`에서 알림 | 모두(명령을 부르면) |
+| 막는 훅 | `harness/guard.mjs`, `.claude/settings.json`·`.codex/hooks.json`·`.agents/hooks.json`의 `PreToolUse`, pre-commit 한 줄 | 장부 파일 직접 접근, 진행중 작업 없는 코드 편집, 검사 설정 수정, `--no-verify`를 거절. 진행중 작업이 있어도 지키는 파일(`.env`·잠금 파일·`.git` 아래) 편집을 거절(읽기는 됨) | 훅은 Claude Code·Codex·Antigravity, 커밋은 모두 |
 | 멈출 때 설명 훅 | `harness/stop.mjs`, `.claude/settings.json`의 `Stop` (작업 장부와 함께) | 진행중 작업이 있는데 멈추려 하면 한 번 이유를 설명하게 함(붙잡지 않음) | Claude Code |
 | 제미나이 읽기 전용 역할 | `.agents/agents/readonly.md`, `.agents/agents/research.md` (`antigravity-hook` 장치) | 쓰기 도구를 뺀 검토 역할(`agy --agent readonly`)과 웹 검색·주소 읽기 도구를 더한 조사용 역할(`agy --agent research`) | Antigravity |
 | 에이전트 정의 | `.claude/agents/planner.md`, `implementer.md`, `researcher.md`, `reviewer.md` (7단계에서 사용자가 승인할 때만) | 기획 담당(작업 쪼개기와 명세), 구현 담당, 조사 담당(질문 종류대로 나눠 조사하고 주장마다 출처로 판정), 리뷰어(읽기 전용)를 이 프로젝트에 맞게 구성. 맥락을 공유하지 않는 기준으로 나눔 | Claude Code |
@@ -24,6 +24,7 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
 | 경로별 규칙 | `.claude/rules/<이름>.md`, `AGENTS.md`의 `## 이 프로젝트 규칙` 한 줄 (6단계에서 사용자가 승인할 때만) | 판단이 필요한 규칙을 그 경로의 파일을 다룰 때만 읽게 함(요청) | Claude Code는 자동, Codex·Antigravity는 `AGENTS.md` 한 줄을 읽고 따름 |
 
 검사기(`harness/check.mjs`)는 **새로 더한 줄만** 본다. 이미 있던 코드는 탓하지 않는다.
+다만 고친 직후 명령(`afterEdit`, 프로젝트의 린터·포맷터)은 고친 파일 전체를 본다. 옛 위반도 알린다.
 
 - 파일 종류의 한도를 넘는 긴 줄
 - 빈 `catch`, `except: pass`처럼 예외를 삼키는 코드, `@ts-ignore`·`eslint-disable`·`noqa`처럼 경고를 끄는 주석
@@ -37,6 +38,7 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
 ```json
 "kinds": {
   "code": { "files": ["src/**"], "maxFileLines": 400, "maxLineLength": 120, "patterns": true,
+            "afterEdit": ["npx", "--no", "--", "eslint", "{file}"],
             "basis": "출처 URL, 조회일 (공식 문서에 권장이 없으면 '권장 없음, 사용자 선택')" },
   "docs": { "files": ["**/*.md"], "basis": "한도 없음, 사용자 선택" }
 }
@@ -44,15 +46,25 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
 
 `files`는 저장소 맨 위 기준 경로 패턴이고, 처음 맞는 종류가 적용된다. `maxFileLines`·`maxLineLength`를 빼면(`null`이 아니라 키를 뺀다) 그 한도는 없다.
 `.`으로 시작하는 폴더·파일(`.github`, `.claude`)은 `**`에 맞지 않는다. `.github/**`처럼 따로 적는다.
+`afterEdit`(선택)은 AI 도구가 그 종류의 파일을 고친 직후(`check.mjs --hook`) 돌리는 명령이다. 문자열 배열로 적고 셸을 거치지 않는다(`&&`·`|`·`$` 같은 셸 문법은 안 된다).
+`{file}`은 저장소 맨 위 기준 경로가 되고 명령은 저장소 맨 위에서 돈다. 실패하면 종료 코드 2로 명령과 출력 앞 40줄을 AI에게 알린다.
+시간 제한은 `afterEditSeconds`(기본 30초)이고 넘으면 끊는다. 커밋 때(`--staged`)와 파일을 지정한 검사에서는 돌지 않고, `ignore`에 든 파일에도 돌지 않는다.
+`protect`(선택, `kinds` 밖 맨 위 칸)는 막는 훅이 지키는 파일의 글롭 목록이다. 없으면 기본(`.env`, `.env.*`, 잠금 파일 13종, `.git`)을 쓰고, 적으면 기본 목록을 바꾼다(더하지 않는다).
+글롭은 경로의 이어진 부분 경로마다 맞춰 본다. `"secret.txt"`는 `a/secret.txt`도, `.git`은 그 아래 전부도 막는다. `.env.example`도 기본으로 막힌다(`.env.*`에 맞는다).
 위의 숫자는 모양을 보이는 예시일 뿐이다. 실제 값은 4단계에서 조회한 것과 사용자가 고른 것으로 적는다.
 
 ## 순서
 
+0. **새 버전 알림.** 스킬을 부를 때마다 먼저 `node <이 스킬 폴더>/scripts/version-notice.mjs`를 돌린다(하루 한 번만 공개본의 버전 번호를 읽고, 코드는 받지 않는다).
+   표준 출력에 새 버전 줄이 있으면 그 줄을 사용자에게 그대로 알린다. `새 버전 확인 못 함`이면 알리지 않고 이어 간다.
+   종료 코드가 0이 아니면(명부가 깨진 경우) 출력을 사용자에게 보이고, 하던 일은 멈추지 않는다. 사람 없이 도는 작업에서도 이 단계는 돌린다(명부의 마지막 확인 날짜 한 칸만 적는다).
 1. **대상 확인.** 프로젝트 맨 위 폴더를 대상으로 한다(git 저장소면 저장소 맨 위).
    커밋하지 않은 변경이 있으면 알린다. 방금 `git init` 한 기존 코드는 사용자에게 묻고, 하네스를 설치하기 전에 먼저 커밋한다
    (모든 줄이 새 줄이라 설치 뒤 첫 커밋이 크기 한도에 걸린다).
 2. **살피기(읽기만).**
    - 언어와 테스트·린트 명령: `package.json`, `pyproject.toml`, `Makefile` 등
+   - 린트·포맷·타입 검사 명령: `package.json`의 `scripts`, 린터·포맷터 설정 파일(`eslint.config.*`, `.prettierrc*`, `ruff.toml` 등), `tsconfig.json`,
+     `pyproject.toml`의 `[tool.ruff]`·`[tool.mypy]`. 그 도구가 프로젝트에 설치돼 있는지(`node_modules/.bin`, `.venv/bin`)도 본다.
    - 이미 있는 것: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.claude/settings.json`, `.agents/`,
      git 훅(husky, pre-commit 프레임워크)
    - `harness/config.json`에 `kinds`가 없으면 옛 설치다. 옛 한도 값을 사용자에게 보여 두고 5단계에서 `--upgrade`를 쓴다.
@@ -70,9 +82,14 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
    - 종류마다 한도를 고르게 한다. "한도 없음"도 된다.
    - 그 밖에 묻는다: 설치할 장치(기본은 전부. 쓰지 않는 도구의 훅 `claude-hook`·`codex-hook`·`antigravity-hook`은 빼도 된다),
      작업 장부 `backlog`는 쓰지 않을 프로젝트면 뺀다, 작업을 여러 도구(Claude·Codex·Antigravity)에 나눠 줄지(쓸 도구, 도구마다 동시에 맡길 수, 기본 도구. 안 나누면 건너뛴다),
-     기존 테스트·린트를 pre-commit에 넣을지(커밋이 느려질 수 있다),
+     2단계에서 린트·포맷·타입 검사 명령을 찾았으면 고친 직후 명령과 커밋 때 전체 검사(아래, 못 찾았으면 묻지 않는다),
      이 프로젝트에서 특히 막고 싶은 것(예: 특정 폴더를 직접 부르기. 없으면 건너뛴다),
      2단계에서 폴더가 나뉘어 있었을 때만 경로별 규칙 파일을 만들지(그 경로에서 지킬 것. 나뉘지 않았으면 묻지 않는다). 한 번에 세 가지까지만 묻는다.
+   - 고친 직후 명령(`afterEdit`): 종류마다 고친 파일 하나에 돌릴 린트·포맷 확인 명령을 묻는다. 내려받지 않는 모양을 권한다
+     (노드는 `npm exec --no -- eslint {file}`·`npx --no -- prettier --check {file}`, 그 밖은 프로젝트에 설치된 실행 파일을 직접). 예시는 모양일 뿐이고 실제 명령은 2단계에서 찾은 것으로 적는다.
+     정하기 전에 그 종류의 파일 몇 개에 한 번 돌려 결과를 보인다. 이 명령은 새 줄만이 아니라 파일 전체를 보므로 옛 파일을 고칠 때마다 옛 위반도 알린다. 옛 위반이 많으면 켤지 묻는다.
+   - 커밋 때 전체 검사(추천): 프로젝트 전체 린트·타입 검사 명령(예: `npm run lint`, `npm exec --no -- tsc --noEmit`)을 pre-commit에 한 줄 더할지 묻는다.
+     먼저 한 번 돌려 결과를 보인다. 지금 실패하면 고칠 때까지 모든 커밋이 막히므로 켤지 묻는다. 커밋이 느려질 수 있다고도 알린다.
    - 작업 장부를 설치하면 `git log --format=%s -n 20`으로 최근 커밋 제목을 보여 주고, 수정 커밋이 `fix`나 🐛로 시작하는지 확인한다(덧대기 신호가 수정 커밋을 알아보는 기준이다).
      아니면 그 프로젝트의 제목 규칙에 맞는 정규식을 정한다. 기본값이 맞으면 건너뛴다.
 5. **미리보기.** 이 스킬 폴더의 설치 스크립트를 돌리고 출력을 그대로 보여 준다.
@@ -81,15 +98,18 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
    # 장치: instructions, claude-hook, codex-hook, antigravity-hook, git-hook, lean-review, backlog
    ```
    옛 설치면 `--upgrade`를 붙인다. 옛 검사기와 설치된 장부 명령 파일(`backlog`·`ledger`·`questions`·`page`·`patch`·`serve`·`guard`·`stop`), 제미나이 역할 파일(`.agents/agents/readonly.md`·`research.md`)을 새것으로 바꾸고,
-   옛 `config.json`에서 옛 한도만 빼며, 검사기 줄이 든 pre-commit에 막는 훅 줄을 더한다. 사용자가 더한 규칙은 옮겨 적는다.
+   옛 `config.json`에서 옛 한도만 빼며, 검사기 줄이 든 pre-commit에 막는 훅 줄을 더하고, 깐 버전 `harness/VERSION`을 바꾼다. 사용자가 더한 규칙은 옮겨 적는다.
    업그레이드하면 커밋 파일 수 상한 15가 설정 없이도 켜진다고 사용자에게 알린다(줄 수 상한은 설정에 없으면 꺼진 그대로다).
+   작업 장부를 깐 설치면, 업그레이드하면 막는 훅이 설정 없이도 `.env`·`.env.*`(`.env.example` 포함)·잠금 파일·`.git` 아래 편집을 거절한다고도 알린다(읽기는 된다).
+   목록을 바꾸려면 사람이 `harness/config.json`에 `protect`를 적는다(6단계).
    미리보기는 라벨만 내므로 `[고침]`으로 나온 `harness/*.mjs`마다 `diff -u <대상>/<경로> <이 스킬 폴더>/templates/<경로>`로
    차이를 보여 주고 승인을 받는다(손으로 고친 파일은 사라지고 되돌릴 백업은 없으니 대상에서 먼저 커밋해 두게 권한다). 다른 도구가 만든 pre-commit에는 줄을 더해 주지 않으므로 안내대로 직접 더한다.
    `[고침]`으로 나온 제미나이 역할 파일은 경로가 달라 `diff -u <대상>/.agents/agents/<이름>.md <이 스킬 폴더>/templates/antigravity/<이름>.md`로 보여 준다.
    검사기가 도는 Node는 22.20 이상이어야 한다.
-6. **설치와 기록.** 사용자가 승인하면 같은 명령에 `--apply`를 붙인다. 그다음 `harness/config.json`의 `kinds`를
+6. **설치와 기록.** 사용자가 승인하면 같은 명령에 `--apply`를 붙인다. `--apply`는 깐 버전을 `harness/VERSION`에 적고, 이 프로젝트를 명부(`~/.harness-starter/projects.json`)에 적는다(`[명부]` 줄, 업그레이드가 이 명부로 프로젝트를 찾는다). 그다음 `harness/config.json`의 `kinds`를
    4단계에서 정한 종류, 한도, `basis`(출처·조회일 또는 "사용자 선택")로 채운다.
    막는 훅은 `kinds`가 차면 AI의 `config.json` 수정을 거절한다. 그러니 아래 프로젝트 규칙의 `patterns`도 먼저 승인받아 `kinds`와 한 번에 적는다.
+   같은 까닭으로 4단계에서 정한 고친 직후 명령(종류의 `afterEdit`, 시간 제한을 바꾸면 `afterEditSeconds`)과, 지키는 파일 목록을 바꾸기로 했으면 `protect`도 `kinds`와 한 번에 적는다.
    기본 브랜치가 `main`이 아니면 `backlog.baseBranch`(예: `"backlog": { "baseBranch": "master" }`)도 같이 적는다. 안 적으면 `완료`가 거절된다.
    덧대기 신호의 제목 규칙을 바꿨다면 `patch.fixPattern`(예: `"patch": { "fixPattern": "^(버그|fix\\b)" }`)도 같이 적는다. JSON이라 `\\b`처럼 역슬래시를 두 번 쓴다.
    몇 번부터 알릴지(`times`, 기본 3)와 볼 커밋 수(`lastCommits`, 기본 50)는 사용자가 바꾸자고 할 때만 적는다.
@@ -97,8 +117,17 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
    숫자는 모양을 보이는 예시일 뿐이고 사용자가 고른 값을 적는다. 도구를 하나만 적으면 다른 도구의 검토 규칙은 꺼진다.
    `config.json`을 적은 직후 `node harness/backlog.mjs 목록`이 오류 없이 도는지 본다. `patch.fixPattern`이 올바른 정규식이 아니면 장부 명령 전부가 실행 전에 `config.json의 patch.fixPattern이 올바른 정규식이 아니다`라고 알리며 멈추고,
    `kinds`가 차면 AI는 `config.json`을 고칠 수 없다.
-   `kinds`가 이미 찬 설치에 작업 장부를 나중에 더하는 경우에는 막는 훅이 AI의 `config.json` 수정을 거절하므로 `limits`·`defaultTool`·`baseBranch`·`patch`는 사람이 직접 적게 안내한다.
-   - 테스트·린트를 넣기로 했으면 pre-commit의 검사 줄 아래에 그 명령을 `|| exit 1`과 함께 한 줄 더한다.
+   `kinds`가 이미 찬 설치(업그레이드, 작업 장부를 나중에 더하는 경우)에서는 막는 훅이 AI의 `config.json` 수정을 거절하므로 `limits`·`defaultTool`·`baseBranch`·`patch`·`afterEdit`·`afterEditSeconds`·`protect`는 사람이 직접 적게 안내한다.
+   - 커밋 때 전체 검사를 켜기로 했으면 그 명령을 `|| exit 1`과 함께 pre-commit 끝에 셸 명령으로 한 줄 더한다.
+     명령 안의 따옴표가 그대로 남게 따옴표 친 here-document로 넘긴다:
+     ```sh
+     cat >> <pre-commit> <<'EOF'
+     <명령> || exit 1
+     EOF
+     ```
+     넣을 자리를 글자 검색으로 고르지 않는다. 셸 문맥(이어지는 줄, 조건문, here-document)을 보지 못해 줄이 다른 명령에 묻힐 수 있다. 끝에 더한 줄이 실제로 도는지는 8단계에서 본다.
+     `<pre-commit>`은 설치기가 만든 `.git/hooks/pre-commit`이다. 설치기가 git 훅을 `[건너뜀]`으로 알렸으면(`core.hooksPath`의 폴더, husky의 `.husky/pre-commit` 같은 다른 도구의 파일) 검사기 줄을 더한 그 파일이다.
+     편집 도구로는 고치지 않는다. 막는 훅이 `.git` 아래 편집을 거절한다(8단계에서 샘플 파일을 셸 명령으로 만드는 것과 같은 까닭).
    - 프로젝트 규칙을 말했으면, 적을 내용을 먼저 보여 주고 승인을 받은 뒤 두 곳에 넣는다.
      - `AGENTS.md` 표시 구역 **밖**에 `## 이 프로젝트 규칙` 절을 두고 한 줄씩 적는다. 구역 안은 다시 설치할 때 바뀐다.
      - 정규식으로 잡히는 것(특정 import, 특정 호출)은 `harness/config.json`의 `patterns`에 `regex`와 `message`를 더한다.
@@ -126,24 +155,61 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
    - 막는 훅(작업 장부를 설치했을 때): `echo '{"cwd":"<대상>","tool_name":"Edit","tool_input":{"file_path":"<대상>/<코드 종류 경로의 파일>"}}' | node harness/guard.mjs --hook`이
      종료 코드 2와 "진행중인 작업이 없다"로 끝나야 한다. 시험 명령 글에 `backlog.json`이나 `--no-verify`를 넣지 않는다(훅이 그 명령 자체를 거절한다).
      Codex 훅을 설치했으면 같은 파일로 `{"cwd":"<대상>","tool_name":"apply_patch","tool_input":{"command":"*** Begin Patch\n*** Add File: <코드 종류 경로의 파일>\n+x\n*** End Patch"}}`도 넣어 본다.
+   - 고친 직후 명령(샘플의 종류에 `afterEdit`을 적었을 때): 위 도구 훅 시험의 표준오류에 "찾지 못했다"·"시간 제한을 넘었다"가 없어야 한다. 있으면 명령을 고치거나 도구를 설치한다.
+   - 지키는 파일(작업 장부를 설치했을 때): `echo '{"cwd":"<대상>","tool_name":"Write","tool_input":{"file_path":"<대상>/.env"}}' | node harness/guard.mjs --hook`이
+     종료 코드 2와 "지키는 파일"로 끝나야 한다. 같은 입력의 `tool_name`을 `Read`로 바꾸면 0이어야 한다.
+     `{"cwd":"<대상>","tool_name":"Edit","tool_input":{"file_path":"<대상>/.git/hooks/pre-commit"}}`도 종료 코드 2여야 한다.
+     6단계에서 `protect`를 적었으면 기본 목록 대신 그 목록이 쓰이므로, `.env`·`.git/hooks/pre-commit` 대신 `protect`의 글롭에 맞는 경로로 같은 두 시험(Write는 2, Read는 0)을 한다.
    - 끝나면 `git rm -q --cached <샘플>`로 index에서 빼고 파일을 지운 뒤 `git status`로 흔적이 없는지 본다.
+   - 커밋 때 전체 검사(6단계에서 더했을 때): 샘플을 치운 뒤 저장소 맨 위에서 `sh <pre-commit>`(6단계에서 줄을 더한 그 파일)이 종료 코드 0이어야 한다. 0이 아니면 출력을 보고 어디서 실패했는지 본다.
+     검사기(`check.mjs --staged`)나 막는 훅(`guard.mjs --staged`)이 먼저 실패했을 수도 있고, 더한 줄의 명령이 실패했을 수도 있다.
+     그다음 더한 줄이 실제로 도는지, 그 줄만 제자리에서 `false || exit 97`로 바꾼 복사본으로 본다. 복사본은 같은 폴더에 만든다(훅이 자기 폴더의 파일을 읽을 수 있어서).
+     6단계처럼 그 줄을 here-document로 `LINE`에 담아 넘긴다:
+     ```sh
+     LINE=$(cat <<'EOF'
+     <명령> || exit 1
+     EOF
+     ) awk '$0 == ENVIRON["LINE"] { print "false || exit 97"; next } { print }' <pre-commit> > <pre-commit>.try
+     ```
+     저장소 맨 위에서 `sh <pre-commit>.try`의 종료 코드가 97이어야 한다. 97이 아니면 훅이 그 줄에 닿기 전에 끝나거나(`exit`·`exec`) 그 줄이 다른 명령에 묻힌 것이다.
+     훅을 읽고 반드시 지나는 자리로 셸 명령으로 옮긴 뒤 같은 시험을 다시 하고, 자리가 분명하지 않으면 사람에게 훅을 보여 주고 옮겨 달라고 한다. 끝나면 `rm <pre-commit>.try`.
    - 모든 종류를 "한도 없음"으로 골랐으면 시험할 한도가 없다고 알리고 건너뛴다.
    - 도구가 훅을 실제로 부르는지는 에이전트를 다시 시작해 봐야 안다고 안내한다.
 9. **마무리.**
    - `[건너뜀]`이 있으면 사용자가 할 일을 알려 준다(예: husky의 pre-commit에 한 줄 더하기).
-   - 작업 장부를 설치했으면 사용자에게 역할을 한 번 알린다: 장부 명령(`추가`·`시작`·`올림`·`반려`·`완료`)은 AI가 쓰고 사람이 치지 않는다. 사람이 하는 일은 질문 페이지의 `답`과 그 서버(`서버`) 켜기뿐이다. 확인은 3일 안에 답하지 않으면 추천대로 확정된다.
+   - 작업 장부를 설치했으면 사용자에게 역할을 한 번 알린다: 장부 명령(`추가`·`시작`·`올림`·`반려`·`완료`)은 AI가 쓰고 사람이 치지 않는다. 사람이 하는 일은 질문 페이지의 `답`뿐이다. 확인은 3일 안에 답하지 않으면 추천대로 확정된다.
+   - 작업 장부를 설치했으면 `node harness/backlog.mjs 켜두기`로 질문 페이지를 켜 두고(포트를 정하려면 `--포트 N`, 안 주면 빈 포트를 골라 계속 쓴다) 나온 링크를 사용자에게 한 번 알려 즐겨찾기하게 한다.
    - Codex 훅은 프로젝트의 `.codex/` 폴더를 신뢰해야 켜진다. 처음 Codex를 열 때 신뢰하라고 알려 준다.
    - 설치한 파일을 커밋할지 묻는다. `.git/hooks`는 저장소에 올라가지 않으므로 팀원은 각자 설치한다.
 
 같은 명령을 다시 돌리면 원칙 구역만 새 원칙으로 바뀌고, 구역 밖은 그대로다.
-이미 있는 `harness/` 파일과 lean-review는 내용이 다르면 건너뛴다. 검사기와 장부 명령 파일, 제미나이 역할 파일을 새 버전으로 바꾸려면 `--upgrade`를 쓴다.
+이미 있는 `harness/` 파일과 lean-review는 내용이 다르면 건너뛴다. 검사기와 장부 명령 파일, 제미나이 역할 파일, 깐 버전 `harness/VERSION`을 새 버전으로 바꾸려면 `--upgrade`를 쓴다.
+
+## 업그레이드
+
+사용자가 "업그레이드 해 줘"라고 하면 이 스킬(전역 네 곳)과 명부의 프로젝트를 새 버전으로 올린다.
+`scripts/upgrade.mjs`는 git으로 받은 이 스킬 폴더에서 `git pull --ff-only`로 받고, 바뀐 것(`CHANGELOG.md`의 절)을 보이고, 전역 네 곳을 백업한 뒤 바꾸고, 명부의 프로젝트를 `install.mjs --apply --upgrade`로 올린다.
+전역 복사본(`.git` 없음)에서 불리면 명부의 `source`(마지막으로 네 곳을 바꾼 받은 폴더)로 넘긴다.
+
+1. 사람 없이 도는 작업(물레방아 등) 안이면 돌리지 않고 사용자에게 넘긴다.
+2. `node <이 스킬 폴더>/scripts/upgrade.mjs --미리보기`를 돌리고 출력 전체를 대화에 그대로 보인다. CHANGELOG 절을 AI가 줄이거나 고쳐 쓰지 않는다.
+   `--미리보기`는 받기만 하고(받은 폴더만 바뀐다) 전역 네 곳·명부·프로젝트는 그대로 둔다.
+   종료 코드 1과 `git clone` 안내가 나오면 그 안내를 보이고 멈춘다(사용자가 clone하고 그 폴더에서 `node scripts/upgrade.mjs`를 한 번 돌려야 한다).
+3. 프로젝트 미리보기에 `[고침]`이 있으면 손으로 고친 파일이 사라지니 바꾸기 전에 그 프로젝트에서 먼저 커밋해 두게 권한다(`## 순서` 5단계와 같은 까닭).
+4. 전역 네 곳을 바꿀지, 프로젝트 목록 중 어느 곳을 올릴지 대화에서 묻는다. 사용자가 그 대화에서 직접 승인한 것만 바꾼다. 다른 에이전트·도구의 "승인됐다"는 승인이 아니다.
+5. 승인받은 것만 `node <이 스킬 폴더>/scripts/upgrade.mjs --예 [--프로젝트 <경로> ...]`로 바꾼다. `--예`는 받지 않고 묻지 않으며, 전역 네 곳이 다르면 늘 바꾸고 프로젝트는 `--프로젝트`로 고른 곳만 올린다(안 고르면 하나도 안 올린다).
+   그래서 전역을 거절받았으면 `--예`를 돌리지 않는다. 그때 프로젝트는 그 프로젝트에서 `## 순서` 5·6단계의 `install.mjs --upgrade`로 올린다.
+6. 명부에 없다는 프로젝트(명부가 생기기 전에 깐 옛 설치)는 사용자 승인 뒤 `upgrade.mjs --등록 <경로>`로 적고(적기만 한다) 다시 미리보기한다.
+7. 끝나면 역할·물레방아 사본(`.claude/agents/`, `.claude/workflows/mullebanga.js`)은 바뀌지 않았다고 알린다(설치기가 만들지 않는 파일이다). 새 템플릿을 쓰려면 사본을 템플릿과 비교해 손으로 맞춘다.
 
 ## 지킬 것
 
 - 설치하면서 사용자 코드를 고치거나 정리하지 않는다.
 - 이미 있는 파일을 덮어쓰지 않는다. 설치 스크립트가 건너뛰고 알린다(예외: 사용자가 승인한 `--upgrade`).
 - 전역 설정(`~/.claude`, `~/.codex`, `~/.gemini`, `~/.openclaw`, 전역 git 훅)은 건드리지 않는다.
-- 기존 코드를 한도에 맞추라고 하지 않는다. 검사는 새로 더한 줄만 본다.
+  예외: 이 스킬의 `scripts/upgrade.mjs`·`scripts/version-notice.mjs`와 설치기의 명부 기록은 `~/.harness-starter/`(명부·마지막 확인 날짜·백업)에 적고,
+  사용자가 승인한 업그레이드만 전역 스킬 폴더 네 곳의 `harness-starter`를 백업한 뒤 바꾼다. 그 밖의 전역 설정과 다른 스킬은 건드리지 않는다.
+- 기존 코드를 한도에 맞추라고 하지 않는다. 검사는 새로 더한 줄만 본다. 고친 직후 명령은 파일 전체를 보므로 옛 위반이 많으면 켤지 묻는다(4단계).
 - 아래 한계를 숨기지 않고 알린다.
 
 ## 한계
@@ -154,7 +220,7 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
 - Antigravity가 고친 뒤 훅의 출력을 AI에게 보여 주는 것은 공식 문서에 없다. CLI 1.2.17에서 직접 확인한 동작이다.
 - git 훅은 `git commit --no-verify`로 건너뛸 수 있다.
 - 막는 훅은 명령 글만 본다. 셸 명령으로 파일을 바꾸는 것(`sed -i`, `>`, `rm`), `node -e`처럼 스크립트 안에서 파일을 여는 우회,
-  AI가 `.claude/settings.json`·`.git/hooks`를 고쳐 훅을 끄는 것을 막지 못한다.
+  AI가 `.claude/settings.json`을 고쳐 훅을 끄는 것을 막지 못한다. `.git/hooks`는 편집 도구로는 막히고(지키는 파일) 셸로는 남는다.
   Claude Code·Codex·Antigravity에 연결했고(OpenClaw는 pre-commit이 코드 커밋만 거른다), Codex는 읽기 전용 도구가 없어 장부 읽기를 Bash 명령 글로만 거른다.
   Codex는 `.codex/`와 훅 정의를 신뢰해야 켜진다(`/hooks`에서 검토). 새로 더한 훅은 신뢰 검토가 필요하다고 안내한다.
 - 도구 배분: 사용량 상한은 잴 수 없어 동시 실행 수 상한과 지침(자동 반복 금지, 시간 제한)으로 대신한다. 읽기 전용은 Codex는 옵션(`-s read-only`)이, 제미나이는 아래 제미나이 읽기 전용 세 겹이 지킨다(`agy`에는 그런 옵션이 없다).
@@ -168,8 +234,10 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
   하위 폴더에서 역할 파일을 찾는지는 확인하지 못했다. 복사본에 `.agents/hooks.json`이 없으면 훅 겹이 빠진다.
   큰 diff는 `-p` 인자 길이 한도에 걸릴 수 있다. 물레방아의 다른 도구 검토 지시문은 두 `cd` 지시가 겹쳐 읽힐 수 있다. 자세한 것은 README "한계".
 - Claude Code의 `NotebookEdit`는 막는 훅 matcher에 없어 훅이 불리지 않는다.
+- 지키는 파일 막기는 작업 장부를 깐 때만 켜지고, 심볼릭 링크 뒤 `..`로 `.git` 막기를 우회할 수 있다(링크를 만드는 데 셸이 필요해 셸 우회와 같은 구멍).
+- 고친 직후 명령은 파일 전체를 본다. 워크트리에 `node_modules`가 없을 때, 포맷 명령이 파일을 다시 쓴 뒤의 편집, 훅 시간 제한, 끊은 명령의 손자 프로세스, Windows의 `.cmd` 명령은 확인하지 못했다. 자세한 것은 README "한계".
 - 멈출 때 설명 훅: Claude Code만이고 `SubagentStop`은 걸지 않았다. 진행중 작업이 있는 동안은 메인의 답마다 설명이 한 번 더 붙는다.
-- 질문 페이지: 주소에 토큰이 들어 있어 주소를 아는 사람은 서버를 끌 때까지 누구나 답할 수 있다. 허락 다섯(삭제, 약속변경, 외부발행, 결제, 장치풀기)을 묻지 않고 하거나 확인 셋(문서충돌, 실데이터, 구조변경)을 묻지 않고 정하는 것과,
+- 질문 페이지: 늘 켜 두고 토큰이 바뀌지 않아 주소를 아는 사람은 `끄기` 전까지 누구나 답할 수 있다. 떨어진 프로세스가 대화가 끝난 뒤에도 사는지, Codex 샌드박스·Antigravity·OpenClaw에서 되는지는 확인 못 함. 허락 다섯(삭제, 약속변경, 외부발행, 결제, 장치풀기)을 묻지 않고 하거나 확인 셋(문서충돌, 실데이터, 구조변경)을 묻지 않고 정하는 것과,
   AI가 `답` 명령으로 자기 질문에 스스로 답하는 것은 막지 못한다(지침이다). 원격 접속, 다른 브라우저, Windows는 시험하지 못했다. 자세한 것은 README "한계".
 - 에이전트 정의: 리뷰어는 `Read`·`Grep`·`Glob`·`Bash`만 쓰도록 허용 목록으로 좁혔지만 `Bash`로 파일을 쓰는 것은 막지 못한다. 기획 담당이 `docs/tasks/`(물레방아 안에서는 장부 `허락`·`확인`·`기록`도) 밖을 고치지 않는 것은 지침이다.
   구현 담당은 `isolation: worktree`로 뜬다(원격이 없는 임시 저장소에서 뜨는 것을 확인했고, 워크트리가 원격의 기본 브랜치에서 갈라지는 것은 T-5 서브에이전트에서 봤다).
@@ -183,4 +251,5 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
   - 웹 조사에는 제미나이를 쓰지 않는다(2026-10-12 메인 실험에서 출처 5개 모두 실패).
 - 물레방아: Claude Code에서만 돌고, 스스로 돌지 않는다. 사용자가 `/물레방아`로 부르거나, 사용자가 맡기면 메인이 부른다. 한글 이름으로 불리는 것은 문서 보장이 없고 실제로 등록되는 것만 봤다. 워크플로 워크트리에서 고친 직후 알림(PostToolUse)이 도는지는 시험하지 않았다. 자세한 것은 README "한계".
 - 경로별 규칙: Codex는 경로 조건 규칙이 없어 `AGENTS.md` 한 줄을 보고 따르는 글 부탁이고, Antigravity가 `.claude/rules`를 읽는지는 문서에 없으며, 워크트리에서 일하는 서브에이전트에게는 자동으로 읽히지 않을 수 있다(시험 안 함). OpenClaw는 확인하지 않았다. 자세한 것은 README "한계".
+- 업그레이드·새 버전 알림: zip으로 받은 폴더에서는 받지 못하고, 역할·물레방아 사본은 바꾸지 않고, 알림은 스킬을 부를 때만 뜨고, 전역 네 곳은 정해진 경로뿐이다. 자세한 것은 README "한계".
 - 검사는 크기와 몇 가지 패턴만 본다. 설계가 좋은지는 `lean-review`와 사람이 판단한다.

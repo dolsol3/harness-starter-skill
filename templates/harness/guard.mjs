@@ -6,6 +6,7 @@
 //
 // 거절하는 것: 장부 파일(harness/backlog.json) 직접 읽기·고치기, 진행중인 작업 없이 코드 파일 고치기,
 // 검사 설정·검사기·장부 명령 고치기, 커밋 검사 건너뛰기(--no-verify).
+// 진행중인 작업이 있어도 지키는 파일(.env, 잠금 파일, .git 아래, harness/config.json의 protect로 바꿈) 고치기. 읽기는 된다.
 // 환경 변수 HARNESS_READ_ONLY=1로 부른 도구(읽기 전용 검토)의 파일 고치기와 명령 실행.
 // 코드 파일은 harness/config.json의 kinds에서 한도(줄 수, 줄 길이, 금지 패턴)를 정한 종류의 파일이다.
 // 설정이나 장부를 읽지 못하는 등 확인하지 못하면 통과시키지 않고 거절한다(종료 코드 2).
@@ -18,6 +19,8 @@ import * as ledger from './ledger.mjs';
 
 const LEDGER = 'harness/backlog.json';
 const PROTECTED = ['config.json', 'check.mjs', 'guard.mjs', 'backlog.mjs', 'ledger.mjs', 'questions.mjs', 'page.mjs', 'patch.mjs', 'serve.mjs', 'stop.mjs'].map(name => `harness/${name}`);
+const LOCKS = ['package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lock', 'bun.lockb', 'Cargo.lock', 'poetry.lock', 'uv.lock', 'Pipfile.lock', 'Gemfile.lock', 'composer.lock', 'go.sum'];
+const KEEP = ['.env', '.env.*', ...LOCKS, '.git'];
 const START = 'node harness/backlog.mjs 추가 "제목"으로 작업을 만들고 시작 T-1 --영역 … --확인방법 "…"으로 시작한 뒤 고친다';
 let config;
 
@@ -50,13 +53,27 @@ function isCode(rel) {
   return Boolean(kind && (kind.maxFileLines !== undefined || kind.maxLineLength !== undefined || kind.patterns));
 }
 
+// 지키는 글롭은 .gitignore처럼 경로 안 어느 깊이의 부분 경로에 맞아도 되고, 맞은 폴더 아래는 전부 지킨다(모노레포의 하위 폴더 잠금 파일, .git 아래).
+// **/로 깊이를 맞추지 않는 까닭: matchesGlob의 **는 점으로 시작하는 폴더·파일(.hidden/.env, .git/.x)을 지나가지 않는다.
+function keeps(rel) {
+  const parts = rel.split('/');
+  const pieces = parts.flatMap((_, start) => parts.slice(start).map((_, length) => parts.slice(start, start + length + 1).join('/')));
+  return pieces.some(piece => (config.protect ?? KEEP).some(glob => path.posix.matchesGlob(piece, glob)));
+}
+
+// 실제 경로(맨 앞)와 함께, 조상 폴더마다 그 폴더까지만 풀고 아래는 적힌 이름 그대로 둔 경로를 돌려준다.
+// 지키는 이름이 심볼릭 링크면(.env -> secrets/prod, .git/hooks -> ../shared-hooks) 실제 경로에는 그 이름이 없다.
+function spellings(abs) {
+  if (abs === path.dirname(abs)) return [abs];
+  return [real(abs), ...spellings(path.dirname(abs)).map(dir => path.join(dir, path.basename(abs)))];
+}
+
 const working = () => ledger.load(ledger.mainRoot()).작업.some(task => task.상태 === '진행중');
 
 function fileProblem(tool, file) {
   // 작업 폴더(워크트리)와 메인 폴더 어느 쪽 파일이든 저장소 맨 위 기준 같은 이름으로 본다.
   const roots = [git(['rev-parse', '--show-toplevel']), ledger.mainRoot()];
-  const abs = real(file);
-  const rels = roots.map(root => path.relative(root, abs).split(path.sep).join('/')).filter(rel => !rel.startsWith('..'));
+  const rels = spellings(path.resolve(file)).flatMap(abs => roots.map(root => path.relative(root, abs).split(path.sep).join('/'))).filter(rel => rel.split('/')[0] !== '..');
   if (rels.includes(LEDGER)) {
     return `${LEDGER}은(는) ${tool}로 직접 다루지 않는다. node harness/backlog.mjs 목록·보기 T-1·시작 T-1처럼 명령으로 다룬다`;
   }
@@ -66,6 +83,10 @@ function fileProblem(tool, file) {
   const guarded = rels.find(rel => PROTECTED.includes(rel) && !(setup && rel === 'harness/config.json'));
   if (guarded) {
     return `${guarded}은(는) 검사 설정이라 고치지 않는다. 한도를 늘리지 말고 코드를 줄인다. 바꿔야 하면 사람에게 묻는다`;
+  }
+  const kept = rels.find(keeps);
+  if (kept) {
+    return `${kept}은(는) 지키는 파일이라 고치지 않는다(읽기는 된다). 잠금 파일은 설치 명령(예: npm install)으로 바뀐다. 바꿔야 하면 사람에게 묻는다. 목록은 harness/config.json의 protect로 바꾼다`;
   }
   // 코드 판정은 파일을 품은 가장 가까운 폴더(작업 폴더가 먼저) 기준 한 경로만 본다. 워크트리가 메인 폴더 안에 있으면
   // 메인 기준 경로는 .claude/worktrees/…로 길어져 워크트리 기준과 다른 종류에 맞을 수 있다.

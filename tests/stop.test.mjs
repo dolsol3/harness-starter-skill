@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -8,6 +8,10 @@ import { fileURLToPath } from 'node:url';
 import { repo, ok } from './helpers.mjs';
 
 const installer = fileURLToPath(new URL('../scripts/install.mjs', import.meta.url));
+// 설치기가 HOME 아래 명부(~/.harness-starter)에 적으므로 진짜 HOME을 건드리지 않게 임시 HOME을 준다.
+const home = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-home-'));
+after(() => fs.rmSync(home, { recursive: true, force: true }));
+const env = { ...process.env, HOME: home, USERPROFILE: home };
 
 // Claude Code가 Stop 훅에 넘기는 입력 모양(code.claude.com/docs/en/hooks, 2026-10-12 조회)
 const stopInput = (dir, active) => ({ session_id: 's', cwd: dir, hook_event_name: 'Stop', stop_hook_active: active, last_assistant_message: '끝' });
@@ -83,7 +87,7 @@ function project(t) {
 }
 
 const install = (dir, ...args) => {
-  const result = spawnSync(process.execPath, [installer, dir, '--apply', ...args], { encoding: 'utf8' });
+  const result = spawnSync(process.execPath, [installer, dir, '--apply', ...args], { encoding: 'utf8', env });
   assert.equal(result.status, 0, result.stderr);
   return result.stdout;
 };

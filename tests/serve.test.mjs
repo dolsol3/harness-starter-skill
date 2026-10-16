@@ -182,7 +182,7 @@ test('a bad port is refused, and a port that is taken says so instead of failing
   const fixed = await setup(t, '--포트', String(port));
   assert.equal(fixed.port, port);
   assert.match(fixed.token, /^[0-9a-f]{32}$/);
-  assert.notEqual(fixed.token, s.token, 'every start makes a new token');
+  assert.notEqual(fixed.token, s.token, 'each project makes its own token');
 });
 
 test('a ledger that cannot be read gives an error page with the reason and does not stop the server', async t => {

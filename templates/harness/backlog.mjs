@@ -18,7 +18,11 @@
 //   node harness/backlog.mjs 기록 T-1 "제목" --설명 "…" --이유 "…"   허락·확인에 들지 않아 AI가 정한 일을 적어 둔다
 //   node harness/backlog.mjs 질문목록 [--상태 대기|확인중|확정|고칠것|답함]   질문 보기(기본은 답을 기다리는 것)
 //   node harness/backlog.mjs 답 Q-1 이름|--직접 "글" [--만든시각 …]   사람의 답을 적는다. 만든 시각이 다르면(오래된 페이지의 답) 거절한다
-//   node harness/backlog.mjs 서버 [--포트 N]           질문 페이지를 열어 사람이 브라우저에서 답하게 한다. 사람이 켜고 Ctrl+C로 끈다. 이 컴퓨터에서만 열리고 주소에 토큰이 붙는다
+//   node harness/backlog.mjs 서버 [--포트 N]           질문 페이지를 열어 사람이 브라우저에서 답하게 한다. 이 터미널에서 돌고 Ctrl+C로 끈다. 이 컴퓨터에서만 열리고 주소에 저장된 토큰이 붙는다
+//   node harness/backlog.mjs 켜두기 [--포트 N]         꺼져 있으면 질문 페이지를 떨어진 프로세스로 띄워 명령이 끝나도 계속 돌게 한다. 포트·토큰은 harness/serve.json에 두고 계속 쓴다
+//   node harness/backlog.mjs 끄기                      켜 둔 질문 페이지를 끈다. 다시 켜도 같은 링크다
+//   서버·켜두기·끄기 말고 모든 명령은 돌기 전에, 켜 둔 적 있는(harness/serve.json에 pid) 질문 페이지가 꺼져 있으면 다시 켠다.
+//   끄기 뒤에는 다시 켜두기까지 켜지 않는다. 허락·확인(옛 질문)은 페이지가 켜져 있으면 끝에 링크 줄을 보인다
 //   옛 이름도 같은 뜻으로 받는다: 질문(--행동 설계확인이면 확인, 그 밖의 다섯이면 허락. 옵션은 허락과 확인을 합친 것), 처리함(기록)
 //
 // 명령마다 쓸 수 있는 옵션이 정해져 있고 그 밖의 옵션은 거절한다. 시작은 비어 있는 칸만 채운다.
@@ -133,11 +137,13 @@ const commands = {
   허락: {
     writes: true,
     options: ['행동', '설명', '보기', '추천', '이유'],
+    links: true,
     run: ({ ledger: book, args: [id, title], values }) => asked(questions.permit(book, id, title, values)),
   },
   확인: {
     writes: true,
     options: ['까닭', '설명', '보기', '추천', '이유'],
+    links: true,
     run: ({ ledger: book, args: [id, title], values }) => asked(questions.confirm(book, id, title, values)),
   },
   기록: { writes: true, options: ['설명', '이유'], run: recorded },
@@ -155,6 +161,7 @@ const commands = {
     run: ({ ledger: book, args: [id, choice], values }) => ({ rows: [`답: ${questionLine(questions.answer(book, id, { 선택: choice, ...values }))}`] }),
   },
   서버: {
+    serves: true,
     options: ['포트'],
     run: ({ root, values }) => {
       serve.start(root, values.포트);
@@ -164,15 +171,30 @@ const commands = {
   질문: {
     writes: true,
     options: ['행동', '까닭', '설명', '보기', '추천', '이유'],
+    links: true,
     run: ({ ledger: book, args: [id, title], values }) => asked(questions.ask(book, id, title, values)),
   },
   처리함: { writes: true, options: ['설명', '이유'], run: recorded },
+  // 켜두기·끄기는 서버가 답할 때까지 기다리므로 줄을 약속(Promise)으로 돌려준다. 장부는 쓰지 않는다.
+  // 서버·켜두기·끄기(serves)는 스스로 켜고 끄므로 다시 켜기를 하지 않는다. 서버는 앞에서 열 포트를 떨어진 서버가 먼저 잡으면 안 된다.
+  켜두기: { serves: true, options: ['포트'], run: ({ root, values }) => ({ rows: serve.keep(root, values.포트) }) },
+  끄기: { serves: true, options: [], run: ({ root }) => ({ rows: serve.stop(root) }) },
 };
 const OPTIONS = Object.fromEntries(
   [...new Set(Object.values(commands).flatMap(command => command.options))].map(name => [name, { type: 'string' }]),
 );
 
-function run() {
+// 페이지를 못 켠 것 때문에 장부 일이 막히지 않게, 실패는 표준 오류로 알리고 명령은 그대로 돈다.
+async function revivePage(root) {
+  try {
+    const rows = await serve.revive(root);
+    if (rows.length) console.log(rows.join('\n'));
+  } catch (error) {
+    console.error(`backlog: 질문 페이지를 다시 켜지 못했다(${error.message})`);
+  }
+}
+
+async function run() {
   const { positionals, values } = parseArgs({ allowPositionals: true, options: OPTIONS });
   const [name, ...args] = positionals.map(text => text.trim());
   const command = Object.hasOwn(commands, name) ? commands[name] : undefined;
@@ -185,6 +207,7 @@ function run() {
   const trimmed = Object.fromEntries(Object.entries(values).map(([option, text]) => [option, text.trim()]));
   patch.check();
   const root = ledger.mainRoot();
+  if (!command.serves) await revivePage(root);
   const execute = () => {
     const book = ledger.load(root);
     const { rows: shown, patched } = command.run({ root, ledger: book, args, values: trimmed });
@@ -194,14 +217,15 @@ function run() {
     }
     return shown;
   };
-  const rows = command.writes ? ledger.withLock(root, execute) : execute();
+  const rows = await (command.writes ? ledger.withLock(root, execute) : execute());
   if (rows.length) console.log(rows.slice(0, outputLines).join('\n'));
   if (rows.length > outputLines) console.log(`… ${rows.length - outputLines}줄 더 있다${command.narrow ? `. ${command.narrow}` : ''}`);
+  // 링크 줄은 줄 제한 뒤에 찍어, 출력이 잘려도 허락·확인의 마지막 줄이 링크다.
+  const links = command.links ? await serve.pageLine(root) : [];
+  if (links.length) console.log(links.join('\n'));
 }
 
-try {
-  run();
-} catch (error) {
+run().catch(error => {
   console.error(`backlog: ${error.message}`);
   process.exitCode = 1;
-}
+});

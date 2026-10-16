@@ -5,12 +5,15 @@
 //   node harness/check.mjs --staged     커밋할 파일(git add 한 것)을 검사한다 (git pre-commit)
 //   node harness/check.mjs --hook       AI 도구 훅(Claude Code·Codex·Antigravity): 방금 고친 파일을 검사한다
 //
+// 훅 모드에서는 고친 파일의 종류에 afterEdit(예: ["npx", "--no", "--", "eslint", "{file}"])이 있으면 그 명령도 돌린다.
+// 셸을 거치지 않고, {file}은 저장소 맨 위 기준 경로가 된다. 시간 제한은 afterEditSeconds(기본 30초)다.
+//
 // 이미 있던 코드는 탓하지 않는다. 새로 더한 줄과, 한도를 넘은 채로 더 커진 파일만 본다.
 // 한도는 harness/config.json의 파일 종류(kinds)마다 정한다. 어느 종류에도 없는 파일은 보지 않는다.
 // 위반이 있으면 종료 코드 1(훅 모드는 2)로 끝난다. config.json이 옛 모양이면 2로 끝난다.
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = git(['rev-parse', '--show-toplevel'], process.cwd())?.trim() ?? process.cwd();
@@ -155,6 +158,26 @@ function hookFiles() {
   return files.filter(Boolean).map(file => fromRoot(path.resolve(base, file)));
 }
 
+// 고친 파일 하나에 종류의 afterEdit 명령을 돌린다. 통과하거나 명령이 없으면 null, 아니면 알릴 글.
+function runAfterEdit(file) {
+  const kind = kindOf(file);
+  if (!kind?.afterEdit) return null;
+  const [program, ...rest] = kind.afterEdit.map(arg => arg.replaceAll('{file}', file));
+  const seconds = kind.afterEditSeconds ?? 30;
+  // SIGTERM을 무시하는 명령도 시간 제한에서 끊기게 SIGKILL로 끝낸다.
+  const result = spawnSync(program, rest, { cwd: root, encoding: 'utf8', timeout: seconds * 1000, killSignal: 'SIGKILL' });
+  const shown = [program, ...rest].join(' ');
+  if (result.error?.code === 'ENOENT') {
+    return `${file}: 명령 '${program}'을 찾지 못했다. harness/config.json의 afterEdit을 고치거나 도구를 설치한다`;
+  }
+  if (result.error?.code === 'ETIMEDOUT') return `${file}: ${seconds}초 시간 제한을 넘었다: ${shown}`;
+  if (result.error) throw result.error;
+  if (result.status === 0) return null;
+  const output = (result.stdout + result.stderr).trimEnd().split('\n');
+  const cut = output.length > 40 ? [`(출력 ${output.length}줄 중 앞 40줄만 보였다)`] : [];
+  return [`${file}: ${shown} (종료 코드 ${result.status})`, ...output.slice(0, 40), ...cut].join('\n    ');
+}
+
 const args = process.argv.slice(2);
 const staged = args.includes('--staged');
 const merging = staged && git(['rev-parse', '-q', '--verify', 'MERGE_HEAD']) !== null;
@@ -184,4 +207,11 @@ if (problems.length) {
   out.write(problems.map(problem => `  ${problem}`).join('\n') + '\n');
   out.write('한도를 늘리지 말고 코드를 줄이세요. 한도를 바꾸려면 사람에게 묻습니다.\n');
   process.exitCode = hook ? 2 : 1;
+}
+
+const afterEditFailures = hook ? files.map(runAfterEdit).filter(Boolean) : [];
+if (afterEditFailures.length) {
+  process.stderr.write(`고친 직후 명령(harness/config.json의 kinds.<종류>.afterEdit) 실패 ${afterEditFailures.length}건:\n`);
+  process.stderr.write(afterEditFailures.map(failure => `  ${failure}`).join('\n') + '\n');
+  process.exitCode = 2;
 }
