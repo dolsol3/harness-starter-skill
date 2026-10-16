@@ -59,6 +59,52 @@ test('once Claude is already continuing because of a stop hook it passes, so the
   assert.equal(result.stdout, '');
 });
 
+const ANSWER = '새 답 1개(Q-1 답함). 메인은 node harness/backlog.mjs 질문목록 --상태 답함(고칠것은 --상태 고칠것)으로 읽는다';
+const PERMIT = ['허락', 'T-1', '지울까요', '--행동', '삭제', '--설명', '쓰지 않는 열이다', '--보기', '지운다=열이 사라진다|둔다=그대로 남는다', '--추천', '둔다', '--이유', '되돌릴 수 없다'];
+const ledgerText = dir => fs.readFileSync(path.join(dir, 'harness/backlog.json'), 'utf8');
+
+const contextOf = result => {
+  assert.equal(result.status, 0, result.stderr);
+  const { hookSpecificOutput: output, decision } = JSON.parse(result.stdout);
+  assert.equal(decision, undefined, 'feedback, not a hook error');
+  assert.equal(output.hookEventName, 'Stop');
+  return output.additionalContext;
+};
+
+test('an unread answer is told at every stop until 질문목록 reads it, joined after the 진행중 reason', t => {
+  const dir = repo(t);
+  ok(dir, '추가', '일');
+  ok(dir, ...PERMIT);
+  ok(dir, '답', 'Q-1', '둔다');
+  const before = ledgerText(dir);
+  assert.equal(contextOf(stop(dir, stopInput(dir, false))), ANSWER, 'told with no 진행중 task');
+  assert.equal(contextOf(stop(dir, stopInput(dir, false))), ANSWER, 'the hook does not clear the mark');
+  assert.equal(ledgerText(dir), before, 'the hook only reads the ledger');
+
+  const id = startTask(dir, '둘');
+  const lines = contextOf(stop(dir, stopInput(dir, false))).split('\n');
+  assert.equal(lines.length, 2);
+  assert.match(lines[0], new RegExp(`^진행중 작업: ${id}\\. .*설명한 뒤에는 멈춰도 된다\\.$`));
+  assert.equal(lines[1], ANSWER);
+  assert.doesNotMatch(lines.join('\n'), /다음 작업|계속|이어서|시작하/);
+  assert.equal(stop(dir, stopInput(dir, true)).stdout, '', 'stop_hook_active passes even with both');
+
+  ok(dir, '질문목록', '--상태', '답함');
+  assert.doesNotMatch(contextOf(stop(dir, stopInput(dir, false))), /새 답/, 'only the 진행중 reason is left');
+  assert.equal(contextOf(stop(dir, stopInput(dir, false))).split('\n').length, 1);
+});
+
+test('once read with no 진행중 task the stop is silent again', t => {
+  const dir = repo(t);
+  ok(dir, '추가', '일');
+  ok(dir, ...PERMIT);
+  ok(dir, '답', 'Q-1', '둔다');
+  ok(dir, '질문목록', '--상태', '답함');
+  const result = stop(dir, stopInput(dir, false));
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, '');
+});
+
 test('a ledger that cannot be read is not swallowed: it fails with a code other than 2, which does not hold the stop', t => {
   const dir = repo(t);
   fs.writeFileSync(path.join(dir, 'harness/backlog.json'), '{ broken');

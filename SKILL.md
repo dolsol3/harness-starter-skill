@@ -15,9 +15,9 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
 | git 훅 | `.git/hooks/pre-commit`, `harness/` | 커밋 전에 검사해 막음. 4단계에서 고르면 전체 린트·타입 검사 줄도(선택) | 모두(git으로 커밋하면) |
 | 고친 직후 알림 | `.claude/settings.json`, `.codex/hooks.json`, `.agents/hooks.json`, `harness/` | 파일을 고친 직후 검사해 AI에게 알림. 종류에 `afterEdit`을 적으면 그 파일에 린트·포맷 명령도 돌림 | Claude Code, Codex, Antigravity |
 | 간결함 리뷰 | `.agents/skills/lean-review/`, `.claude/skills/lean-review/` | 끝내기 전에 지울 것을 찾는 절차 | 모두 |
-| 작업 장부 | `harness/backlog.mjs`, `ledger.mjs`, `questions.mjs`, `page.mjs`, `patch.mjs`, `serve.mjs`, `.git/info/exclude`에 장부·잠금·질문 페이지·질문 페이지 서버 상태(`serve.json`, 토큰이 든다)·로그(`serve.log`) | AI가 작업을 `할일→진행중→올림→완료`로 적고(`반려`는 올림을 진행중에 돌려보냄) 상태 규칙을 지킴. `준비`는 같이 시작해도 되는 작업을 고르고, `backlog.limits`를 적으면 도구 배정·동시 상한·다른 도구의 검토도 지킴. 사람에게 넘길 일은 `허락`(답이 올 때까지 그 작업만 멈춤)·`확인`(진행하며 묻고 3일 뒤 확정)·`기록`(하루 요약)으로 나눠 적고 사람은 AI가 켜 둔(`켜두기`) 질문 페이지에서 답함. 같은 파일을 수정 커밋으로 3번 이상 고친 곳은 페이지와 수정 작업 `시작`에서 알림 | 모두(명령을 부르면) |
+| 작업 장부 | `harness/backlog.mjs`, `ledger.mjs`, `questions.mjs`, `page.mjs`, `patch.mjs`, `serve.mjs`, `.git/info/exclude`에 장부·잠금·질문 페이지·질문 페이지 서버 상태(`serve.json`, 토큰이 든다)·로그(`serve.log`) | AI가 작업을 `할일→진행중→올림→완료`로 적고(`반려`는 올림을 진행중에 돌려보냄) 상태 규칙을 지킴. `준비`는 같이 시작해도 되는 작업을 고르고, `backlog.limits`를 적으면 도구 배정·동시 상한·다른 도구의 검토도 지킴. 사람에게 넘길 일은 `허락`(답이 올 때까지 그 작업만 멈춤)·`확인`(진행하며 묻고 3일 뒤 확정)·`기록`(하루 요약)으로 나눠 적고 사람은 AI가 켜 둔(`켜두기`) 질문 페이지에서 답함. 같은 파일을 수정 커밋으로 3번 이상 고친 곳은 페이지와 수정 작업 `시작`에서 알림. 사람이 답했는데 메인이 `질문목록`으로 아직 읽지 않은 답이 있으면 장부 명령 끝에 `새 답 N개(…)` 한 줄을 보이고, Claude Code에서는 `기다리기`를 뒤에서 걸어 두면 답이 올 때 끝나 AI가 다시 불림 | 모두(명령을 부르면) |
 | 막는 훅 | `harness/guard.mjs`, `.claude/settings.json`·`.codex/hooks.json`·`.agents/hooks.json`의 `PreToolUse`, pre-commit 한 줄 | 장부 파일 직접 접근, 진행중 작업 없는 코드 편집, 검사 설정 수정, `--no-verify`를 거절. 진행중 작업이 있어도 지키는 파일(`.env`·잠금 파일·`.git` 아래) 편집을 거절(읽기는 됨) | 훅은 Claude Code·Codex·Antigravity, 커밋은 모두 |
-| 멈출 때 설명 훅 | `harness/stop.mjs`, `.claude/settings.json`의 `Stop` (작업 장부와 함께) | 진행중 작업이 있는데 멈추려 하면 한 번 이유를 설명하게 함(붙잡지 않음) | Claude Code |
+| 멈출 때 설명 훅 | `harness/stop.mjs`, `.claude/settings.json`의 `Stop` (작업 장부와 함께) | 진행중 작업이 있는데 멈추려 하면 한 번 이유를 설명하게 함(붙잡지 않음). 읽지 않은 새 답이 있으면 진행중 작업이 없어도 알림(읽을 때까지 멈출 때마다) | Claude Code |
 | 제미나이 읽기 전용 역할 | `.agents/agents/readonly.md`, `.agents/agents/research.md` (`antigravity-hook` 장치) | 쓰기 도구를 뺀 검토 역할(`agy --agent readonly`)과 웹 검색·주소 읽기 도구를 더한 조사용 역할(`agy --agent research`) | Antigravity |
 | 에이전트 정의 | `.claude/agents/planner.md`, `implementer.md`, `researcher.md`, `reviewer.md` (7단계에서 사용자가 승인할 때만) | 기획 담당(작업 쪼개기와 명세), 구현 담당, 조사 담당(질문 종류대로 나눠 조사하고 주장마다 출처로 판정), 리뷰어(읽기 전용)를 이 프로젝트에 맞게 구성. 맥락을 공유하지 않는 기준으로 나눔 | Claude Code |
 | 물레방아 | `.claude/workflows/mullebanga.js` (7단계에서 사용자가 에이전트 정의와 함께 승인할 때만) | 메인이 `## 사용자 원래 말` 절을 적고 시작한 작업을 명세 → 대조 → 구현 → 검사 → 교차 리뷰 → 높음 고치기(최대 3번) → 올림까지 돌림. `/물레방아`로 부름 | Claude Code |
@@ -232,24 +232,24 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
   `list_resources`·`read_resource`·`manage_task`는 늘 붙고 `call_mcp_tool`은 `inheritMcp: false`로 뺐다. 타임아웃이면 stdout 첫 줄이 붙어 JSON으로 바로 못 읽고 응답은 빈 글이다.
   옛 `readonly.md`는 `--upgrade`가 새 버전으로 바꾼다(손으로 고친 역할은 사라지니 `[고침]`을 먼저 비교한다). T-22 때 머리말 넷짜리가 잡힌 까닭은 확인하지 못했다.
   하위 폴더에서 역할 파일을 찾는지는 확인하지 못했다. 복사본에 `.agents/hooks.json`이 없으면 훅 겹이 빠진다.
-  큰 diff는 `-p` 인자 길이 한도에 걸릴 수 있다. 물레방아의 다른 도구 검토 지시문은 두 `cd` 지시가 겹쳐 읽힐 수 있다. 자세한 것은 README "한계".
+  큰 diff는 `-p` 인자 길이 한도에 걸릴 수 있다. 물레방아의 다른 도구 검토 지시문은 두 `cd` 지시가 겹쳐 읽힐 수 있다. 자세한 것은 `guide/limits.md`.
 - Claude Code의 `NotebookEdit`는 막는 훅 matcher에 없어 훅이 불리지 않는다.
 - 지키는 파일 막기는 작업 장부를 깐 때만 켜지고, 심볼릭 링크 뒤 `..`로 `.git` 막기를 우회할 수 있다(링크를 만드는 데 셸이 필요해 셸 우회와 같은 구멍).
-- 고친 직후 명령은 파일 전체를 본다. 워크트리에 `node_modules`가 없을 때, 포맷 명령이 파일을 다시 쓴 뒤의 편집, 훅 시간 제한, 끊은 명령의 손자 프로세스, Windows의 `.cmd` 명령은 확인하지 못했다. 자세한 것은 README "한계".
+- 고친 직후 명령은 파일 전체를 본다. 워크트리에 `node_modules`가 없을 때, 포맷 명령이 파일을 다시 쓴 뒤의 편집, 훅 시간 제한, 끊은 명령의 손자 프로세스, Windows의 `.cmd` 명령은 확인하지 못했다. 자세한 것은 `guide/limits.md`.
 - 멈출 때 설명 훅: Claude Code만이고 `SubagentStop`은 걸지 않았다. 진행중 작업이 있는 동안은 메인의 답마다 설명이 한 번 더 붙는다.
 - 질문 페이지: 늘 켜 두고 토큰이 바뀌지 않아 주소를 아는 사람은 `끄기` 전까지 누구나 답할 수 있다. 떨어진 프로세스가 대화가 끝난 뒤에도 사는지, Codex 샌드박스·Antigravity·OpenClaw에서 되는지는 확인 못 함. 허락 다섯(삭제, 약속변경, 외부발행, 결제, 장치풀기)을 묻지 않고 하거나 확인 셋(문서충돌, 실데이터, 구조변경)을 묻지 않고 정하는 것과,
-  AI가 `답` 명령으로 자기 질문에 스스로 답하는 것은 막지 못한다(지침이다). 원격 접속, 다른 브라우저, Windows는 시험하지 못했다. 자세한 것은 README "한계".
+  AI가 `답` 명령으로 자기 질문에 스스로 답하는 것은 막지 못한다(지침이다). 원격 접속, 다른 브라우저, Windows는 시험하지 못했다. 자세한 것은 `guide/limits.md`.
 - 에이전트 정의: 리뷰어는 `Read`·`Grep`·`Glob`·`Bash`만 쓰도록 허용 목록으로 좁혔지만 `Bash`로 파일을 쓰는 것은 막지 못한다. 기획 담당이 `docs/tasks/`(물레방아 안에서는 장부 `허락`·`확인`·`기록`도) 밖을 고치지 않는 것은 지침이다.
   구현 담당은 `isolation: worktree`로 뜬다(원격이 없는 임시 저장소에서 뜨는 것을 확인했고, 워크트리가 원격의 기본 브랜치에서 갈라지는 것은 T-5 서브에이전트에서 봤다).
   Claude Code 형식만 만든다(공식 문서의 `.claude/agents/` 머리말 칸으로 확인했고, 역할이 셋이던 때 임시 프로젝트에서 `claude`가 세 정의를 읽는 것까지 봤다). 파일을 채우는 일은 AI가 하므로 같은 입력에도 글이 조금 다를 수 있다.
-- 조사 담당(자세한 것은 README "한계"):
+- 조사 담당(자세한 것은 `guide/limits.md`):
   - 다른 모델을 직접 부르므로 합칠 때 어느 모델이 썼는지 완전히 가리지 못한다(A·B·C로만 불러 대신한다).
   - 제미나이 `research` 역할이 작업 폴더 밖 파일을 읽은 일이 있다(전역 `allowNonWorkspaceAccess: true`). 전역 설정은 건드리지 않는다.
   - Codex는 git이 아닌 폴더에서 `--skip-git-repo-check`가 필요하고, 웹 검색 기본이 cached라 `-c web_search='"live"'`를 준다.
   - Antigravity CLI의 `agy models` 목록에 다른 회사 모델이 보였다(실제로 돌려 보지는 않음).
   - 합치기는 동의 수를 따로 적는다는데 보고 전문 목록에는 동의 수가 없다(템플릿이라 이번엔 안 고침).
   - 웹 조사에는 제미나이를 쓰지 않는다(2026-10-12 메인 실험에서 출처 5개 모두 실패).
-- 물레방아: Claude Code에서만 돌고, 스스로 돌지 않는다. 사용자가 `/물레방아`로 부르거나, 사용자가 맡기면 메인이 부른다. 한글 이름으로 불리는 것은 문서 보장이 없고 실제로 등록되는 것만 봤다. 워크플로 워크트리에서 고친 직후 알림(PostToolUse)이 도는지는 시험하지 않았다. 자세한 것은 README "한계".
-- 경로별 규칙: Codex는 경로 조건 규칙이 없어 `AGENTS.md` 한 줄을 보고 따르는 글 부탁이고, Antigravity가 `.claude/rules`를 읽는지는 문서에 없으며, 워크트리에서 일하는 서브에이전트에게는 자동으로 읽히지 않을 수 있다(시험 안 함). OpenClaw는 확인하지 않았다. 자세한 것은 README "한계".
-- 업그레이드·새 버전 알림: zip으로 받은 폴더에서는 받지 못하고, 역할·물레방아 사본은 바꾸지 않고, 알림은 스킬을 부를 때만 뜨고, 전역 네 곳은 정해진 경로뿐이다. 자세한 것은 README "한계".
+- 물레방아: Claude Code에서만 돌고, 스스로 돌지 않는다. 사용자가 `/물레방아`로 부르거나, 사용자가 맡기면 메인이 부른다. 한글 이름으로 불리는 것은 문서 보장이 없고 실제로 등록되는 것만 봤다. 워크플로 워크트리에서 고친 직후 알림(PostToolUse)이 도는지는 시험하지 않았다. 자세한 것은 `guide/limits.md`.
+- 경로별 규칙: Codex는 경로 조건 규칙이 없어 `AGENTS.md` 한 줄을 보고 따르는 글 부탁이고, Antigravity가 `.claude/rules`를 읽는지는 문서에 없으며, 워크트리에서 일하는 서브에이전트에게는 자동으로 읽히지 않을 수 있다(시험 안 함). OpenClaw는 확인하지 않았다. 자세한 것은 `guide/limits.md`.
+- 업그레이드·새 버전 알림: zip으로 받은 폴더에서는 받지 못하고, 역할·물레방아 사본은 바꾸지 않고, 알림은 스킬을 부를 때만 뜨고, 전역 네 곳은 정해진 경로뿐이다. 자세한 것은 `guide/limits.md`.
 - 검사는 크기와 몇 가지 패턴만 본다. 설계가 좋은지는 `lean-review`와 사람이 판단한다.

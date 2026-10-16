@@ -139,8 +139,10 @@ test('질문목록 shows the waiting ones by default and the answered ones with 
   ok(dir, ...ask('T-1'));
   ok(dir, ...ask('T-1', '둘째'));
   ok(dir, '답', 'Q-1', '둔다');
-  assert.match(ok(dir, '질문목록'), /^Q-2 \[대기\]/);
-  assert.equal(ok(dir, '질문목록').split('\n').length, 1);
+  const waiting = ok(dir, '질문목록').split('\n');
+  assert.match(waiting[0], /^Q-2 \[대기\]/);
+  assert.equal(waiting.length, 2, 'only Q-2 is listed, then the new-answer line for Q-1');
+  assert.match(waiting[1], /^새 답 1개\(Q-1 답함\)/);
   assert.match(ok(dir, '질문목록', '--상태', '답함'), /^Q-1 \[답함\] .*→ 둔다$/);
 });
 

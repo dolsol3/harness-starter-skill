@@ -169,8 +169,11 @@ test('every command that writes the ledger rewrites harness/questions.html, and 
   ok(dir, '처리함', 'T-1', '표준 Date를 쓴다', '--설명', '충분하다', '--이유', '의존을 줄인다');
   assert.match(fs.readFileSync(pageFile(dir), 'utf8'), /기록 1개[\s\S]*<summary>\d{4}-\d\d-\d\d · 기록 1개<\/summary>[\s\S]*표준 Date를 쓴다/);
   fs.rmSync(pageFile(dir));
+  ok(dir, '질문목록', '--상태', '답함');
+  assert.ok(fs.existsSync(pageFile(dir)), '질문목록 writes the ledger to clear the new-answer marks, so it rewrites the page too');
+  fs.rmSync(pageFile(dir));
   ok(dir, '목록');
-  ok(dir, '질문목록');
+  ok(dir, '보기', 'T-1');
   assert.ok(!fs.existsSync(pageFile(dir)), 'reading does not write the page');
   fs.writeFileSync(pageFile(dir), 'old');
   assert.equal(backlog(dir, '시작', 'T-9').status, 1);

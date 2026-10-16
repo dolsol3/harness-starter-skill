@@ -34,6 +34,7 @@ test('허락 takes each of the five actions and holds only its own task until it
     assert.match(ok(dir, '다음'), /^T-2 /);
     assert.match(ok(dir, '준비'), /같이 시작해도 되는 작업:\nT-2 [^\n]*\n미룬 작업:\nT-1 답을 기다리는/);
     ok(dir, '답', number, '둔다');
+    ok(dir, '질문목록', '--상태', '답함'); // 읽어 두어 다음 허락의 출력에 새 답 줄이 붙지 않게 한다
   });
   ok(dir, '시작', 'T-2');
   ok(dir, '시작', 'T-1');

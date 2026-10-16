@@ -7,7 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const SOURCE = fileURLToPath(new URL('..', import.meta.url));
-const COPIED = ['SKILL.md', 'package.json', 'CHANGELOG.md', 'scripts', 'templates'];
+const COPIED = ['SKILL.md', 'package.json', 'CHANGELOG.md', 'scripts', 'templates', 'guide'];
 export const MARK = '표시: 새 upgrade.mjs가 돌았다';
 
 export function temp(t, name) {

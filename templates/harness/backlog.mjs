@@ -16,13 +16,15 @@
 //   node harness/backlog.mjs 확인 T-1 "제목" --까닭 문서충돌|실데이터|구조변경 --설명 "…" --보기 "…" --추천 이름 --이유 "…"
 //                                                      추천대로 진행하며 묻는다. 작업은 멈추지 않고, 3일 안에 답이 없으면 확정되며, 추천과 다른 답은 고칠것이 된다
 //   node harness/backlog.mjs 기록 T-1 "제목" --설명 "…" --이유 "…"   허락·확인에 들지 않아 AI가 정한 일을 적어 둔다
-//   node harness/backlog.mjs 질문목록 [--상태 대기|확인중|확정|고칠것|답함]   질문 보기(기본은 답을 기다리는 것)
+//   node harness/backlog.mjs 질문목록 [--상태 대기|확인중|확정|고칠것|답함]   질문 보기(기본은 답을 기다리는 것). 보여 준 질문의 새 답 표시를 지운다
 //   node harness/backlog.mjs 답 Q-1 이름|--직접 "글" [--만든시각 …]   사람의 답을 적는다. 만든 시각이 다르면(오래된 페이지의 답) 거절한다
+//   node harness/backlog.mjs 기다리기 [--분 N]         읽지 않은 사람의 답이 오면 그 줄을 내고 끝난다. 기다릴 질문이 없거나 N분(기본 1440)이 지나도 끝난다. 장부는 쓰지 않는다
 //   node harness/backlog.mjs 서버 [--포트 N]           질문 페이지를 열어 사람이 브라우저에서 답하게 한다. 이 터미널에서 돌고 Ctrl+C로 끈다. 이 컴퓨터에서만 열리고 주소에 저장된 토큰이 붙는다
 //   node harness/backlog.mjs 켜두기 [--포트 N]         꺼져 있으면 질문 페이지를 떨어진 프로세스로 띄워 명령이 끝나도 계속 돌게 한다. 포트·토큰은 harness/serve.json에 두고 계속 쓴다
 //   node harness/backlog.mjs 끄기                      켜 둔 질문 페이지를 끈다. 다시 켜도 같은 링크다
 //   서버·켜두기·끄기 말고 모든 명령은 돌기 전에, 켜 둔 적 있는(harness/serve.json에 pid) 질문 페이지가 꺼져 있으면 다시 켠다.
 //   끄기 뒤에는 다시 켜두기까지 켜지 않는다. 허락·확인(옛 질문)은 페이지가 켜져 있으면 끝에 링크 줄을 보인다
+//   서버·켜두기·끄기·답·기다리기 말고 모든 명령은 질문목록으로 아직 읽지 않은 사람의 답이 있으면 링크 줄 앞에 "새 답 N개(…)" 한 줄을 보인다
 //   옛 이름도 같은 뜻으로 받는다: 질문(--행동 설계확인이면 확인, 그 밖의 다섯이면 허락. 옵션은 허락과 확인을 합친 것), 처리함(기록)
 //
 // 명령마다 쓸 수 있는 옵션이 정해져 있고 그 밖의 옵션은 거절한다. 시작은 비어 있는 칸만 채운다.
@@ -33,6 +35,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { setTimeout as sleep } from 'node:timers/promises';
 import * as ledger from './ledger.mjs';
 import * as questions from './questions.mjs';
 import * as page from './page.mjs';
@@ -64,6 +67,22 @@ const recorded = ({ ledger: book, args: [id, title], values }) => {
   const item = questions.record(book, id, title, values);
   return { rows: [`기록: ${item.작업} ${item.제목}`] };
 };
+
+// 사람의 답을 기다린다. 장부는 임시 파일을 이름 바꿔 저장하므로 잠금 없이 2초마다 새로 읽어도 반쯤 쓴 장부를 읽지 않는다.
+async function waitAnswer(root, limit = '1440') {
+  const minutes = Number(limit);
+  if (!(minutes > 0)) throw new Error('기다리기 거절: --분은 0보다 큰 수다(예: --분 30)');
+  const end = Date.now() + minutes * 60 * 1000;
+  for (;;) {
+    const book = ledger.load(root);
+    const notice = questions.answerNotice(book);
+    if (notice.length) return notice;
+    const waiting = book.질문.some(item => ['대기', '확인중'].includes(questions.shownState(item)));
+    if (!waiting) return ['기다릴 질문도 새 답도 없다'];
+    if (Date.now() >= end) return [`답 없이 지났다(${limit}분). 다시 걸지 않는다`];
+    await sleep(2000);
+  }
+}
 
 function detail(root, book, task) {
   const rows = [summary(task)];
@@ -147,19 +166,29 @@ const commands = {
     run: ({ ledger: book, args: [id, title], values }) => asked(questions.confirm(book, id, title, values)),
   },
   기록: { writes: true, options: ['설명', '이유'], run: recorded },
+  // 메인이 읽은 답의 새 답 표시를 지우려고 장부를 쓴다. 지울 것이 없어도 쓴다.
   질문목록: {
+    writes: true,
     options: ['상태'],
     run: ({ ledger: book, values }) => {
       const state = values.상태 || '대기';
-      const items = book.질문.filter(item => questions.shownState(item) === state);
+      const shown = book.질문.filter(item => questions.shownState(item) === state);
+      // 새 답을 앞에 두어, 읽은 답이 줄 제한보다 많아도 새 답은 늘 보이고 읽힌다.
+      const items = [...shown.filter(item => item.새답), ...shown.filter(item => !item.새답)];
+      // 줄 제한에 잘려 보이지 않은 질문은 새 답으로 남긴다.
+      for (const item of items.slice(0, outputLines)) delete item.새답;
       return { rows: items.length ? items.map(questionLine) : [`${state} 질문이 없다`] };
     },
   },
+  // 답은 사람이 하므로 새 답 줄을 붙이지 않는다(quiet).
   답: {
     writes: true,
+    quiet: true,
     options: ['직접', '만든시각'],
     run: ({ ledger: book, args: [id, choice], values }) => ({ rows: [`답: ${questionLine(questions.answer(book, id, { 선택: choice, ...values }))}`] }),
   },
+  // 끝날 때 내는 줄이 새 답 안내이므로 따로 붙이지 않는다(quiet). 새 답 표시는 질문목록이 지운다.
+  기다리기: { quiet: true, options: ['분'], run: ({ root, values }) => ({ rows: waitAnswer(root, values.분) }) },
   서버: {
     serves: true,
     options: ['포트'],
@@ -215,11 +244,15 @@ async function run() {
       ledger.save(root, book);
       page.write(root, book, patched);
     }
-    return shown;
+    // 새 답 줄은 명령이 장부를 다 바꾼 뒤의 장부로 만든다. 질문목록이 방금 지운 답은 들지 않는다.
+    const notice = command.serves || command.quiet ? [] : questions.answerNotice(book);
+    return { shown, notice };
   };
-  const rows = await (command.writes ? ledger.withLock(root, execute) : execute());
+  const { shown, notice } = command.writes ? ledger.withLock(root, execute) : execute();
+  const rows = await shown;
   if (rows.length) console.log(rows.slice(0, outputLines).join('\n'));
   if (rows.length > outputLines) console.log(`… ${rows.length - outputLines}줄 더 있다${command.narrow ? `. ${command.narrow}` : ''}`);
+  if (notice.length) console.log(notice.join('\n'));
   // 링크 줄은 줄 제한 뒤에 찍어, 출력이 잘려도 허락·확인의 마지막 줄이 링크다.
   const links = command.links ? await serve.pageLine(root) : [];
   if (links.length) console.log(links.join('\n'));

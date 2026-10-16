@@ -20,8 +20,8 @@ import { fileURLToPath } from 'node:url';
 import { addProject, readRegistry, registryFile, writeRegistry } from './registry.mjs';
 
 const ROOT = fs.realpathSync(fileURLToPath(new URL('..', import.meta.url)));
-const COPIED = ['SKILL.md', 'package.json', 'CHANGELOG.md', 'scripts', 'templates'];
-const FOLDERS = ['scripts', 'templates'];
+const COPIED = ['SKILL.md', 'package.json', 'CHANGELOG.md', 'scripts', 'templates', 'guide'];
+const FOLDERS = ['scripts', 'templates', 'guide'];
 const AFTER = '--받은뒤=';
 const USAGE = '사용법: node scripts/upgrade.mjs [--미리보기 | --예] [--프로젝트 <경로> ...]\n       node scripts/upgrade.mjs --등록 <경로> ...';
 const PATH_FLAGS = { '--프로젝트': 'projects', '--등록': 'register' };
@@ -137,7 +137,7 @@ function backupRoot() {
   return path.join(os.homedir(), '.harness-starter', 'backup');
 }
 
-// 다섯 밖의 파일과 네 곳 밖의 것은 건드리지 않는다.
+// 여섯 밖의 파일과 네 곳 밖의 것은 건드리지 않는다.
 function replace(plan) {
   const backup = path.join(backupRoot(), new Date().toISOString().replace(/[:.]/g, '-'));
   const changed = plan.filter(place => place.label !== '그대로');

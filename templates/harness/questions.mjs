@@ -117,9 +117,18 @@ export function answer(ledger, id, { 선택, 직접, 만든시각 }) {
   }
   // 확인에서 추천과 다른 답은 진행한 것을 고쳐야 한다는 뜻이다. 직접 적은 글은 뜻을 가릴 수 없어 메인이 읽게 고칠것으로 둔다.
   const agreed = state === '대기' || 선택 === question.추천;
-  Object.assign(question, { 상태: agreed ? '답함' : '고칠것', 답: 선택 || 직접 });
+  // 새답은 메인이 질문목록으로 읽을 때 지운다. 답할 때 적으므로 이 표시가 생기기 전에 답한 질문은 새 답이 아니다.
+  Object.assign(question, { 상태: agreed ? '답함' : '고칠것', 답: 선택 || 직접, 새답: true });
   if (직접) question.직접 = true;
   return question;
+}
+
+// 사람이 답했는데 메인이 아직 질문목록으로 읽지 않은 답을 알리는 줄. 없으면 빈 배열, 있으면 줄 하나가 든 배열이다.
+export function answerNotice(ledger) {
+  const fresh = ledger.질문.filter(item => item.새답);
+  if (!fresh.length) return [];
+  const names = fresh.map(item => `${item.번호} ${item.상태}`).join(', ');
+  return [`새 답 ${fresh.length}개(${names}). 메인은 node harness/backlog.mjs 질문목록 --상태 답함(고칠것은 --상태 고칠것)으로 읽는다`];
 }
 
 // 기록(옛 이름 처리함): AI가 알아서 정한 일을 적어만 둔다.

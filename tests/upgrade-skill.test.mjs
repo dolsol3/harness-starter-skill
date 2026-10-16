@@ -20,7 +20,7 @@ test('preview pulls, reruns the new script, shows the changelog section, and wri
   assert.deepEqual(fs.readdirSync(s.home), []);
 });
 
-test('y copies the five items to all four places, records only the source, and a global copy hands off to it', t => {
+test('y copies the six items to all four places, records only the source, and a global copy hands off to it', t => {
   const s = setup(t);
   const registry = path.join(s.home, '.harness-starter', 'projects.json');
   fs.mkdirSync(path.dirname(registry), { recursive: true });
@@ -28,6 +28,8 @@ test('y copies the five items to all four places, records only the source, and a
   publish(s, '9.9.9');
   ok(s.upgrade([], 'y\n'));
   for (const dir of places(s.home)) assert.deepEqual(copiedFiles(dir), copiedFiles(s.clone), dir);
+  const limits = path.join('guide', 'limits.md');
+  for (const dir of places(s.home)) assert.equal(fs.readFileSync(path.join(dir, limits), 'utf8'), fs.readFileSync(path.join(s.clone, limits), 'utf8'), dir);
   const written = JSON.parse(fs.readFileSync(registry, 'utf8'));
   assert.equal(written.source, fs.realpathSync(s.clone));
   assert.deepEqual(written.projects, ['/somewhere']);
