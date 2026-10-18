@@ -247,11 +247,12 @@ async function resume(task) {
   return built.stopReason ? stop(task, `이어 고치기 멈춤: ${built.stopReason}`) : working(task, built, true);
 }
 
+// 고르기·검사·올림은 정해진 명령만 돌려 sonnet high로 돈다: 역할 시험에서 결과는 오푸스와 같고 더 빨랐다(사용자 결정 2026-10-18).
 // 검사 → (통과면) 교차 리뷰 → 실패나 높음이 있으면 고치고 다시. 고치기는 합쳐서 MAX_FIXES번까지.
 async function inspect(work) {
   const { id } = work;
   for (let round = 1; ; round++) {
-    const check = await agent(checkPrompt(id, work), { label: `검사 ${id} ${round}번째`, phase: '검사', schema: CHECKED });
+    const check = await agent(checkPrompt(id, work), { label: `검사 ${id} ${round}번째`, phase: '검사', model: 'sonnet', effort: 'high', schema: CHECKED });
     const review = check.passed ? await crossReview(id, work, round) : { tool: '', findings: [] };
     const highs = review.findings.filter(isHigh);
     const done = { ...work, check, tool: review.tool, highs, others: review.findings.filter(finding => !isHigh(finding)) };
@@ -268,7 +269,7 @@ async function inspect(work) {
 async function raise(result) {
   const ready = result.check.passed && !result.highs.length;
   const raising = ready
-    ? await agent(raisePrompt(result.id, result, result.tool), { label: `올림 ${result.id}`, phase: '올림', agentType: 'implementer', schema: RAISED })
+    ? await agent(raisePrompt(result.id, result, result.tool), { label: `올림 ${result.id}`, phase: '올림', agentType: 'implementer', model: 'sonnet', effort: 'high', schema: RAISED })
     : { raised: false, output: '' };
   return {
     id: result.id,
@@ -292,7 +293,7 @@ async function raise(result) {
 const taskList = given => (typeof given === 'string' ? given.split(/[\s,]+/).filter(Boolean) : given);
 const tasks = args
   ? taskList(args)
-  : (await agent(pickPrompt(), { label: '작업 고르기', phase: '고르기', schema: PICKED })).tasks;
+  : (await agent(pickPrompt(), { label: '작업 고르기', phase: '고르기', model: 'sonnet', effort: 'high', schema: PICKED })).tasks;
 log(`물레방아: ${tasks.join(', ')}`);
 // 단계 agent가 건너뛰어지거나 죽으면 pipeline은 그 작업을 null로 돌린다. 메인이 어느 작업이 멈췄는지 알게 번호를 남긴다.
 const results = await pipeline(tasks, writeSpec, ...[checkSpec, build, inspect, raise].map(unlessStopped));

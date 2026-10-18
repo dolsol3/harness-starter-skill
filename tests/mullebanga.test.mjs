@@ -90,8 +90,7 @@ test('the implementer works in its own worktree; the reviewer and a read-only ot
   assert.equal(build.agentType, 'implementer');
   assert.equal(build.isolation, 'worktree');
   const reviews = calls.filter(call => call.phase === '교차 리뷰');
-  assert.equal(reviews.length, 2);
-  assert.equal(reviews.filter(call => call.agentType === 'reviewer').length, 1);
+  assert.deepEqual(reviews.map(call => call.agentType), ['reviewer', undefined]);
   const other = reviews.find(call => call.agentType !== 'reviewer');
   assert.match(other.prompt, /backlog\.limits/);
   assert.match(other.prompt, /읽기 전용/);
@@ -170,6 +169,13 @@ test('no prompt writes the ledger beyond 올림, apart from the planner asking �
     assert.doesNotMatch(call.prompt, /` 한 뒤/, call.label);
   }
   assert.doesNotMatch(body, /Date\.now|Math\.random|new Date\(\)|\bimport\b|\brequire\(/);
+});
+
+test('only 고르기, 검사 and 올림 run on sonnet with high effort; every other step, the resumed fix included, keeps the main model', async () => {
+  const { calls } = await run({ checks: [{ passed: false, failures: 'x' }] });
+  const resumed = (await run({ args: ['T-1'], spec: { rejectedCommit: 'abc1234', rejectedReason: 'r' } })).calls.find(call => call.label.includes('이어 고치기'));
+  assert.deepEqual(new Set(calls.map(call => call.phase)), new Set(meta.phases.map(entry => entry.title)));
+  for (const { phase, model, effort, label } of [...calls, resumed]) assert.deepEqual({ model, effort }, ['고르기', '검사', '올림'].includes(phase) ? { model: 'sonnet', effort: 'high' } : { model: undefined, effort: undefined }, label);
 });
 
 test('each task result names the task, worktree, both branches, commit, fixes and whether it was raised', async () => {
@@ -267,12 +273,8 @@ test('a rejected task is fixed on its rejected ai/ branch by an implementer with
   const spec = { outcome: '건너뜀', rejectedCommit: 'abc1234', rejectedReason: '중간 한 줄' };
   const { calls, result } = await run({ args: ['T-1'], spec });
   const build = calls.find(call => call.phase === '구현');
-  assert.equal(build.label, '구현 담당 이어 고치기 T-1');
-  assert.equal(build.agentType, 'implementer');
-  assert.equal(build.isolation, undefined);
-  for (const text of ['git branch --contains abc1234', '둘 이상이면 멈춘다', 'git worktree list', 'git worktree add', '반려 사유만 고친다', '중간 한 줄', 'stopReason']) {
-    assert.ok(build.prompt.includes(text), text);
-  }
+  assert.deepEqual([build.label, build.agentType, build.isolation], ['구현 담당 이어 고치기 T-1', 'implementer', undefined]);
+  for (const text of ['git branch --contains abc1234', '둘 이상이면 멈춘다', 'git worktree list', 'git worktree add', '반려 사유만 고친다', '중간 한 줄', 'stopReason']) assert.ok(build.prompt.includes(text), text);
   assert.equal(result[0].resumed, true);
   assert.equal(result[0].raised, true);
   const lost = await run({ args: ['T-1'], spec, resumed: { stopReason: 'ai/ 브랜치가 없다' } });
@@ -294,7 +296,5 @@ test('a task rerun while its question still waits stops at the spec step even th
 
 test('the planner and the spec reviewer read the whole docs/tasks/T-N.md in the main folder when 보기 is cut off, so a long spec keeps its 끝 기준', async () => {
   const { calls } = await run({ args: ['T-7'] });
-  for (const phase of ['명세', '대조']) {
-    assert.match(calls.find(call => call.phase === phase).prompt, /보기 T-7.*출력이 잘리면\(`…줄 더 있다` 안내가 보이면\) 메인 폴더\(.*\)의 `docs\/tasks\/T-7\.md` 전체를 읽는다/, phase);
-  }
+  for (const phase of ['명세', '대조']) assert.match(calls.find(call => call.phase === phase).prompt, /보기 T-7.*출력이 잘리면\(`…줄 더 있다` 안내가 보이면\) 메인 폴더\(.*\)의 `docs\/tasks\/T-7\.md` 전체를 읽는다/, phase);
 });
