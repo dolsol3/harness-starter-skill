@@ -5,6 +5,10 @@
   Antigravity가 `.claude/rules`를 읽는지는 공식 문서에 없다(공식 형식은 `.agents/rules`이고 만들지 않는다). OpenClaw는 확인하지 않았다.
   워크트리 루트의 `.claude/rules`는 불러오지 않는다고 문서에 있고 시험하지 않았다. 그래서 기획 담당이 필요한 규칙을 작업 문서에 옮겨 적는 방식을 그대로 둔다.
   출처(2026-10-12 조회): https://code.claude.com/docs/en/memory , https://code.claude.com/docs/en/worktrees , https://learn.chatgpt.com/docs/agent-configuration/agents-md , https://antigravity.google/docs/rules/
+- 공식 문서 길잡이(`docs/official-docs/<기술>.md`)도 지침이고 강제가 아니다. AI가 열지 않을 수 있고, 주소가 바뀌거나 사라져도 검사하지 않는다(확인 날짜만 남는다).
+  반대 근거: 논문 "Evaluating AGENTS.md"(https://arxiv.org/abs/2602.11988v3 , 2026-10-19 조회)는 맥락 파일이 성공률을 대체로 못 올리고 비용만 20% 넘게 늘린다고 한다.
+  Next.js 자사 평가(https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals , 2026-10-19 조회)와 맞서고 풀리지 않았다. 길잡이를 원칙 구역에 펼치지 않고 맞는 줄만 열게 한 것은 그래서다.
+  "처음 보는 오류면 공식 문서를 연다"는 범용 공식 권장은 확인 못 함(2026-10-19).
 - 막는 훅은 도구 호출과 셸 명령 글만 본다. 셸 명령으로 파일을 바꾸는 것(`sed -i`, `>`, `rm`, `git checkout`), 파일을 스크립트 안에서 여는 우회(`node -e` 등),
   `git commit -n`, `Grep`으로 장부 내용을 찾는 것, AI가 `.claude/settings.json`을 고쳐 훅을 끄는 것은 막지 못한다.
   `.git/hooks`를 편집 도구로 고치는 것은 지키는 파일이라 막히고, 셸 명령으로 고치는 것은 남는다.
