@@ -248,7 +248,7 @@ test('shapes whose parent of .git is not the project folder are refused instead 
 
 test('unknown commands, unknown numbers and a folder without git are refused with a message', t => {
   const { dir } = repo(t);
-  assert.match(refused(dir, '지우기'), /명령: 추가, 목록, 다음, 준비, 보기, 시작, 올림, 반려, 완료, 허락, 확인, 기록, 질문목록, 답, 기다리기, 서버, 질문, 처리함, 켜두기, 끄기 /);
+  assert.match(refused(dir, '지우기'), /명령: 추가, 목록, 다음, 준비, 보기, 시작, 올림, 반려, 완료, 허락, 확인, 기록, 질문목록, 답, 반영, 기다리기, 서버, 질문, 처리함, 켜두기, 끄기 /);
   for (const inherited of ['constructor', '__proto__', 'toString']) assert.match(refused(dir, inherited), /^backlog: 명령: 추가, /, inherited);
   assert.match(refused(dir, '보기', 'T-7'), /T-7: 그런 작업이 없다/);
   assert.match(refused(dir, '추가'), /제목이 없다/);

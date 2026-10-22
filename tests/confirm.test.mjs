@@ -86,6 +86,75 @@ test('an unanswered 확인 counts as settled after three days: listed as 확정,
   assert.match(ok(dir, '답', 'Q-2', '지운다'), /^답: Q-2 \[고칠것\]/);
 });
 
+test('반영 closes a 고칠것 question into 반영함 with commit and note, keeps the original answer and description, and clears 새답', t => {
+  const dir = twoTasks(t);
+  ok(dir, ...confirm('T-1'));
+  ok(dir, ...confirm('T-1', { 까닭: '실데이터' }, '보관 기간'));
+  ok(dir, '답', 'Q-1', '지운다');
+  ok(dir, '답', 'Q-2', '--직접', '다른 길로 간다');
+  assert.equal(
+    ok(dir, '반영', 'Q-1', '--커밋', 'abc123', '--설명', 'docs/24 보관기간 절'),
+    '반영: Q-1 [반영함] T-1 설계확인(문서충돌) 어느 문서를 따를까요  → 지운다 (커밋 abc123, docs/24 보관기간 절)\n' +
+      '새 답 1개(Q-2 고칠것). 메인은 node harness/backlog.mjs 질문목록 --상태 답함(고칠것은 --상태 고칠것)으로 읽는다',
+  );
+  assert.equal(
+    ok(dir, '반영', 'Q-2', '--커밋', 'def456', '--설명', 'src/a.js 반영'),
+    '반영: Q-2 [반영함] T-1 설계확인(실데이터) 보관 기간  → 다른 길로 간다 (커밋 def456, src/a.js 반영)',
+  );
+  const [first, second] = ledgerOf(dir).질문;
+  assert.equal(first.상태, '반영함');
+  assert.equal(first.커밋, 'abc123');
+  assert.equal(first.반영설명, 'docs/24 보관기간 절');
+  assert.equal(first.설명, '쓰지 않는 열이다');
+  assert.equal(first.답, '지운다');
+  assert.equal(first.직접, undefined);
+  assert.equal('새답' in first, false);
+  assert.equal(second.상태, '반영함');
+  assert.equal(second.커밋, 'def456');
+  assert.equal(second.반영설명, 'src/a.js 반영');
+  assert.equal(second.설명, '쓰지 않는 열이다');
+  assert.equal(second.답, '다른 길로 간다');
+  assert.equal(second.직접, true);
+  assert.equal('새답' in second, false);
+  assert.equal(ok(dir, '질문목록', '--상태', '고칠것'), '고칠것 질문이 없다');
+  assert.equal(
+    ok(dir, '질문목록', '--상태', '반영함'),
+    'Q-1 [반영함] T-1 설계확인(문서충돌) 어느 문서를 따를까요  → 지운다 (커밋 abc123, docs/24 보관기간 절)\n' +
+      'Q-2 [반영함] T-1 설계확인(실데이터) 보관 기간  → 다른 길로 간다 (커밋 def456, src/a.js 반영)',
+  );
+  const detail = ok(dir, '보기', 'T-1');
+  assert.match(detail, /^질문: Q-1 \[반영함\] T-1 설계확인\(문서충돌\) 어느 문서를 따를까요  → 지운다 \(커밋 abc123, docs\/24 보관기간 절\)$/m);
+  assert.match(detail, /^질문: Q-2 \[반영함\] T-1 설계확인\(실데이터\) 보관 기간  → 다른 길로 간다 \(커밋 def456, src\/a\.js 반영\)$/m);
+  assert.match(refused(dir, '답', 'Q-1', '둔다'), /Q-1 답 거절: 이미 답했다\(지운다\)/);
+});
+
+test('반영 refuses questions not in 고칠것, unknown question numbers, and missing commit or note without changing the ledger', t => {
+  const dir = twoTasks(t);
+  ok(dir, ...permit('T-1'));
+  ok(dir, ...confirm('T-1', {}, '확인중 질문'));
+  ok(dir, ...confirm('T-1', {}, '확정 질문'));
+  ok(dir, ...confirm('T-1', {}, '답함 질문'));
+  ok(dir, ...confirm('T-1', {}, '고칠것 질문'));
+  rewrite(dir, book => {
+    book.질문[2].만든시각 = new Date(Date.now() - 73 * HOUR).toISOString();
+  });
+  ok(dir, '답', 'Q-4', '둔다');
+  ok(dir, '답', 'Q-5', '지운다');
+  assert.match(refused(dir, '반영', 'Q-99', '--커밋', 'abc', '--설명', '고침'), /Q-99: 그런 질문이 없다/);
+  assert.match(refused(dir, '반영', '--커밋', 'abc', '--설명', '고침'), /번호: 그런 질문이 없다/);
+  assert.match(refused(dir, '반영', 'Q-1', '--커밋', 'abc', '--설명', '고침'), /Q-1 반영 거절: 고칠것 상태만 반영한다\(지금 대기\)/);
+  assert.match(refused(dir, '반영', 'Q-2', '--커밋', 'abc', '--설명', '고침'), /Q-2 반영 거절: 고칠것 상태만 반영한다\(지금 확인중\)/);
+  assert.match(refused(dir, '반영', 'Q-3', '--커밋', 'abc', '--설명', '고침'), /Q-3 반영 거절: 고칠것 상태만 반영한다\(지금 확정\)/);
+  assert.match(refused(dir, '반영', 'Q-4', '--커밋', 'abc', '--설명', '고침'), /Q-4 반영 거절: 고칠것 상태만 반영한다\(지금 답함\)/);
+  assert.match(refused(dir, '반영', 'Q-5', '--설명', '고침'), /반영 거절: --커밋이\(가\) 비어 있다/);
+  assert.match(refused(dir, '반영', 'Q-5', '--커밋', '   ', '--설명', '고침'), /반영 거절: --커밋이\(가\) 비어 있다/);
+  assert.match(refused(dir, '반영', 'Q-5', '--커밋', 'abc'), /반영 거절: --설명이\(가\) 비어 있다/);
+  assert.match(refused(dir, '반영', 'Q-5', '--커밋', 'abc', '--설명', '   '), /반영 거절: --설명이\(가\) 비어 있다/);
+  assert.match(refused(dir, '반영', 'Q-5'), /반영 거절: --커밋 --설명이\(가\) 비어 있다/);
+  ok(dir, '반영', 'Q-5', '--커밋', 'abc123', '--설명', '고침');
+  assert.match(refused(dir, '반영', 'Q-5', '--커밋', 'def456', '--설명', '다시'), /Q-5 반영 거절: 고칠것 상태만 반영한다\(지금 반영함\)/);
+});
+
 test('기록 keeps what the AI decided with the time it was written', t => {
   const dir = twoTasks(t);
   const before = Date.now();

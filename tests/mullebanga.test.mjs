@@ -20,8 +20,7 @@ const pipeline = (items, ...stages) => Promise.all(items.map(async (item, index)
 const parallel = thunks => Promise.all(thunks.map(thunk => thunk().catch(() => null)));
 
 // 장면: checks·reviews는 차례로 꺼내 쓰고 다 쓰면 통과·지적 없음. tool은 다른 도구 검토가 돌려줄 이름.
-// skipped는 사용자가 건너뛴 agent의 label: 그 agent는 null을 돌려준다.
-// spec·specReview·resumed는 기획 담당·대조 리뷰어·이어 고치기 구현 담당의 답에 덮어쓸 칸(주지 않으면 썼음·통과·고침).
+// skipped는 사용자가 건너뛴 agent의 label(null 반환). spec·specReview·resumed는 각 단계 답에 덮어쓸 칸.
 async function run({ args, picked = ['T-5'], checks = [], reviews = [], tool = 'codex', skipped = '', spec = {}, specReview = {}, resumed = {} } = {}) {
   const calls = [];
   const phases = [];
@@ -32,16 +31,16 @@ async function run({ args, picked = ['T-5'], checks = [], reviews = [], tool = '
   const answers = {
     '작업 고르기': () => ({ tasks: picked }),
     '기획 담당': () => ({ outcome: '썼음', reason: '', rejectedCommit: '', rejectedReason: '', pendingQuestions: [], ...spec }),
-    '리뷰어 대조': () => ({ passed: true, findings: [], ...specReview }),
-    '구현 담당': built,
-    '구현 담당 이어 고치기': prompt => ({ ...built(prompt), stopReason: '', ...resumed }),
-    '검사': () => checks.shift() ?? { passed: true, failures: '' },
-    '리뷰어': () => ({ findings: reviews.shift() ?? [] }),
+    '살피기 담당 맞춰보기': () => ({ passed: true, findings: [], ...specReview }),
+    '만들기 담당': built,
+    '만들기 담당 이어 고치기': prompt => ({ ...built(prompt), stopReason: '', ...resumed }),
+    '돌려보기': () => checks.shift() ?? { passed: true, failures: '' },
+    '살피기 담당': () => ({ findings: reviews.shift() ?? [] }),
     '다른 도구 검토': () => ({ tool, findings: [] }),
     '고치기': () => ({ commit: `c${calls.length}` }),
     '올림': () => ({ raised: true, output: '올림: ok' }),
   };
-  // label에서 작업 번호부터 뒤를 떼면 단계 이름이 남는다. 그래서 '리뷰어 대조'는 교차 리뷰의 '리뷰어' 답을 타지 않는다.
+  // label에서 작업 번호부터 뒤를 떼면 단계 이름이 남는다. 그래서 '살피기 담당 맞춰보기'는 번갈아 보기의 '살피기 담당' 답을 타지 않는다.
   const agent = async (prompt, opts) => {
     calls.push({ prompt, ...opts });
     if (opts.label === skipped) return null;
@@ -54,7 +53,6 @@ async function run({ args, picked = ['T-5'], checks = [], reviews = [], tool = '
 const raises = calls => calls.filter(call => call.prompt.includes('backlog.mjs 올림'));
 const fixes = calls => calls.filter(call => call.label.startsWith('고치기'));
 const high = text => ({ level: '높음', text });
-// 장부 명령 모양: 뒤가 빈칸이든 백틱이든 줄 끝이든 잡는다.
 const ledgerCommand = names => new RegExp(`backlog\\.mjs (${names})(?=[\\s\`]|$)`, 'm');
 
 test('meta is a pure literal named 물레방아 whose phases are exactly the phases the agents are grouped under', async () => {
@@ -86,10 +84,10 @@ test('args given as one line of text is split on spaces and commas into the task
 
 test('the implementer works in its own worktree; the reviewer and a read-only other-tool review look separately', async () => {
   const { calls } = await run({ args: ['T-1'] });
-  const build = calls.find(call => call.phase === '구현');
+  const build = calls.find(call => call.phase === '만들기');
   assert.equal(build.agentType, 'implementer');
   assert.equal(build.isolation, 'worktree');
-  const reviews = calls.filter(call => call.phase === '교차 리뷰');
+  const reviews = calls.filter(call => call.phase === '번갈아 보기');
   assert.deepEqual(reviews.map(call => call.agentType), ['reviewer', undefined]);
   const other = reviews.find(call => call.agentType !== 'reviewer');
   assert.match(other.prompt, /backlog\.limits/);
@@ -118,7 +116,7 @@ test('the other tool runs in a throwaway clone outside the worktree, which is ch
 test('a failed check goes to a fix and back to the check, then a clean pass raises once', async () => {
   const { calls, result } = await run({ args: ['T-1'], checks: [{ passed: false, failures: 'tests failed' }] });
   const steps = calls.map(call => call.phase);
-  assert.deepEqual(steps.slice(0, 6), ['명세', '대조', '구현', '검사', '고치기', '검사']);
+  assert.deepEqual(steps.slice(0, 6), ['할 일 적기', '맞춰보기', '만들기', '돌려보기', '고치기', '돌려보기']);
   assert.match(fixes(calls)[0].prompt, /tests failed/);
   assert.equal(raises(calls).length, 1);
   assert.equal(result[0].fixes, 1);
@@ -155,15 +153,15 @@ test('no prompt writes the ledger beyond 올림, apart from the planner asking �
   const { calls, result } = await run({ checks: [{ passed: false, failures: 'x' }], reviews: [[high('h')]] });
   const resumedRun = await run({ args: ['T-1'], spec: { rejectedCommit: 'abc1234', rejectedReason: 'r' } });
   for (const { prompt, agentType, label } of [...calls, ...resumedRun.calls]) {
-    assert.doesNotMatch(prompt, ledgerCommand('추가|시작|완료|반려|답|질문|처리함'), label);
+    assert.doesNotMatch(prompt, ledgerCommand('추가|시작|완료|반려|다시하기|답|질문|처리함'), label);
     if (agentType !== 'planner') assert.doesNotMatch(prompt, ledgerCommand('허락|확인|기록'), label);
     assert.doesNotMatch(prompt, /git -C/, label);
   }
   const planner = calls.find(call => call.agentType === 'planner');
   for (const name of ['허락', '확인', '기록']) assert.match(planner.prompt, ledgerCommand(name));
   assert.match('`node harness/backlog.mjs 완료`', ledgerCommand('완료'), 'a command closed by a backtick is still caught');
-  const steps = calls.filter(call => ['검사', '교차 리뷰', '고치기', '올림'].includes(call.phase));
-  assert.deepEqual(new Set(steps.map(call => call.label.split(' ')[0])), new Set(['검사', '리뷰어', '다른', '고치기', '올림']));
+  const steps = calls.filter(call => ['돌려보기', '번갈아 보기', '고치기', '올림'].includes(call.phase));
+  assert.deepEqual(new Set(steps.map(call => call.label.split(' ')[0])), new Set(['돌려보기', '살피기', '다른', '고치기', '올림']));
   for (const call of steps) {
     assert.ok(call.prompt.includes(`명령마다 \`cd ${result[0].worktree} && <명령>\` 한 줄로`), call.label);
     assert.doesNotMatch(call.prompt, /` 한 뒤/, call.label);
@@ -171,11 +169,11 @@ test('no prompt writes the ledger beyond 올림, apart from the planner asking �
   assert.doesNotMatch(body, /Date\.now|Math\.random|new Date\(\)|\bimport\b|\brequire\(/);
 });
 
-test('only 고르기, 검사 and 올림 run on sonnet with high effort; every other step, the resumed fix included, keeps the main model', async () => {
+test('맞춰보기 and 번갈아 보기 살피기 담당 run on opus high; every other claude step, the resumed fix included, runs on sonnet high', async () => {
   const { calls } = await run({ checks: [{ passed: false, failures: 'x' }] });
   const resumed = (await run({ args: ['T-1'], spec: { rejectedCommit: 'abc1234', rejectedReason: 'r' } })).calls.find(call => call.label.includes('이어 고치기'));
   assert.deepEqual(new Set(calls.map(call => call.phase)), new Set(meta.phases.map(entry => entry.title)));
-  for (const { phase, model, effort, label } of [...calls, resumed]) assert.deepEqual({ model, effort }, ['고르기', '검사', '올림'].includes(phase) ? { model: 'sonnet', effort: 'high' } : { model: undefined, effort: undefined }, label);
+  for (const { agentType, model, effort, label } of [...calls, resumed]) assert.deepEqual({ model, effort }, label.startsWith('다른 도구 검토') ? { model: undefined, effort: undefined } : { model: agentType === 'reviewer' ? 'opus' : 'sonnet', effort: 'high' }, label);
 });
 
 test('each task result names the task, worktree, both branches, commit, fixes and whether it was raised', async () => {
@@ -205,22 +203,22 @@ test('a returned review tool is named in 올림 with --검토; a skipped review 
 });
 
 test('a task whose agent was skipped comes back as stopped by number, and the other tasks still finish', async () => {
-  const { result } = await run({ args: ['T-1', 'T-2'], skipped: '리뷰어 T-1 1번째' });
+  const { result } = await run({ args: ['T-1', 'T-2'], skipped: '살피기 담당 T-1 1번째' });
   assert.deepEqual(result[0], { id: 'T-1', stopped: true });
   assert.equal(result[1].id, 'T-2');
   assert.equal(result[1].raised, true);
 });
 
 test('a skipped implementer stops its task before any check, review or 올림 runs', async () => {
-  const { calls, result } = await run({ args: ['T-1'], skipped: '구현 담당 T-1' });
+  const { calls, result } = await run({ args: ['T-1'], skipped: '만들기 담당 T-1' });
   assert.deepEqual(result, [{ id: 'T-1', stopped: true }]);
-  assert.deepEqual(calls.map(call => call.phase), ['명세', '대조', '구현']);
+  assert.deepEqual(calls.map(call => call.phase), ['할 일 적기', '맞춰보기', '만들기']);
 });
 
 test('the planner (no isolation) and the reviewer check the spec before the implementer; a spec that already has 끝 기준 is skipped, not written', async () => {
   const { calls, result } = await run({ args: ['T-1'], spec: { outcome: '건너뜀' } });
   const firstThree = calls.slice(0, 3).map(call => [call.phase, call.agentType, call.isolation]);
-  assert.deepEqual(firstThree, [['명세', 'planner', undefined], ['대조', 'reviewer', undefined], ['구현', 'implementer', 'worktree']]);
+  assert.deepEqual(firstThree, [['할 일 적기', 'planner', undefined], ['맞춰보기', 'reviewer', undefined], ['만들기', 'implementer', 'worktree']]);
   assert.match(calls[0].prompt, /`## 끝 기준`이 이미 있으면 명세를 쓰지 않고 건너뜀/);
   assert.equal(result[0].spec.outcome, '건너뜀');
   assert.deepEqual(result[0].specReview, { passed: true, findings: [] });
@@ -231,7 +229,7 @@ test('the planner (no isolation) and the reviewer check the spec before the impl
 
 test('the planner writes docs/tasks/T-N.md in the main folder, keeps the user words, does not commit, asks 허락 and stops for the five, leaves 확인 and goes on for the three, and logs the rest in 기록', async () => {
   const { calls } = await run({ args: ['T-3'] });
-  const { prompt } = calls.find(call => call.phase === '명세');
+  const { prompt } = calls.find(call => call.phase === '할 일 적기');
   assert.match(prompt, /보기 T-3/);
   assert.match(prompt, /메인 폴더\(.*\)의 `docs\/tasks\/T-3\.md`에 나머지를 쓴다/);
   assert.match(prompt, /맨 위 `## 사용자 원래 말` 절은 한 글자도 바꾸지 않는다/);
@@ -247,9 +245,9 @@ test('a spec review with a high or medium finding stops the task before the impl
   const failed = [{ passed: false, findings: [high('사용자 원래 말 절 없음')] }, { passed: true, findings: [{ level: '중간', text: '출처 없음' }] }];
   for (const specReview of failed) {
     const { calls, result } = await run({ args: ['T-1'], specReview });
-    assert.deepEqual(calls.map(call => call.phase), ['명세', '대조']);
+    assert.deepEqual(calls.map(call => call.phase), ['할 일 적기', '맞춰보기']);
     assert.equal(result[0].stopped, true);
-    assert.match(result[0].reason, /대조 실패/);
+    assert.match(result[0].reason, /맞춰보기 실패/);
     assert.deepEqual(result[0].specReview, specReview);
     assert.equal(result[0].worktree, undefined);
   }
@@ -262,7 +260,7 @@ test('a spec review with a high or medium finding stops the task before the impl
 test('a spec step that stops for 허락 or an experiment runs no spec review or implementer and comes back with its reason, not null', async () => {
   for (const outcome of ['허락', '실험 필요']) {
     const { calls, result } = await run({ args: ['T-1'], spec: { outcome, reason: '배포를 묻는다' } });
-    assert.deepEqual(calls.map(call => call.phase), ['명세']);
+    assert.deepEqual(calls.map(call => call.phase), ['할 일 적기']);
     assert.deepEqual(Object.keys(result[0]).sort(), ['id', 'reason', 'spec', 'stopped']);
     assert.match(result[0].reason, new RegExp(`${outcome}.*배포를 묻는다`));
     assert.equal(result[0].spec.outcome, outcome);
@@ -272,13 +270,13 @@ test('a spec step that stops for 허락 or an experiment runs no spec review or 
 test('a rejected task is fixed on its rejected ai/ branch by an implementer without isolation; if the branch or worktree is lost the task stops with the reason', async () => {
   const spec = { outcome: '건너뜀', rejectedCommit: 'abc1234', rejectedReason: '중간 한 줄' };
   const { calls, result } = await run({ args: ['T-1'], spec });
-  const build = calls.find(call => call.phase === '구현');
-  assert.deepEqual([build.label, build.agentType, build.isolation], ['구현 담당 이어 고치기 T-1', 'implementer', undefined]);
+  const build = calls.find(call => call.phase === '만들기');
+  assert.deepEqual([build.label, build.agentType, build.isolation], ['만들기 담당 이어 고치기 T-1', 'implementer', undefined]);
   for (const text of ['git branch --contains abc1234', '둘 이상이면 멈춘다', 'git worktree list', 'git worktree add', '반려 사유만 고친다', '중간 한 줄', 'stopReason']) assert.ok(build.prompt.includes(text), text);
   assert.equal(result[0].resumed, true);
   assert.equal(result[0].raised, true);
   const lost = await run({ args: ['T-1'], spec, resumed: { stopReason: 'ai/ 브랜치가 없다' } });
-  assert.deepEqual(lost.calls.map(call => call.phase), ['명세', '대조', '구현']);
+  assert.deepEqual(lost.calls.map(call => call.phase), ['할 일 적기', '맞춰보기', '만들기']);
   assert.equal(lost.result[0].stopped, true);
   assert.match(lost.result[0].reason, /ai\/ 브랜치가 없다/);
 });
@@ -286,7 +284,7 @@ test('a rejected task is fixed on its rejected ai/ branch by an implementer with
 test('a task rerun while its question still waits stops at the spec step even though the spec already has 끝 기준', async () => {
   const waiting = 'Q-1 [대기] T-1 외부발행 배포할까  (추천: 가)';
   const { calls, result } = await run({ args: ['T-1'], spec: { outcome: '건너뜀', pendingQuestions: [waiting] } });
-  assert.deepEqual(calls.map(call => call.phase), ['명세']);
+  assert.deepEqual(calls.map(call => call.phase), ['할 일 적기']);
   assert.equal(result[0].stopped, true);
   assert.match(result[0].reason, /답을 기다리는 질문.*Q-1 \[대기\]/);
   const lines = calls[0].prompt.split('\n');
@@ -296,5 +294,5 @@ test('a task rerun while its question still waits stops at the spec step even th
 
 test('the planner and the spec reviewer read the whole docs/tasks/T-N.md in the main folder when 보기 is cut off, so a long spec keeps its 끝 기준', async () => {
   const { calls } = await run({ args: ['T-7'] });
-  for (const phase of ['명세', '대조']) assert.match(calls.find(call => call.phase === phase).prompt, /보기 T-7.*출력이 잘리면\(`…줄 더 있다` 안내가 보이면\) 메인 폴더\(.*\)의 `docs\/tasks\/T-7\.md` 전체를 읽는다/, phase);
+  for (const phase of ['할 일 적기', '맞춰보기']) assert.match(calls.find(call => call.phase === phase).prompt, /보기 T-7.*출력이 잘리면\(`…줄 더 있다` 안내가 보이면\) 메인 폴더\(.*\)의 `docs\/tasks\/T-7\.md` 전체를 읽는다/, phase);
 });

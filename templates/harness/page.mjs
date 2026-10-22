@@ -139,11 +139,13 @@ function records(book, settled) {
 
 function taskTable(book, tasks) {
   const rows = tasks.map(task => {
+    const areas = task.영역?.length ? task.영역 : (task.고칠곳 ?? []);
+    const tool = task.배정 ?? task.맡길곳;
     const mark = openQuestions(book, task.번호).map(item => ` <span class="tag">${esc(item.번호)} 답 대기</span>`).join('');
-    const who = [task.배정 && `배정 ${task.배정}`, task.검토 && `검토 ${task.검토}`].filter(Boolean).join(', ');
-    return `<tr><td class="ref">${esc(task.번호)}</td><td>${esc(task.제목)}${mark}</td><td>${esc(task.영역.join(', '))}</td><td>${esc(who)}</td></tr>`;
+    const who = [tool && `배정 ${tool}`, task.검토 && `검토 ${task.검토}`].filter(Boolean).join(', ');
+    return `<tr><td class="ref">${esc(task.번호)}</td><td>${esc(task.제목)}${mark}</td><td>${esc(areas.join(', '))}</td><td>${esc(who)}</td></tr>`;
   });
-  return `<table class="tasks"><tr><th>번호</th><th>제목</th><th>영역</th><th>도구</th></tr>${rows.join('')}</table>`;
+  return `<table class="tasks"><tr><th>번호</th><th>제목</th><th>고칠곳</th><th>맡길곳</th></tr>${rows.join('')}</table>`;
 }
 
 // 같은 파일을 수정 커밋으로 여러 번 고친 곳(patch.mjs). 기준은 harness/config.json의 patch에 있다.
@@ -165,13 +167,19 @@ function progress(book) {
   return blocks || empty('작업이 아직 없습니다.');
 }
 
+const answerCell = item => {
+  const answer = `<b>${esc(item.답)}</b>${item.직접 ? ' (직접 적음)' : ''}`;
+  return item.상태 === '반영함' ? `반영됨: ${answer} (커밋 ${esc(item.커밋)}, ${esc(item.반영설명)})` : `→ ${answer}`;
+};
+
 export function render(book, now = new Date(), patched = []) {
   const shown = state => book.질문.filter(item => shownState(item, now) === state);
-  const [permits, confirms, fixes, answered, settled] = ['대기', '확인중', '고칠것', '답함', '확정'].map(shown);
+  const [permits, confirms, fixes, settled] = ['대기', '확인중', '고칠것', '확정'].map(shown);
+  const answered = book.질문.filter(item => ['답함', '반영함'].includes(shownState(item, now)));
   return `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark">
 <title>작업 장부</title><style>${STYLE}</style></head><body><main>
-<h1>작업 장부</h1>
+<h1>일감 목록 (작업 장부)</h1>
 <p class="sub">마지막 갱신 ${esc(now.toLocaleString('ko-KR'))}</p>
 <p class="hint">이 페이지는 저절로 새로 고쳐지지 않습니다. 새 질문이 올라왔는지 보려면 새로 고침하세요.</p>
 ${tiles(book, permits.length, confirms.length, fixes.length, patched.length)}
@@ -182,10 +190,10 @@ ${permits.length ? permits.map(permitCard).join('') : empty('지금 허락할 �
 <p class="hint">AI가 추천대로 먼저 진행하고 있습니다. 맞으면 추천을, 아니면 다른 보기를 골라 주세요.</p>
 ${confirms.length ? confirms.map(confirmCard).join('') : empty('지금 확인할 것이 없습니다.')}
 <h2 id="fix">고칠 것 ${fixes.length}개</h2>
-<p class="hint">사람이 추천과 다르게 답한 확인입니다. 병합 전이면 메인이 반려로, 병합 뒤면 추가로 수정 작업을 엽니다.</p>
+<p class="hint">추천과 다르게 답하신 것 중 AI가 아직 고치지 않은 것입니다. 고치면 '답한 것'으로 옮겨집니다.</p>
 ${fixes.length ? fixes.map(fixCard).join('') : empty('지금 고칠 것이 없습니다.')}
 <h2 id="answered">답한 것 ${answered.length}개</h2>
-${answered.length ? `<table class="answers">${answered.map(item => `<tr><td class="ref">${esc(item.번호)}</td><td>${esc(item.제목)}</td><td>→ <b>${esc(item.답)}</b>${item.직접 ? ' (직접 적음)' : ''}</td></tr>`).join('')}</table>` : empty('아직 없습니다.')}
+${answered.length ? `<table class="answers">${answered.map(item => `<tr><td class="ref">${esc(item.번호)}</td><td>${esc(item.제목)}</td><td>${answerCell(item)}</td></tr>`).join('')}</table>` : empty('아직 없습니다.')}
 <h2 id="records">기록 ${book.처리함.length + settled.length}개</h2>
 <p class="hint">AI가 알아서 정한 일과 기한이 지나 확정된 확인입니다. 날짜를 누르면 펼쳐집니다.</p>
 ${records(book, settled)}

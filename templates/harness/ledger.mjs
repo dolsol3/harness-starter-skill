@@ -42,11 +42,21 @@ const ledgerFile = root => path.join(root, 'harness/backlog.json');
 // 질문과 처리함은 4단계에서 생겼다. 옛 장부에 없으면 빈 목록으로 읽는다.
 const empty = () => ({ 다음번호: 1, 작업: [], 다음질문번호: 1, 질문: [], 처리함: [] });
 
+function normalizeTask(task) {
+  if (task.고칠곳 && !task.영역?.length) task.영역 = task.고칠곳;
+  if (task.먼저할일 && !task.선행?.length) task.선행 = task.먼저할일;
+  if (task.맡길곳 && !task.배정) task.배정 = task.맡길곳;
+  if (task.다시하기 && !task.반려) task.반려 = task.다시하기;
+  return task;
+}
+
 export function load(root) {
   const file = ledgerFile(root);
   if (!fs.existsSync(file)) return empty();
   try {
-    return { ...empty(), ...JSON.parse(fs.readFileSync(file, 'utf8')) };
+    const book = { ...empty(), ...JSON.parse(fs.readFileSync(file, 'utf8')) };
+    book.작업 = book.작업.map(normalizeTask);
+    return book;
   } catch (error) {
     throw new Error(`harness/backlog.json을 읽을 수 없다(${error.message}). 사람이 고치거나 지운다`);
   }
@@ -135,7 +145,7 @@ function checkTool(tool, limits, id, what) {
 function assign(ledger, task, requested, { limits, defaultTool }) {
   if (!limits && !requested) return;
   const tool = requested || defaultTool;
-  if (!tool) throw new Error(`${task.번호} 시작 거절: 배정할 도구가 없다. --배정 ${Object.keys(limits).join('|')}로 정하거나 config.json에 backlog.defaultTool을 적는다`);
+  if (!tool) throw new Error(`${task.번호} 시작 거절: 맡길곳(배정할 도구가 없다). --맡길곳(--배정) ${Object.keys(limits).join('|')}로 정하거나 config.json에 일감목록.기본맡길곳(backlog.defaultTool)을 적는다`);
   if (!requested && !Object.hasOwn(limits, tool)) {
     throw new Error(`${task.번호} 시작 거절: harness/config.json의 backlog.defaultTool(${tool})이(가) backlog.limits에 없다. 사람이 고친다`);
   }
@@ -174,10 +184,10 @@ export function start(ledger, id, fields, tools) {
   const needed = ['영역', '확인방법', ...(task.종류 === '수정' ? ['원인', '방향'] : [])];
   const missing = needed.filter(name => !task[name]?.length);
   if (missing.length) {
-    throw new Error(`${id} 시작 거절: ${missing.join(', ')}이(가) 비어 있다. ${missing.map(name => `--${name}`).join(' ')}로 채운다`);
+    throw new Error(`${id} 시작 거절: ${missing.join(', ')}이(가) 비어 있다. ${missing.map(name => (name === '영역' ? '--고칠곳(--영역)' : `--${name}`)).join(' ')}로 채운다`);
   }
   const blocked = blockedBy(ledger, task);
-  if (blocked.length) throw new Error(`${id} 시작 거절: 선행 작업 ${blocked.join(', ')}이(가) 완료되지 않았다`);
+  if (blocked.length) throw new Error(`${id} 시작 거절: 먼저할일(선행 작업 ${blocked.join(', ')})이(가) 완료되지 않았다`);
   assign(ledger, task, fields.배정, tools);
   task.상태 = '진행중';
   return task;
@@ -199,10 +209,10 @@ export function submit(ledger, id, { 커밋, 증거, 검토 }, { limits }) {
 
 // 올림을 진행중으로 돌려보낸다. 올릴 때 적힌 커밋·증거·검토는 작업에서 빼서 반려 목록에 사유와 함께 쌓는다. 그래야 다시 올릴 때 새로 적는다.
 // 이미 시작했던 작업이 돌아오는 것이라 도구별 동시 상한은 보지 않는다. 답을 기다리는 질문이 있어도 돌려보낼 수 있다.
-export function reject(ledger, id, 사유) {
+export function reject(ledger, id, 사유, what = '반려') {
   const task = find(ledger, id);
-  if (task.상태 !== '올림') throw new Error(`${id} 반려 거절: 올림 상태만 돌려보낸다(지금 ${task.상태})`);
-  if (!사유) throw new Error(`${id} 반려 거절: --사유가 필요하다`);
+  if (task.상태 !== '올림') throw new Error(`${id} ${what} 거절: 올림 상태만 돌려보낸다(지금 ${task.상태})`);
+  if (!사유) throw new Error(`${id} ${what} 거절: --사유가 필요하다`);
   const { 커밋, 증거, 검토 } = task;
   task.반려 = [...(task.반려 ?? []), { 커밋, 증거, ...(검토 ? { 검토 } : {}), 사유 }];
   for (const name of ['커밋', '증거', '검토']) delete task[name];

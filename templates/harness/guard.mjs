@@ -21,7 +21,7 @@ const LEDGER = 'harness/backlog.json';
 const PROTECTED = ['config.json', 'check.mjs', 'guard.mjs', 'backlog.mjs', 'ledger.mjs', 'questions.mjs', 'page.mjs', 'patch.mjs', 'serve.mjs', 'stop.mjs'].map(name => `harness/${name}`);
 const LOCKS = ['package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lock', 'bun.lockb', 'Cargo.lock', 'poetry.lock', 'uv.lock', 'Pipfile.lock', 'Gemfile.lock', 'composer.lock', 'go.sum'];
 const KEEP = ['.env', '.env.*', ...LOCKS, '.git'];
-const START = 'node harness/backlog.mjs 추가 "제목"으로 작업을 만들고 시작 T-1 --영역 … --확인방법 "…"으로 시작한 뒤 고친다';
+const START = 'node harness/backlog.mjs 추가 "제목"으로 작업을 만들고 시작 T-1 --고칠곳(--영역) … --확인방법 "…"으로 시작한 뒤 고친다';
 let config;
 
 const git = args => execFileSync('git', ['-c', 'core.quotePath=false', ...args], { encoding: 'utf8' }).trim();
@@ -58,7 +58,7 @@ function isCode(rel) {
 function keeps(rel) {
   const parts = rel.split('/');
   const pieces = parts.flatMap((_, start) => parts.slice(start).map((_, length) => parts.slice(start, start + length + 1).join('/')));
-  return pieces.some(piece => (config.protect ?? KEEP).some(glob => path.posix.matchesGlob(piece, glob)));
+  return pieces.some(piece => (config.지키는파일 ?? config.protect ?? KEEP).some(glob => path.posix.matchesGlob(piece, glob)));
 }
 
 // 실제 경로(맨 앞)와 함께, 조상 폴더마다 그 폴더까지만 풀고 아래는 적힌 이름 그대로 둔 경로를 돌려준다.

@@ -10,8 +10,12 @@ import { fileURLToPath } from 'node:url';
 import { overlaps } from './ledger.mjs';
 
 const config = JSON.parse(fs.readFileSync(fileURLToPath(new URL('config.json', import.meta.url)), 'utf8'));
-const { times = 3, lastCommits = 50, fixPattern = '^(fix\\b|🐛)' } = config.patch ?? {};
-const { baseBranch = 'main' } = config.backlog ?? {};
+const 덧대기 = config.덧대기 ?? config.patch ?? {};
+const times = 덧대기.횟수 ?? 덧대기.times ?? 3;
+const lastCommits = 덧대기.최근커밋 ?? 덧대기.lastCommits ?? 50;
+const fixPattern = 덧대기.수정패턴 ?? 덧대기.fixPattern ?? '^(fix\\b|🐛)';
+const 일감설정 = config.일감목록 ?? config.backlog ?? {};
+const baseBranch = 일감설정.기본브랜치 ?? 일감설정.baseBranch ?? 'main';
 
 // 수정 커밋 제목의 규칙(fixPattern)을 정규식으로 만든다. 틀렸으면 어느 설정인지 알린다.
 // 장부를 저장한 뒤에 실패하지 않도록 backlog가 명령을 돌리기 전에도 부른다.

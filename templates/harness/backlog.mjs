@@ -1,23 +1,24 @@
 #!/usr/bin/env node
-// 작업 장부 명령. 장부(harness/backlog.json)는 이 명령으로만 읽고 쓴다.
+// 작업 장부(일감 목록) 명령. 장부(harness/backlog.json)는 이 명령으로만 읽고 쓴다.
 //
-//   node harness/backlog.mjs 추가 "제목" [--종류 기능|수정] [--영역 a,b] [--확인방법 "…"] [--선행 T-1,T-2] [--원인 "…"] [--방향 "…"]
+//   node harness/backlog.mjs 추가 "제목" [--종류 기능|수정] [--고칠곳|--영역 a,b] [--확인방법 "…"] [--먼저할일|--선행 T-1,T-2] [--원인 "…"] [--방향 "…"]
 //   node harness/backlog.mjs 목록 [--상태 할일|진행중|올림|완료]
 //   node harness/backlog.mjs 다음                      지금 시작할 수 있는 첫 작업
-//   node harness/backlog.mjs 준비                      지금 같이 시작해도 되는 작업(영역이 겹치지 않는 것)과 미룬 이유
+//   node harness/backlog.mjs 바로할일 (또는 준비)      지금 같이 시작해도 되는 작업(고칠곳이 겹치지 않는 것)과 미룬 이유
 //   node harness/backlog.mjs 보기 T-1                  작업 칸과 docs/tasks/T-1.md
-//   node harness/backlog.mjs 시작 T-1 [추가와 같은 옵션] [--배정 도구]   비어 있는 칸을 채우며 시작한다. 도구는 config.json의 backlog.limits에 적힌 것.
-//                                                      수정 작업의 영역이 최근 수정 커밋에 여러 번(patch.times, 기본 3) 들어 있는 파일과 겹치면 주의 줄을 더 보인다(막지는 않는다)
+//   node harness/backlog.mjs 시작 T-1 [추가와 같은 옵션] [--맡길곳|--배정 도구]   비어 있는 칸을 채우며 시작한다. 도구는 config.json의 일감목록.동시상한(backlog.limits)에 적힌 것.
+//                                                      수정 작업의 영역이 최근 수정 커밋에 여러 번(덧대기.횟수/patch.times, 기본 3) 들어 있는 파일과 겹치면 주의 줄을 더 보인다(막지는 않는다)
 //   node harness/backlog.mjs 올림 T-1 --커밋 <해시> --증거 "…" [--검토 도구]   도구가 둘 이상이면 작성한 도구와 다른 도구의 검토가 필요하다
-//   node harness/backlog.mjs 반려 T-1 --사유 "…"        올림을 진행중으로 돌려보낸다. 올릴 때 적은 커밋·증거·검토는 반려 기록으로 남고, 다시 올릴 때 새로 적는다
+//   node harness/backlog.mjs 다시하기 (또는 반려) T-1 --사유 "…"   올림을 진행중으로 돌려보낸다. 올릴 때 적은 커밋·증거·검토는 반려 기록으로 남고, 다시 올릴 때 새로 적는다
 //   node harness/backlog.mjs 완료 T-1                  올린 커밋이 기본 브랜치에 병합됐는지 확인하고 끝낸다
 //   node harness/backlog.mjs 허락 T-1 "제목" --행동 삭제|약속변경|외부발행|결제|장치풀기 --설명 "…" --보기 "이름=결과|이름=결과" --추천 이름 --이유 "…"
 //                                                      허락받고 나서 할 일을 묻는다. 답을 기다리는 동안 그 작업만 시작·올림·완료를 하지 못한다
 //   node harness/backlog.mjs 확인 T-1 "제목" --까닭 문서충돌|실데이터|구조변경 --설명 "…" --보기 "…" --추천 이름 --이유 "…"
 //                                                      추천대로 진행하며 묻는다. 작업은 멈추지 않고, 3일 안에 답이 없으면 확정되며, 추천과 다른 답은 고칠것이 된다
 //   node harness/backlog.mjs 기록 T-1 "제목" --설명 "…" --이유 "…"   허락·확인에 들지 않아 AI가 정한 일을 적어 둔다
-//   node harness/backlog.mjs 질문목록 [--상태 대기|확인중|확정|고칠것|답함]   질문 보기(기본은 답을 기다리는 것). 보여 준 질문의 새 답 표시를 지운다
+//   node harness/backlog.mjs 질문목록 [--상태 대기|확인중|확정|고칠것|답함|반영함]   질문 보기(기본은 답을 기다리는 것). 보여 준 질문의 새 답 표시를 지운다
 //   node harness/backlog.mjs 답 Q-1 이름|--직접 "글" [--만든시각 …]   사람의 답을 적는다. 만든 시각이 다르면(오래된 페이지의 답) 거절한다
+//   node harness/backlog.mjs 반영 Q-1 --커밋 <해시> --설명 "…"        확인에서 고칠것이 된 질문을 답대로 고친 뒤 닫는다
 //   node harness/backlog.mjs 기다리기 [--분 N]         읽지 않은 사람의 답이 오면 그 줄을 내고 끝난다. 기다릴 질문이 없거나 N분(기본 1440)이 지나도 끝난다. 장부는 쓰지 않는다
 //   node harness/backlog.mjs 서버 [--포트 N]           질문 페이지를 열어 사람이 브라우저에서 답하게 한다. 이 터미널에서 돌고 Ctrl+C로 끈다. 이 컴퓨터에서만 열리고 주소에 저장된 토큰이 붙는다
 //   node harness/backlog.mjs 켜두기 [--포트 N]         꺼져 있으면 질문 페이지를 떨어진 프로세스로 띄워 명령이 끝나도 계속 돌게 한다. 포트·토큰은 harness/serve.json에 두고 계속 쓴다
@@ -43,13 +44,17 @@ import * as patch from './patch.mjs';
 import * as serve from './serve.mjs';
 
 const config = JSON.parse(fs.readFileSync(fileURLToPath(new URL('config.json', import.meta.url)), 'utf8'));
-const { outputLines = 100, baseBranch = 'main', limits, defaultTool } = config.backlog ?? {};
+const 일감설정 = config.일감목록 ?? config.backlog ?? {};
+const outputLines = 일감설정.출력줄수 ?? 일감설정.outputLines ?? 100;
+const baseBranch = 일감설정.기본브랜치 ?? 일감설정.baseBranch ?? 'main';
+const limits = 일감설정.동시상한 ?? 일감설정.한도 ?? 일감설정.limits;
+const defaultTool = 일감설정.기본맡길곳 ?? 일감설정.기본도구 ?? 일감설정.defaultTool;
 
 const list = text => text?.split(',').map(item => item.trim()).filter(Boolean);
 
-// 옵션에서 작업 칸으로: 영역과 선행은 쉼표로 나눈 목록이다.
-function fields({ 종류, 영역, 확인방법, 선행, 원인, 방향, 배정 }) {
-  return { 종류, 영역: list(영역), 확인방법, 선행: list(선행), 원인, 방향, 배정 };
+// 옵션에서 작업 칸으로: 영역(고칠곳)과 선행(먼저할일)은 쉼표로 나눈 목록이다.
+function fields({ 종류, 영역, 고칠곳, 확인방법, 선행, 먼저할일, 원인, 방향, 배정, 맡길곳 }) {
+  return { 종류, 영역: list(영역 ?? 고칠곳), 확인방법, 선행: list(선행 ?? 먼저할일), 원인, 방향, 배정: 배정 ?? 맡길곳 };
 }
 
 const summary = task => `${task.번호} [${task.상태}] ${task.종류} ${task.제목}`;
@@ -57,8 +62,11 @@ const summary = task => `${task.번호} [${task.상태}] ${task.종류} ${task.�
 const readyRow = ({ task, blocks }) =>
   [summary(task), `영역: ${task.영역.join(', ')}`, ...(blocks ? [`막는 작업 ${blocks}개`] : [])].join('  ');
 
+const questionTail = item =>
+  (item.상태 === '반영함' ? `→ ${item.답} (커밋 ${item.커밋}, ${item.반영설명})` : item.답 ? `→ ${item.답}` : `(추천: ${item.추천})`);
+
 const questionLine = item =>
-  `${item.번호} [${questions.shownState(item)}] ${item.작업} ${item.행동}${item.까닭 ? `(${item.까닭})` : ''} ${item.제목}  ${item.답 ? `→ ${item.답}` : `(추천: ${item.추천})`}`;
+  `${item.번호} [${questions.shownState(item)}] ${item.작업} ${item.행동}${item.까닭 ? `(${item.까닭})` : ''} ${item.제목}  ${questionTail(item)}`;
 
 // 옛 이름 질문으로 불러도 실제로 된 종류를 첫머리에 보인다.
 const asked = item => ({ rows: [`${item.행동 === '설계확인' ? '확인' : '허락'}: ${questionLine(item)}`] });
@@ -84,10 +92,12 @@ async function waitAnswer(root, limit = '1440') {
   }
 }
 
+const LABEL = { 영역: '고칠곳 · 영역', 선행: '먼저할일 · 선행', 배정: '맡길곳 · 배정' };
+
 function detail(root, book, task) {
   const rows = [summary(task)];
-  for (const name of ['영역', '선행']) if (task[name].length) rows.push(`${name}: ${task[name].join(', ')}`);
-  for (const name of ['확인방법', '원인', '방향', '배정', '커밋', '증거', '검토']) if (task[name]) rows.push(`${name}: ${task[name]}`);
+  for (const name of ['영역', '선행']) if (task[name].length) rows.push(`${LABEL[name]}: ${task[name].join(', ')}`);
+  for (const name of ['확인방법', '원인', '방향', '배정', '커밋', '증거', '검토']) if (task[name]) rows.push(`${LABEL[name] ?? name}: ${task[name]}`);
   rows.push(...(task.반려 ?? []).map(item => `반려: ${item.커밋.slice(0, 7)} ${item.사유}`));
   rows.push(...book.질문.filter(item => item.작업 === task.번호).map(item => `질문: ${questionLine(item)}`));
   const doc = path.join(root, 'docs/tasks', `${task.번호}.md`);
@@ -95,12 +105,19 @@ function detail(root, book, task) {
   return rows;
 }
 
+function readyRun(book, korean = false) {
+  const { group, deferred } = ledger.ready(book);
+  const rows = group.length ? ['같이 시작해도 되는 작업:', ...group.map(readyRow)] : ['시작할 수 있는 작업이 없다'];
+  if (deferred.length) rows.push('미룬 작업:', ...deferred.map(({ task, reason }) => `${task.번호} ${reason}`));
+  return { rows: korean ? rows.map(row => row.replaceAll('영역', '고칠곳').replaceAll('선행 작업', '먼저할일 작업')) : rows };
+}
+
 // 각 명령: 쓸 수 있는 옵션과, 화면에 보일 줄을 돌려주는 함수. 장부를 쓰는 명령은 writes: true로 표시한다.
 // 상태·커밋·증거는 전용 명령(시작·올림·반려·완료)의 옵션으로만 바뀐다.
 const commands = {
   추가: {
     writes: true,
-    options: ['종류', '영역', '확인방법', '선행', '원인', '방향'],
+    options: ['종류', '영역', '확인방법', '선행', '원인', '방향', '고칠곳', '먼저할일'],
     run: ({ ledger: book, args: [title], values }) => ({ rows: [`추가: ${summary(ledger.add(book, title, fields(values)))}`] }),
   },
   목록: {
@@ -118,19 +135,11 @@ const commands = {
       return { rows: [task ? summary(task) : '시작할 수 있는 작업이 없다'] };
     },
   },
-  준비: {
-    options: [],
-    run: ({ ledger: book }) => {
-      const { group, deferred } = ledger.ready(book);
-      const rows = group.length ? ['같이 시작해도 되는 작업:', ...group.map(readyRow)] : ['시작할 수 있는 작업이 없다'];
-      if (deferred.length) rows.push('미룬 작업:', ...deferred.map(({ task, reason }) => `${task.번호} ${reason}`));
-      return { rows };
-    },
-  },
+  준비: { options: [], run: ({ ledger: book }) => readyRun(book) },
   보기: { options: [], narrow: 'docs/tasks/ 아래의 작업 문서를 직접 읽는다', run: ({ root, ledger: book, args: [id] }) => ({ rows: detail(root, book, ledger.find(book, id)) }) },
   시작: {
     writes: true,
-    options: ['영역', '확인방법', '원인', '방향', '배정'],
+    options: ['영역', '확인방법', '원인', '방향', '배정', '고칠곳', '맡길곳'],
     run: ({ root, ledger: book, args: [id], values }) => {
       const task = ledger.start(book, id, fields(values), { limits, defaultTool });
       if (task.종류 !== '수정') return { rows: [`시작: ${summary(task)}`] };
@@ -187,6 +196,11 @@ const commands = {
     options: ['직접', '만든시각'],
     run: ({ ledger: book, args: [id, choice], values }) => ({ rows: [`답: ${questionLine(questions.answer(book, id, { 선택: choice, ...values }))}`] }),
   },
+  반영: {
+    writes: true,
+    options: ['커밋', '설명'],
+    run: ({ ledger: book, args: [id], values }) => ({ rows: [`반영: ${questionLine(questions.reflect(book, id, values))}`] }),
+  },
   // 끝날 때 내는 줄이 새 답 안내이므로 따로 붙이지 않는다(quiet). 새 답 표시는 질문목록이 지운다.
   기다리기: { quiet: true, options: ['분'], run: ({ root, values }) => ({ rows: waitAnswer(root, values.분) }) },
   서버: {
@@ -208,6 +222,12 @@ const commands = {
   // 서버·켜두기·끄기(serves)는 스스로 켜고 끄므로 다시 켜기를 하지 않는다. 서버는 앞에서 열 포트를 떨어진 서버가 먼저 잡으면 안 된다.
   켜두기: { serves: true, options: ['포트'], run: ({ root, values }) => ({ rows: serve.keep(root, values.포트) }) },
   끄기: { serves: true, options: [], run: ({ root }) => ({ rows: serve.stop(root) }) },
+  바로할일: { options: [], run: ({ ledger: book }) => readyRun(book, true) },
+  다시하기: {
+    writes: true,
+    options: ['사유'],
+    run: ({ ledger: book, args: [id], values }) => ({ rows: [`다시하기: ${summary(ledger.reject(book, id, values.사유, '다시하기'))}`] }),
+  },
 };
 const OPTIONS = Object.fromEntries(
   [...new Set(Object.values(commands).flatMap(command => command.options))].map(name => [name, { type: 'string' }]),
@@ -227,7 +247,7 @@ async function run() {
   const { positionals, values } = parseArgs({ allowPositionals: true, options: OPTIONS });
   const [name, ...args] = positionals.map(text => text.trim());
   const command = Object.hasOwn(commands, name) ? commands[name] : undefined;
-  if (!command) throw new Error(`명령: ${Object.keys(commands).join(', ')} (사용법은 이 파일 맨 위 설명)`);
+  if (!command) throw new Error(`명령: ${Object.keys(commands).slice(0, -2).join(', ')} (우리말: 바로할일, 다시하기 · 사용법은 이 파일 맨 위 설명)`);
   const stray = Object.keys(values).filter(option => !command.options.includes(option));
   if (stray.length) {
     const usable = command.options.map(option => `--${option}`).join(' ') || '없음';

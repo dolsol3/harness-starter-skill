@@ -19,5 +19,24 @@
       "regex": "@ts-ignore|@ts-nocheck|eslint-disable|# type: ignore|\\bnoqa\\b",
       "message": "검사 끄기: 경고를 끄지 말고 원인을 고친다"
     }
-  ]
+  ],
+  "단계모델": {
+    "조사": { "모델": "sonnet", "깊이": "high", "보조모델": "gemini-4-argon-high", "최대병렬": 4 },
+    "쪼개기": { "모델": "opus", "깊이": "high" },
+    "할일적기": { "모델": "sonnet", "깊이": "high" },
+    "맞춰보기": { "모델": "opus", "깊이": "high" },
+    "만들기": { "모델": "sonnet", "깊이": "high" },
+    "돌려보기": { "모델": "sonnet", "깊이": "high" },
+    "번갈아보기": {
+      "모델": "opus",
+      "깊이": "high",
+      "검토도구": "codex",
+      "폴백도구": "gemini",
+      "폴백모델": "gemini-4-argon-high"
+    },
+    "고치기": { "모델": "sonnet", "깊이": "high" },
+    "한일적기": { "모델": "haiku", "깊이": "medium" },
+    "고르기": { "모델": "sonnet", "깊이": "high" },
+    "올림": { "모델": "sonnet", "깊이": "high" }
+  }
 }

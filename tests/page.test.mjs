@@ -28,15 +28,22 @@ test('the page goes permit, confirm, fix, answered, records, patched, progress, 
   const html = render(book({
     질문: [
       question(), check(), question({ 번호: 'Q-6', 상태: '고칠것', 답: '지운다' }),
-      question({ 번호: 'Q-2', 제목: '이미 정했다', 상태: '답함', 답: '둔다' }), question({ 번호: 'Q-3', 상태: '답함', 답: '글로 적음', 직접: true }),
+      question({ 번호: 'Q-2', 제목: '이미 정했다', 상태: '답함', 답: '둔다' }),
+      check({ 번호: 'Q-4', 제목: '고쳐서 반영함', 상태: '반영함', 답: '지운다', 커밋: 'abc123', 반영설명: 'docs/24 보관기간 절' }),
+      question({ 번호: 'Q-3', 상태: '답함', 답: '글로 적음', 직접: true }),
+      check({ 번호: 'Q-8', 제목: '직접 적어 반영함', 상태: '반영함', 답: '직접 답', 직접: true, 커밋: 'def456', 반영설명: 'src/a.js 반영' }),
     ],
     처리함: [{ 작업: 'T-1', 제목: '날짜 라이브러리는 쓰지 않는다', 설명: '표준 Date로 충분하다', 이유: '의존을 늘리지 않으려고' }],
   }), hours(2));
-  inOrder(html, ['허락할 것 1개', '확인할 것 1개', '고칠 것 1개', '답한 것 2개', '기록 1개', '덧댄 곳 0개', '진행 현황']);
-  assert.match(html, /→ <b>글로 적음<\/b> \(직접 적음\)/);
-  assert.equal((section(html, 'answered').match(/\(직접 적음\)/g) ?? []).length, 1, 'only the typed answer is marked');
+  inOrder(html, ['허락할 것 1개', '확인할 것 1개', '고칠 것 1개', '답한 것 4개', '기록 1개', '덧댄 곳 0개', '진행 현황']);
+  const answered = section(html, 'answered');
+  inOrder(answered, ['Q-2', 'Q-4', 'Q-3', 'Q-8']);
+  assert.match(answered, /이미 정했다<\/td><td>→ <b>둔다<\/b><\/td>/);
+  assert.match(answered, /고쳐서 반영함<\/td><td>반영됨: <b>지운다<\/b> \(커밋 abc123, docs\/24 보관기간 절\)<\/td>/);
+  assert.match(answered, /→ <b>글로 적음<\/b> \(직접 적음\)/);
+  assert.match(answered, /직접 적어 반영함<\/td><td>반영됨: <b>직접 답<\/b> \(직접 적음\) \(커밋 def456, src\/a\.js 반영\)<\/td>/);
+  assert.equal((answered.match(/\(직접 적음\)/g) ?? []).length, 2, 'only the typed answers are marked');
   assert.match(html, /<title>작업 장부<\/title>/);
-  assert.match(html, /이미 정했다[\s\S]*→ <b>둔다<\/b>/);
 });
 
 test('a confirm card shows its reason, that the AI goes on with the pick, the deadline and the answer form, not the permit line', () => {
@@ -58,11 +65,18 @@ test('a confirm past its 3 days leaves the confirm section and is folded as sett
 });
 
 test('a confirm answered against the pick shows in fix with the pick and the answer and no form', () => {
-  const html = section(render(book({ 질문: [check({ 상태: '고칠것', 답: '지운다' }), check({ 번호: 'Q-7', 상태: '고칠것', 답: '반만', 직접: true })] }), at), 'fix');
+  const html = section(render(book({
+    질문: [
+      check({ 상태: '고칠것', 답: '지운다' }),
+      check({ 번호: 'Q-7', 상태: '고칠것', 답: '반만', 직접: true }),
+      check({ 번호: 'Q-8', 상태: '반영함', 답: '지운다', 커밋: 'abc123', 반영설명: '고침' }),
+    ],
+  }), at), 'fix');
   assert.match(html, /고칠 것 2개/);
   assert.match(html, /Q-5 · T-1[\s\S]*AI가 진행한 것 <b>둔다<\/b> → 사람의 답 <b>지운다<\/b><\/p>/);
   assert.match(html, /사람의 답 <b>반만<\/b> \(직접 적음\)/);
-  assert.match(html, /병합 전이면 메인이 반려로, 병합 뒤면 추가로/);
+  assert.match(html, /추천과 다르게 답하신 것 중 AI가 아직 고치지 않은 것입니다\. 고치면 '답한 것'으로 옮겨집니다\./);
+  assert.doesNotMatch(html, /Q-8/);
   assert.doesNotMatch(html, /<input|<textarea|<button/);
 });
 
@@ -104,12 +118,18 @@ test('a 설계확인 question card shows the action, what it means, and the chos
 
 test('the top tiles count what a person must see and the tasks by state, merge waiting being the submitted ones', () => {
   const tasks = [task(), task({ 번호: 'T-2', 상태: '진행중' }), task({ 번호: 'T-3', 상태: '올림' }), task({ 번호: 'T-4', 상태: '올림' }), task({ 번호: 'T-5', 상태: '완료' })];
-  const html = render(book({ 작업: tasks, 질문: [question(), question({ 번호: 'Q-2', 상태: '답함', 답: '둔다' }), check(), check({ 번호: 'Q-6' }), check({ 번호: 'Q-7', 상태: '고칠것', 답: '지운다' })] }), at);
+  const html = render(book({
+    작업: tasks,
+    질문: [
+      question(), question({ 번호: 'Q-2', 상태: '답함', 답: '둔다' }), check(), check({ 번호: 'Q-6' }),
+      check({ 번호: 'Q-7', 상태: '고칠것', 답: '지운다' }), check({ 번호: 'Q-8', 상태: '반영함', 답: '지운다', 커밋: 'abc', 반영설명: '고침' }),
+    ],
+  }), at);
   const tiles = [...html.matchAll(/<a class="tile( hot)?" href="#\w+"><b>(\d+)<\/b>([^<]+)<\/a>/g)].map(match => [match[3], Number(match[2]), Boolean(match[1])]);
   assert.match(html, /<details><summary>완료 1개<\/summary>/);
   assert.match(html, /<h3>병합 대기 \(브랜치에 올렸고 기본 브랜치에 병합되기를 기다림\) 2개<\/h3>/);
   assert.deepEqual(tiles, [['허락할 것', 1, true], ['확인할 것', 2, true], ['고칠 것', 1, true], ['덧댄 곳', 0, false], ['병합 대기', 2, false], ['진행중', 1, false], ['할일', 1, false], ['완료', 1, false]]);
-  const none = render(book(), at);
+  const none = render(book({ 질문: [check({ 번호: 'Q-8', 상태: '반영함', 답: '지운다', 커밋: 'abc', 반영설명: '고침' })] }), at);
   for (const label of ['허락할 것', '확인할 것', '고칠 것']) assert.match(none, new RegExp(`class="tile" href="#\\w+"><b>0</b>${label}`), `${label} at 0 is not highlighted`);
 });
 
@@ -137,6 +157,7 @@ test('everything written in the ledger is escaped so it cannot run as code in th
       question({ 번호: 'Q-2', 상태: '답함', 답: evil, 직접: true }),
       check({ 번호: evil, 작업: evil, 제목: evil, 설명: evil, 이유: evil, 보기: [{ 이름: evil, 결과: evil }], 추천: evil }),
       check({ 번호: 'Q-6', 작업: evil, 제목: evil, 상태: '고칠것', 추천: evil, 답: evil }),
+      check({ 번호: 'Q-8', 작업: evil, 제목: evil, 상태: '반영함', 추천: evil, 답: evil, 커밋: evil, 반영설명: evil }),
       check({ 번호: 'Q-7', 작업: evil, 제목: evil, 추천: evil, 만든시각: '2026-10-01T01:00:00.000Z' }),
     ],
     처리함: [{ 작업: evil, 제목: evil, 설명: evil, 이유: evil }, { 작업: evil, 제목: evil, 설명: evil, 이유: evil, 만든시각: '2026-10-09T01:00:00.000Z' }],
@@ -166,6 +187,11 @@ test('every command that writes the ledger rewrites harness/questions.html, and 
   assert.match(fs.readFileSync(pageFile(dir), 'utf8'), /허락할 것 2개[\s\S]*지키는 장치를 끄거나 넓히는 일\(훅이나 검사를 끄는 것/);
   ok(dir, '답', 'Q-1', '둔다');
   assert.match(fs.readFileSync(pageFile(dir), 'utf8'), /답한 것 1개[\s\S]*→ <b>둔다<\/b>/);
+  ok(dir, '확인', 'T-1', '보관 기간', '--까닭', '실데이터', '--설명', '동의 보관', '--보기', '2년=2년|영구=영구', '--추천', '2년', '--이유', '기본');
+  ok(dir, '답', 'Q-3', '영구');
+  assert.match(fs.readFileSync(pageFile(dir), 'utf8'), /고칠 것 1개[\s\S]*보관 기간/);
+  ok(dir, '반영', 'Q-3', '--커밋', 'abc123', '--설명', 'docs/24 보관기간 절');
+  assert.match(fs.readFileSync(pageFile(dir), 'utf8'), /고칠 것 0개[\s\S]*답한 것 2개[\s\S]*반영됨: <b>영구<\/b> \(커밋 abc123, docs\/24 보관기간 절\)/);
   ok(dir, '처리함', 'T-1', '표준 Date를 쓴다', '--설명', '충분하다', '--이유', '의존을 줄인다');
   assert.match(fs.readFileSync(pageFile(dir), 'utf8'), /기록 1개[\s\S]*<summary>\d{4}-\d\d-\d\d · 기록 1개<\/summary>[\s\S]*표준 Date를 쓴다/);
   fs.rmSync(pageFile(dir));
@@ -177,6 +203,7 @@ test('every command that writes the ledger rewrites harness/questions.html, and 
   assert.ok(!fs.existsSync(pageFile(dir)), 'reading does not write the page');
   fs.writeFileSync(pageFile(dir), 'old');
   assert.equal(backlog(dir, '시작', 'T-9').status, 1);
+  assert.equal(backlog(dir, '반영', 'Q-3', '--커밋', 'def456', '--설명', '다시').status, 1);
   assert.equal(fs.readFileSync(pageFile(dir), 'utf8'), 'old', 'a refused command does not rewrite the page');
   assert.equal(ok(dir, '목록'), 'T-1 [할일] 기능 일');
 });

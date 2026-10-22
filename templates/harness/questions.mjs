@@ -123,6 +123,18 @@ export function answer(ledger, id, { 선택, 직접, 만든시각 }) {
   return question;
 }
 
+// 확인에서 고칠것이 된 질문을 답대로 고친 뒤 닫는다. 원래 답과 질문 설명은 두고 상태와 반영 기록만 더한다.
+export function reflect(ledger, id, fields) {
+  const question = ledger.질문.find(item => item.번호 === id);
+  if (!question) throw new Error(`${id ?? '번호'}: 그런 질문이 없다. backlog 질문목록으로 번호를 본다`);
+  const state = shownState(question);
+  if (state !== '고칠것') throw new Error(`${id} 반영 거절: 고칠것 상태만 반영한다(지금 ${state})`);
+  insist('반영', fields, ['커밋', '설명']);
+  Object.assign(question, { 상태: '반영함', 커밋: fields.커밋, 반영설명: fields.설명 });
+  delete question.새답;
+  return question;
+}
+
 // 사람이 답했는데 메인이 아직 질문목록으로 읽지 않은 답을 알리는 줄. 없으면 빈 배열, 있으면 줄 하나가 든 배열이다.
 export function answerNotice(ledger) {
   const fresh = ledger.질문.filter(item => item.새답);
