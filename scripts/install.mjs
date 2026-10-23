@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // 간결함 하네스를 대상 프로젝트에 설치한다. 기본은 미리보기이고 --apply일 때만 쓴다.
 //
-//   node scripts/install.mjs <대상 폴더> [--apply] [--upgrade] [--without=<장치,...>]
+//   node scripts/install.mjs <대상 폴더> [--apply] [--upgrade] [--main=<메인 도구 이름>] [--without=<장치,...>]
 //   장치: instructions, claude-hook, codex-hook, antigravity-hook, git-hook, lean-review, backlog
 //
 // 원칙은 AGENTS.md에 넣는다(Codex·Antigravity가 읽는다). Claude Code는 CLAUDE.md의 @AGENTS.md로 불러온다.
 //
 // 사용자가 쓴 내용은 덮어쓰지 않는다. 이미 다른 내용이 있으면 건너뛰고 할 일을 알린다.
-// 예외는 --upgrade뿐이다. 옛 검사기, 옛 모양의 harness/config.json, 설치된 장부 명령 파일(backlog·ledger·questions·page·patch·serve·guard·stop), 제미나이 역할 파일(readonly·research), 깐 버전(harness/VERSION)을 새것으로 바꾸고
+// 예외는 --upgrade뿐이다. 옛 검사기, 옛 모양의 harness/config.json, 설치된 장부 명령 파일(backlog·ledger·questions·page·patch·serve·guard·stop), 제미나이 역할 파일(readonly·research·breaker), 깐 버전(harness/VERSION)을 새것으로 바꾸고
 // 우리가 만든 pre-commit에 막는 훅 줄을 더한다. 사용자가 승인했고 미리보기에서 [고침]으로 먼저 보인다.
 // --apply면 대상 폴더를 명부(~/.harness-starter/projects.json)에 한 번 적는다. 업그레이드 명령이 이 명부로 프로젝트를 찾는다.
 // 대상이 git 워크트리면 메인 작업 폴더를 적는다. 워크트리는 작업이 끝나면 지워진다.
@@ -16,6 +16,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { addProject, registryFile } from './registry.mjs';
+import { toolsConfig } from './tools.mjs';
 
 const TEMPLATES = fileURLToPath(new URL('../templates/', import.meta.url));
 const { version: VERSION } = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -112,13 +113,20 @@ function planKeep(target, rel, content, overwrite) {
   return decide(rel, now, content);
 }
 
+// config.json을 새로 만들 때만 --main과 깔린 도구로 일감목록을 적는다(이미 있으면 planCopy가 그대로 둔다).
+function planConfig(target, main, without) {
+  const rel = 'harness/config.json';
+  const found = read(path.join(target, rel)) === null && toolsConfig(template(rel), main, without);
+  return found ? { ...decide(rel, null, found.content), note: found.note } : planCopy(target, rel, rel);
+}
+
 // 업그레이드: 검사기를 새것으로 바꾸고, 옛 config.json은 옛 한도(전역 숫자와 notCode)만 빼고 kinds를 더한다.
 // 사용자가 더한 규칙(patterns, ignore, 커밋 크기)은 그대로 옮긴다. 종류별 한도는 스킬 절차로 다시 정한다.
-function planUpgrade(target) {
+function planUpgrade(target, main, without) {
   const rel = 'harness/config.json';
   const items = [decide(CHECK, read(path.join(target, CHECK)), template('harness/check.mjs'))];
   const now = read(path.join(target, rel));
-  if (now === null) return [...items, planCopy(target, rel, rel)];
+  if (now === null) return [...items, planConfig(target, main, without)];
   let old;
   try {
     old = JSON.parse(now);
@@ -227,16 +235,15 @@ function planBacklog(target, upgrade) {
   ];
 }
 
-function plan(target, without, upgrade) {
+function plan(target, without, upgrade, main) {
   const wants = part => !without.includes(part);
   const items = [];
   if (wants('instructions')) items.push(planBlock(target, 'AGENTS.md'), planClaudeMd(target));
   if (['claude-hook', 'codex-hook', 'antigravity-hook', 'git-hook', 'backlog'].some(wants)) {
     if (upgrade) {
-      items.push(...planUpgrade(target));
+      items.push(...planUpgrade(target, main, without));
     } else {
-      items.push(planCopy(target, CHECK, 'harness/check.mjs'));
-      items.push(planCopy(target, 'harness/config.json', 'harness/config.json'));
+      items.push(planCopy(target, CHECK, 'harness/check.mjs'), planConfig(target, main, without));
     }
   }
   const issue = rootIssue(target);
@@ -246,10 +253,10 @@ function plan(target, without, upgrade) {
     const note = `${issue}. 이 훅은 저장소 맨 위에 설치한다`;
     items.push(issue && part !== 'claude-hook' ? { rel: hook.rel, action: 'skip', note } : planHook(target, hook, wants('backlog') && !issue));
   }
-  // 제미나이 읽기 전용 역할(agy --agent readonly·research): 쓰기 도구를 모델에 넘기지 않는다. 검사기 경로가 필요 없어 저장소 맨 위가 아니어도 깐다.
-  // research는 조사용이라 웹 도구를 더 받고, readonly는 검토용이라 읽기 도구만 받는다.
+  // 제미나이 역할(agy --agent readonly·research·breaker): readonly·research는 쓰기 도구를 모델에 넘기지 않는다. 검사기 경로가 필요 없어 저장소 맨 위가 아니어도 깐다.
+  // research는 조사용이라 웹 도구를 더 받고, readonly는 검토용이라 읽기 도구만 받는다. breaker는 깨뜨려 보기용이라 명령 도구를 받고 물레방아가 sandbox-exec 안에서만 부른다.
   if (wants('antigravity-hook')) {
-    for (const role of ['readonly', 'research']) items.push(planCopy(target, `.agents/agents/${role}.md`, `antigravity/${role}.md`, upgrade));
+    for (const role of ['readonly', 'research', 'breaker']) items.push(planCopy(target, `.agents/agents/${role}.md`, `antigravity/${role}.md`, upgrade));
   }
   if (wants('git-hook')) items.push(planGitHook(target, upgrade));
   // lean-review: Codex·Antigravity·OpenClaw는 .agents/skills, Claude Code는 .claude/skills에서 찾는다.
@@ -266,18 +273,18 @@ function plan(target, without, upgrade) {
 
 const args = process.argv.slice(2);
 const target = args.find(arg => !arg.startsWith('--'));
-const without = (args.find(arg => arg.startsWith('--without='))?.slice('--without='.length) ?? '')
-  .split(',')
-  .filter(Boolean);
+const option = name => args.find(arg => arg.startsWith(`--${name}=`))?.slice(name.length + 3) ?? '';
+const without = option('without').split(',').filter(Boolean);
+const main = without.includes('backlog') ? '' : option('main');
 const unknown = without.filter(part => !PARTS.includes(part));
 if (!target || !fs.statSync(target, { throwIfNoEntry: false })?.isDirectory() || unknown.length) {
-  console.error('사용법: node scripts/install.mjs <대상 폴더> [--apply] [--upgrade] [--without=' + PARTS.join(',') + ']');
+  console.error('사용법: node scripts/install.mjs <대상 폴더> [--apply] [--upgrade] [--main=<메인 도구 이름>] [--without=' + PARTS.join(',') + ']');
   if (unknown.length) console.error('모르는 장치: ' + unknown.join(', '));
   process.exit(1);
 }
 
 const apply = args.includes('--apply');
-for (const item of plan(target, without, args.includes('--upgrade'))) {
+for (const item of plan(target, without, args.includes('--upgrade'), main)) {
   console.log(`[${LABEL[item.action]}] ${item.rel}${item.note ? ` — ${item.note}` : ''}`);
   if (!apply || item.content === undefined) continue;
   const file = path.join(target, item.rel);

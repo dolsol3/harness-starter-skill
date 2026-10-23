@@ -14,7 +14,8 @@ const env = { ...process.env, HOME: home, USERPROFILE: home };
 const template = name => fs.readFileSync(fileURLToPath(new URL(`../templates/antigravity/${name}.md`, import.meta.url)), 'utf8');
 const role = template('readonly');
 const research = template('research');
-const ROLES = [['.agents/agents/readonly.md', role], ['.agents/agents/research.md', research]];
+const breaker = template('breaker');
+const ROLES = [['.agents/agents/readonly.md', role], ['.agents/agents/research.md', research], ['.agents/agents/breaker.md', breaker]];
 const WRITERS = ['write_to_file', 'replace_file_content', 'multi_replace_file_content', 'run_command'];
 const header = text => Object.fromEntries(
   text.match(/^---\n([\s\S]*?)\n---\n/)[1].split('\n').map(line => [line.slice(0, line.indexOf(':')), line.slice(line.indexOf(':') + 1).trim()]),
@@ -35,13 +36,14 @@ function install(dir, ...args) {
 
 const installed = (dir, rel) => fs.readFileSync(path.join(dir, rel), 'utf8');
 
-function assertReadOnlyHeader(text, name, tools) {
+function assertHeader(text, name, tools, policy, banned) {
   const { description, ...fields } = header(text);
   assert.ok(description, 'description');
-  assert.deepEqual(fields, { name, tools, commandExecutionPolicy: 'off', mainAgent: 'true', subagent: 'false', inheritMcp: 'false' });
+  assert.deepEqual(fields, { name, tools, commandExecutionPolicy: policy, mainAgent: 'true', subagent: 'false', inheritMcp: 'false' });
   const listed = tools.slice(1, -1).split(',').map(tool => tool.trim());
-  for (const writer of WRITERS) assert.ok(!listed.includes(writer), writer);
+  for (const writer of banned) assert.ok(!listed.includes(writer), writer);
 }
+const assertReadOnlyHeader = (text, name, tools) => assertHeader(text, name, tools, 'off', WRITERS);
 
 // 메인 실험(2026-10-12, agy 1.3.3): name과 description이 둘 다 있어야 agy가 역할을 찾고, 네 칸으로 쓰기 도구를 넘기지 않고, inheritMcp: false로 call_mcp_tool이 빠진다.
 test('the Gemini readonly role has the seven tested header fields and hands the model no writing tool', () => {
@@ -51,6 +53,18 @@ test('the Gemini readonly role has the seven tested header fields and hands the 
 // 같은 실험: 웹 도구 search_web·read_url_content를 더해도 도구 선언에 쓰기 도구는 없었다.
 test('the Gemini research role adds only the two web tools and hands the model no writing tool', () => {
   assertReadOnlyHeader(research, 'research', '[view_file, list_dir, grep_search, find_by_name, search_web, read_url_content]');
+});
+
+// 명령 도구만 받고 파일 쓰기 도구는 받지 않는다(명령으로는 복사본 안 파일을 만들 수 있다). 막는 것은 물레방아의 sandbox-exec다.
+test('the Gemini breaker role runs commands eagerly but is handed no file-writing tool', () => {
+  assertHeader(breaker, 'breaker', '[view_file, list_dir, grep_search, find_by_name, run_command]', 'eager', WRITERS.filter(tool => tool !== 'run_command'));
+});
+
+test('the breaker role tells the model to reproduce breaking inputs by command and to rate only reproduced findings high or medium', () => {
+  assert.match(breaker, /깨뜨릴 입력·환경·순서를 찾아 명령으로 재현한다/);
+  assert.match(breaker, /재현한 것만 높음·중간으로 적고/);
+  assert.match(breaker, /재현하지 못한 의심은 낮음으로 적고.*'실행 못 함'과 이유/);
+  assert.match(breaker, /`HOME`과 `USERPROFILE`을 `<임시>\/home`으로 준다/);
 });
 
 test('the role tells the model to only read and to rate each finding high, medium or low', () => {

@@ -18,7 +18,7 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
 | 일감 목록 (작업 장부) | `harness/backlog.mjs`, `ledger.mjs`, `questions.mjs`, `page.mjs`, `patch.mjs`, `serve.mjs`, `.git/info/exclude`에 장부·잠금·질문 페이지·질문 페이지 서버 상태(`serve.json`, 토큰이 든다)·로그(`serve.log`) | AI가 작업을 `할일→진행중→올림→완료`로 적고(`다시하기`·`반려`는 올림을 진행중에 돌려보냄) 상태 규칙을 지킴. `바로할일`(`준비`)은 같이 시작해도 되는 작업을 고르고(`--고칠곳`·`--영역`, `--먼저할일`·`--선행`), `일감목록.동시상한`(`backlog.limits`)을 적으면 도구 맡길곳(`--맡길곳`·`--배정`)·동시 상한·다른 도구의 검토도 지킴. 사람에게 넘길 일은 `허락`(답이 올 때까지 그 작업만 멈춤)·`확인`(진행하며 묻고 3일 뒤 확정)·`기록`(하루 요약)으로 나눠 적고 사람은 AI가 켜 둔(`켜두기`) 질문 페이지에서 답함. 같은 파일을 수정 커밋으로 3번 이상 고친 곳은 페이지와 수정 작업 `시작`에서 알림. 사람이 답했는데 메인이 `질문목록`으로 아직 읽지 않은 답이 있으면 장부 명령 끝에 `새 답 N개(…)` 한 줄을 보이고, Claude Code에서는 `기다리기`를 뒤에서 걸어 두면 답이 올 때 끝나 AI가 다시 불림 | 모두(명령을 부르면) |
 | 막는 훅 | `harness/guard.mjs`, `.claude/settings.json`·`.codex/hooks.json`·`.agents/hooks.json`의 `PreToolUse`, pre-commit 한 줄 | 장부 파일 직접 접근, 진행중 작업 없는 코드 편집, 검사 설정 수정, `--no-verify`를 거절. 진행중 작업이 있어도 지키는 파일(`.env`·잠금 파일·`.git` 아래, `지키는파일`·`protect`로 바꿈) 편집을 거절(읽기는 됨) | 훅은 Claude Code·Codex·Antigravity, 커밋은 모두 |
 | 멈출 때 설명 훅 | `harness/stop.mjs`, `.claude/settings.json`의 `Stop` (일감 목록과 함께) | 진행중 작업이 있는데 멈추려 하면 한 번 이유를 설명하게 함(붙잡지 않음). 읽지 않은 새 답이 있으면 진행중 작업이 없어도 알림(읽을 때까지 멈출 때마다) | Claude Code |
-| 제미나이 읽기 전용 역할 | `.agents/agents/readonly.md`, `.agents/agents/research.md` (`antigravity-hook` 장치) | 쓰기 도구를 뺀 검토 역할(`agy --agent readonly`)과 웹 검색·주소 읽기 도구를 더한 조사용 역할(`agy --agent research`) | Antigravity |
+| 제미나이 역할 | `.agents/agents/readonly.md`, `.agents/agents/research.md`, `.agents/agents/breaker.md` (`antigravity-hook` 장치) | 쓰기 도구를 뺀 검토 역할(`agy --agent readonly`)과 웹 검색·주소 읽기 도구를 더한 조사용 역할(`agy --agent research`), 명령 도구를 더한 깨뜨려 보기 역할(`agy --agent breaker`, `sandbox-exec` 안에서만, 진짜 홈 `agentapi` 한 파일 쓰기를 열고 끝난 뒤 확인) | Antigravity |
 | 에이전트 정의 | `.claude/agents/planner.md`, `implementer.md`, `researcher.md`, `reviewer.md` (7단계에서 사용자가 승인할 때만) | 기획 담당(작업 `쪼개기`·`할 일 적기`·`한 일 적기`), 만들기 담당(옛 구현 담당), 조사 담당(본체 `sonnet high` + 보조 `gemini-4-argon-high` 병렬 분담 및 본체 원문 검증), 살피기 담당(옛 리뷰어, 읽기 전용)을 이 프로젝트에 맞게 구성. 맥락을 공유하지 않는 기준으로 나눔 | Claude Code |
 | 물레방아 | `.claude/workflows/mullebanga.js` (7단계에서 사용자가 에이전트 정의와 함께 승인할 때만) | 메인이 `## 사용자 원래 말` 절을 적고 시작한 작업을 `고르기` → `할 일 적기`(명세) → `맞춰보기`(대조) → `만들기`(구현) → `돌려보기`(검사) → `번갈아 보기`(교차 리뷰) → `고치기`(최대 3번) → `올림`까지 돌림. `/물레방아`로 부름 | Claude Code |
 | 경로별 규칙 | `.claude/rules/<이름>.md`, `AGENTS.md`의 `## 이 프로젝트 규칙` 한 줄 (6단계에서 사용자가 승인할 때만) | 판단이 필요한 규칙을 그 경로의 파일을 다룰 때만 읽게 함(요청) | Claude Code는 자동, Codex·Antigravity는 `AGENTS.md` 한 줄을 읽고 따름 |
@@ -86,7 +86,7 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
      점으로 시작하는 폴더에 코드가 있는지도 살핀다.
    - 종류마다 한도를 고르게 한다. "한도 없음"도 된다.
    - 그 밖에 묻는다: 설치할 장치(기본은 전부. 쓰지 않는 도구의 훅 `claude-hook`·`codex-hook`·`antigravity-hook`은 빼도 된다),
-     작업 장부 `backlog`는 쓰지 않을 프로젝트면 뺀다, 작업을 여러 도구(Claude·Codex·Antigravity)에 나눠 줄지(쓸 도구, 도구마다 동시에 맡길 수, 기본 도구. 안 나누면 건너뛴다),
+     작업 장부 `backlog`는 쓰지 않을 프로젝트면 뺀다,
      2단계에서 린트·포맷·타입 검사 명령을 찾았으면 고친 직후 명령과 커밋 때 전체 검사(아래, 못 찾았으면 묻지 않는다),
      이 프로젝트에서 특히 막고 싶은 것(예: 특정 폴더를 직접 부르기. 없으면 건너뛴다),
      2단계에서 폴더가 나뉘어 있었을 때만 경로별 규칙 파일을 만들지(그 경로에서 지킬 것. 나뉘지 않았으면 묻지 않는다),
@@ -100,10 +100,14 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
      아니면 그 프로젝트의 제목 규칙에 맞는 정규식을 정한다. 기본값이 맞으면 건너뛴다.
 5. **미리보기.** 이 스킬 폴더의 설치 스크립트를 돌리고 출력을 그대로 보여 준다.
    ```sh
-   node <이 스킬 폴더>/scripts/install.mjs <대상 폴더> [--upgrade] [--without=<빼는 장치,...>]
+   node <이 스킬 폴더>/scripts/install.mjs <대상 폴더> [--upgrade] [--main=<자기 이름>] [--without=<빼는 장치,...>]
    # 장치: instructions, claude-hook, codex-hook, antigravity-hook, git-hook, lean-review, backlog
    ```
-   옛 설치면 `--upgrade`를 붙인다. 옛 검사기와 설치된 장부 명령 파일(`backlog`·`ledger`·`questions`·`page`·`patch`·`serve`·`guard`·`stop`), 제미나이 역할 파일(`.agents/agents/readonly.md`·`research.md`)을 새것으로 바꾸고,
+   `--main`에는 설치하는 AI가 자기 도구 이름을 준다. Claude Code는 `claude`, Codex는 `codex`, Antigravity는 `gemini`, 그 밖의 도구는 자기 이름 그대로 준다(이름은 제한하지 않는다).
+   사용자가 다른 도구를 같이 쓰기 원치 않으면 `--main`을 빼고 돌린다.
+   설치기는 `--main`이 있을 때만, `harness/config.json`을 새로 만들 때만 이 컴퓨터에서 `claude`·`codex`·`agy`를 찾아 `일감목록`을 적는다. 사용자에게 도구를 묻지 않는다.
+   메인이 아닌 깔린 도구가 없거나 `--without=backlog`면 적지 않는다. 적을 때는 미리보기의 `[새로 만듦] harness/config.json` 줄에 무엇을 적을지 나온다.
+   옛 설치면 `--upgrade`를 붙인다. 옛 검사기와 설치된 장부 명령 파일(`backlog`·`ledger`·`questions`·`page`·`patch`·`serve`·`guard`·`stop`), 제미나이 역할 파일(`.agents/agents/readonly.md`·`research.md`·`breaker.md`)을 새것으로 바꾸고,
    옛 `config.json`에서 옛 한도만 빼며, 검사기 줄이 든 pre-commit에 막는 훅 줄을 더하고, 깐 버전 `harness/VERSION`을 바꾼다. 사용자가 더한 규칙은 옮겨 적는다.
    업그레이드하면 커밋 파일 수 상한 15가 설정 없이도 켜진다고 사용자에게 알린다(줄 수 상한은 설정에 없으면 꺼진 그대로다).
    작업 장부를 깐 설치면, 업그레이드하면 막는 훅이 설정 없이도 `.env`·`.env.*`(`.env.example` 포함)·잠금 파일·`.git` 아래 편집을 거절한다고도 알린다(읽기는 된다).
@@ -119,8 +123,9 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
    기본 브랜치가 `main`이 아니면 `일감목록.기본브랜치`(영문 별칭 `backlog.baseBranch`, 예: `"일감목록": { "기본브랜치": "master" }`)도 같이 적는다. 안 적으면 `완료`가 거절된다.
    덧대기 신호의 제목 규칙을 바꿨다면 `덧대기.수정패턴`(영문 별칭 `patch.fixPattern`, 예: `"덧대기": { "수정패턴": "^(버그|fix\\b)" }`)도 같이 적는다. JSON이라 `\\b`처럼 역슬래시를 두 번 쓴다.
    몇 번부터 알릴지(`횟수`/`times`, 기본 3)와 볼 커밋 수(`최근커밋`/`lastCommits`, 기본 50)는 사용자가 바꾸자고 할 때만 적는다.
-   도구를 나눠 쓰기로 했으면 `일감목록.동시상한`과 `기본맡길곳`(영문 별칭 `backlog.limits`, `defaultTool`, 예: `"일감목록": { "동시상한": { "claude": 3, "codex": 1, "gemini": 1 }, "기본맡길곳": "claude" }`)도 같이 적는다(물레방아 `번갈아 보기`에서 코덱스 토큰 부족 시 제미나이 폴백을 쓰려면 `"gemini": 1`도 함께 적는다).
-   숫자는 모양을 보이는 예시일 뿐이고 사용자가 고른 값을 적는다. 도구를 하나만 적으면 다른 도구의 검토 규칙은 꺼진다.
+   설치기가 `일감목록`을 적었으면(5단계 알림) 지우지 않고 그 위에 더한다. `기본브랜치` 같은 칸은 같은 `일감목록` 안에 더한다.
+   설치기가 적지 못한 경우(이미 `config.json`이 있던 프로젝트, `--main`을 안 준 경우, 메인 말고 깔린 도구를 못 찾은 경우, `--without=backlog`)에만, 사용자가 원하면 `동시상한`과 `기본맡길곳`(영문 별칭 `backlog.limits`, `defaultTool`, 예: `"일감목록": { "동시상한": { "claude": 3, "codex": 1, "gemini": 1 }, "기본맡길곳": "claude" }`)을 적게 한다. `kinds`가 찬 뒤 AI는 `config.json`을 못 고치므로 `kinds`와 한 번에 적거나 사람이 직접 적는다(물레방아 `번갈아 보기`에서 코덱스 토큰 부족 시 제미나이 폴백을 쓰려면 `"gemini": 1`도 함께 적는다).
+   설치기가 적는 숫자(메인 3, 같이 쓸 도구 1)와 예시 숫자는 이 저장소에서 사람이 쓰는 값일 뿐 실험으로 정한 값이 아니다. 도구를 하나만 적으면 다른 도구의 검토 규칙은 꺼진다.
    `templates/harness/config.json`에는 11개 단계별 기본 모델·추론 깊이 설정인 `단계모델`(영문 별칭 `agents`)이 기본으로 들어 있다(`조사`: 본체 `sonnet` `high` + `보조모델` `gemini-4-argon-high`·`최대병렬` `4`·코덱스 제외, `쪼개기`: `opus` `high`, `할일적기`: `sonnet` `high`, `맞춰보기`: `opus` `high`, `만들기`·`돌려보기`·`고르기`·`올림`·`고치기`: `sonnet` `high`, `번갈아보기`: 살피기 담당 `opus` `high` + `검토도구` `codex`·`폴백도구` `gemini`·`폴백모델` `gemini-4-argon-high`, `한일적기`: `haiku` `medium`). 사용자가 모델(`모델`/`model`), 추론 깊이(`깊이`/`추론`/`effort`), 조사 보조 모델(`보조모델`/`helperModel`)·병렬 수(`최대병렬`/`maxParallel`), 번갈아 보기 검토·폴백 도구(`검토도구`/`reviewTool`, `폴백도구`/`fallbackTool`, `폴백모델`/`fallbackModel`)를 바꾸자고 하면 `단계모델`에서 함께 맞춰 적는다.
    `config.json`을 적은 직후 `node harness/backlog.mjs 목록`이 오류 없이 도는지 본다. `덧대기.수정패턴`(`patch.fixPattern`)이 올바른 정규식이 아니면 장부 명령 전부가 실행 전에 `config.json의 patch.fixPattern이 올바른 정규식이 아니다`라고 알리며 멈추고,
    `kinds`가 차면 AI는 `config.json`을 고칠 수 없다.
@@ -158,6 +163,8 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
 7. **에이전트 구성.** 일감 목록(작업 장부)을 설치했고 Claude Code를 쓰면 기획 담당(`planner`)·만들기 담당(`implementer`, 옛 구현 담당)·조사 담당(`researcher`)·살피기 담당(`reviewer`, 옛 리뷰어)을 이 프로젝트에 맞게 제안한다.
    에이전트를 나누는 기준은 맥락이다: 같은 맥락이 필요한 일은 한 에이전트가, 서로 몰라야 하는 일(만든 쪽과 살피는 쪽)은 따로 한다.
    - 2단계에서 본 테스트·린트 명령, 실행 방법, 폴더 구조로 `templates/agents/*.md`의 `## 이 프로젝트` 절(`<…>` 자리)을 채워 보여 주고 승인을 받는다. 실행할 것이 없으면 실행 확인 방법 자리는 "없음"으로 채운다. 나머지 글은 템플릿 그대로다.
+     조사 담당의 '쓸 수 있는 다른 도구'는 AI가 따로 찾지 않고 5~6단계 설치기 출력(`일감목록을 적는다(동시상한 …)` 알림)으로 채운다. 거기에 `gemini`가 있고 `.agents/agents/research.md`가 깔려 있으면 `agy`, 아니면 `없음`이다.
+     알림이 없으면 이번에 새로 적지 않은 것이다. 이미 있던 `harness/config.json`의 동시상한(`일감목록`/`backlog` 아래 `동시상한`/`한도`/`limits`)에 `gemini`가 있고 `research.md`가 깔려 있으면 `agy`, 아니면 `없음`으로 채운다.
    - 승인하면 대상의 `.claude/agents/`에 만든다. 같은 이름의 파일이 있으면 건너뛰고, 거절하면 아무것도 만들지 않는다. 팀이 같이 쓰도록 커밋하게 권한다.
    - 에이전트를 만들 때 `templates/workflows/mullebanga.js`를 대상의 `.claude/workflows/mullebanga.js`로 그대로 복사한다(물레방아). 같은 이름의 파일이 있으면 건너뛴다.
      에이전트를 만들지 않기로 했으면 물레방아도 깔지 않는다(만들기 담당·살피기 담당 역할 없이는 돌지 않는다).
@@ -195,6 +202,14 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
 9. **마무리.**
    - `[건너뜀]`이 있으면 사용자가 할 일을 알려 준다(예: husky의 pre-commit에 한 줄 더하기).
    - 일감 목록(작업 장부)을 설치했으면 사용자에게 역할을 한 번 알린다: 일감 목록 명령(`추가`·`시작`(`--고칠곳`, `--먼저할일`, `--맡길곳`, `--확인방법`)·`바로할일`(`준비`)·`올림`·`다시하기`(`반려`)·`완료`)은 AI가 쓰고 사람이 치지 않는다. 사람이 하는 일은 질문 페이지의 `답`뿐이다. 확인은 3일 안에 답하지 않으면 추천대로 확정된다.
+   - 일감 목록(작업 장부)을 설치했고 설치기가 `일감목록`을 적었으면 사용자에게 몇 줄로 알린다.
+     - 켠 것: 도구와 동시 숫자, `기본맡길곳`.
+     - 숫자는 이 저장소에서 사람이 쓰는 값이지 실험으로 정한 값이 아니다.
+     - 고칠 곳: `harness/config.json`의 `일감목록`(도구·숫자)과 `단계모델`(단계별 모델·번갈아 보기 검토·폴백 도구).
+     - 방법은 `guide/usage.md`에 있다.
+   - 일감 목록(작업 장부)을 설치했고 설치기가 알림 없이 끝났으면 `harness/config.json`의 동시상한(`일감목록`/`backlog` 아래 `동시상한`/`한도`/`limits`)을 읽어 알린다.
+     - 도구가 둘 이상 적혀 있으면 이번에 새로 적지 않았을 뿐 켜져 있다. 적힌 도구와 숫자를 알린다.
+     - 없거나 하나뿐이면 다른 도구 검토는 꺼져 있다. 켜려면 사람이 `일감목록`을 적는다고 알린다.
    - 일감 목록(작업 장부)을 설치했으면 `node harness/backlog.mjs 켜두기`로 질문 페이지를 켜 두고(포트를 정하려면 `--포트 N`, 안 주면 빈 포트를 골라 계속 쓴다) 나온 링크를 사용자에게 한 번 알려 즐겨찾기하게 한다.
    - Codex 훅은 프로젝트의 `.codex/` 폴더를 신뢰해야 켜진다. 처음 Codex를 열 때 신뢰하라고 알려 준다.
    - 설치한 파일을 커밋할지 묻는다. `.git/hooks`는 저장소에 올라가지 않으므로 팀원은 각자 설치한다.
@@ -241,7 +256,7 @@ Claude Code, Codex, Antigravity, OpenClaw 어디서 불러도 설치 방법은 �
   AI가 `.claude/settings.json`을 고쳐 훅을 끄는 것을 막지 못한다. `.git/hooks`는 편집 도구로는 막히고(지키는 파일) 셸로는 남는다.
   Claude Code·Codex·Antigravity에 연결했고(OpenClaw는 pre-commit이 코드 커밋만 거른다), Codex는 읽기 전용 도구가 없어 장부 읽기를 Bash 명령 글로만 거른다.
   Codex는 `.codex/`와 훅 정의를 신뢰해야 켜진다(`/hooks`에서 검토). 새로 더한 훅은 신뢰 검토가 필요하다고 안내한다.
-- 도구 배분: 사용량 상한은 잴 수 없어 동시 실행 수 상한과 지침(자동 반복 금지, 시간 제한)으로 대신한다. 읽기 전용은 Codex는 옵션(`-s read-only`)이, 제미나이는 아래 제미나이 읽기 전용 세 겹이 지킨다(`agy`에는 그런 옵션이 없다).
+- 도구 배분: 사용량 상한은 잴 수 없어 동시 실행 수 상한과 지침(자동 반복 금지, 시간 제한)으로 대신한다. 읽기 전용은 Codex는 옵션(`-s read-only`)이(번갈아 보기 바깥 검토만 버릴 복사본 안에서 `-s workspace-write`, `guide/limits.md`), 제미나이는 아래 제미나이 읽기 전용 세 겹이 지킨다(`agy`에는 그런 옵션이 없다. 번갈아 보기 바깥 검토 폴백만 버릴 복사본 안에서 `breaker` 역할과 `sandbox-exec`로 명령을 돌린다).
   `codex exec`에는 시간 제한 옵션이 없다. 검토를 했는지는 `올림`을 적은 쪽이 적은 말을 믿는다.
 - 제미나이 읽기 전용: `agy`에는 읽기 전용 스위치가 없어 세 겹으로 건다(역할 파일 `tools`가 쓰기 도구를 뺌, 막는 훅이 `HARNESS_READ_ONLY=1`이면 쓰기·명령 거절, 버릴 복사본에서 돌리고 지움).
   `agy`는 종료 코드가 항상 0이고 JSON에 `denied_actions`가 없어 끝난 뒤 `git status --porcelain`으로 본다. `agy agents` 목록엔 `readonly`가 안 보인다(머리말에 `name`·`description`이 있어야 `--agent`로 잡힘).

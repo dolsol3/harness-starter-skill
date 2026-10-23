@@ -82,7 +82,7 @@ test('args given as one line of text is split on spaces and commas into the task
   }
 });
 
-test('the implementer works in its own worktree; the reviewer and a read-only other-tool review look separately', async () => {
+test('the implementer works in its own worktree; the reviewer and a break-it other-tool review look separately', async () => {
   const { calls } = await run({ args: ['T-1'] });
   const build = calls.find(call => call.phase === '만들기');
   assert.equal(build.agentType, 'implementer');
@@ -91,8 +91,8 @@ test('the implementer works in its own worktree; the reviewer and a read-only ot
   assert.deepEqual(reviews.map(call => call.agentType), ['reviewer', undefined]);
   const other = reviews.find(call => call.agentType !== 'reviewer');
   assert.match(other.prompt, /backlog\.limits/);
-  assert.match(other.prompt, /읽기 전용/);
-  assert.match(other.prompt, /-s read-only/);
+  assert.match(other.prompt, /복사본 안에서 깨뜨려 보는 검토/);
+  assert.match(other.prompt, /-s workspace-write/);
 });
 
 test('the other tool runs in a throwaway clone outside the worktree, which is checked (gemini only) and removed', async () => {
@@ -101,13 +101,14 @@ test('the other tool runs in a throwaway clone outside the worktree, which is ch
   const lines = prompt.split('\n');
   const line = text => lines.find(each => each.includes(text)) ?? '';
   assert.match(prompt, /mktemp -d/);
-  assert.match(prompt, /cd \/repo\/\.claude\/worktrees\/wf_1-T-1 && git clone \. <임시>\/copy/);
+  assert.match(prompt, /cd \/repo\/\.claude\/worktrees\/wf_1-T-1 && git clone --no-hardlinks \. <임시>\/copy/);
   assert.match(prompt, /cd <임시>\/copy && git checkout --detach c0/);
   assert.match(line('prompt.txt'), /<임시>\/prompt\.txt.*<임시>\/result\.txt.*복사본 밖/);
-  assert.match(line('codex exec'), /-s read-only .*-C <임시>\/copy -o <임시>\/result\.txt - < <임시>\/prompt\.txt/);
-  assert.match(line('agy -p'), /cd <임시>\/copy && HARNESS_READ_ONLY=1 agy -p .* --agent readonly --output-format json --print-timeout 5m > <임시>\/result\.txt/);
-  assert.match(line('readonly.md'), /gemini.*없으면 부르지 않고.*중간.*읽기 전용 역할 파일 없음/);
-  assert.match(line('git status --porcelain'), /^4\. gemini면 .*cd <임시>\/copy && git status --porcelain.*높음.*Codex는 이 확인을 하지 않는다/);
+  assert.match(line('codex exec'), /-s workspace-write .*-C <임시>\/copy -o <임시>\/result\.txt - < <임시>\/prompt\.txt/);
+  assert.match(line('--agent breaker'), /cd <임시>\/copy && sandbox-exec -f <임시>\/sb\.sb env TMPDIR=<임시>\/tmp agy -p .* --agent breaker --output-format json --print-timeout 25m --log-file <임시>\/agy\.log > <임시>\/result\.txt; echo \$\? > <임시>\/done/);
+  assert.match(line('--agent readonly --output-format'), /cd <임시>\/copy && HARNESS_READ_ONLY=1 agy -p .* --agent readonly --output-format json --print-timeout 5m > <임시>\/result\.txt/);
+  assert.match(line('readonly.md`가 없으면'), /없으면 부르지 않고.*중간.*읽기 전용 역할 파일 없음/);
+  assert.match(line('git status --porcelain'), /^4\. 읽기 전용 경로의 gemini면 .*cd <임시>\/copy && git status --porcelain.*높음.*깨뜨려 보기 경로\(Codex·gemini\)는 .* 확인을 하지 않는다/);
   assert.equal(lines.filter(each => each.includes('git status')).length, 1);
   assert.match(line('rm -rf'), /끝나거나 실패해도 `rm -rf <임시>`/);
   assert.match(line('cd·지우기'), /복사본 만들기·cd·지우기가 막히거나 실패하면.*tool은 빈 문자열, 지적은 중간 하나로 "다른 도구 검토 실패: <이유>"/);

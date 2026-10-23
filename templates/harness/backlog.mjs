@@ -23,6 +23,7 @@
 //   node harness/backlog.mjs 서버 [--포트 N]           질문 페이지를 열어 사람이 브라우저에서 답하게 한다. 이 터미널에서 돌고 Ctrl+C로 끈다. 이 컴퓨터에서만 열리고 주소에 저장된 토큰이 붙는다
 //   node harness/backlog.mjs 켜두기 [--포트 N]         꺼져 있으면 질문 페이지를 떨어진 프로세스로 띄워 명령이 끝나도 계속 돌게 한다. 포트·토큰은 harness/serve.json에 두고 계속 쓴다
 //   node harness/backlog.mjs 끄기                      켜 둔 질문 페이지를 끈다. 다시 켜도 같은 링크다
+//   node harness/backlog.mjs 앞글자 W                 작업 번호 앞 글자를 영어 대문자로 정하고 그 글자의 가장 큰 번호 다음부터 센다(정하지 않으면 T). 컴퓨터마다 따로 센 장부의 명세 번호가 겹치지 않게 한다
 //   서버·켜두기·끄기 말고 모든 명령은 돌기 전에, 켜 둔 적 있는(harness/serve.json에 pid) 질문 페이지가 꺼져 있으면 다시 켠다.
 //   끄기 뒤에는 다시 켜두기까지 켜지 않는다. 허락·확인(옛 질문)은 페이지가 켜져 있으면 끝에 링크 줄을 보인다
 //   서버·켜두기·끄기·답·기다리기 말고 모든 명령은 질문목록으로 아직 읽지 않은 사람의 답이 있으면 링크 줄 앞에 "새 답 N개(…)" 한 줄을 보인다
@@ -222,6 +223,7 @@ const commands = {
   // 서버·켜두기·끄기(serves)는 스스로 켜고 끄므로 다시 켜기를 하지 않는다. 서버는 앞에서 열 포트를 떨어진 서버가 먼저 잡으면 안 된다.
   켜두기: { serves: true, options: ['포트'], run: ({ root, values }) => ({ rows: serve.keep(root, values.포트) }) },
   끄기: { serves: true, options: [], run: ({ root }) => ({ rows: serve.stop(root) }) },
+  앞글자: { writes: true, options: [], run: ({ ledger: book, args: [letter] }) => ({ rows: [ledger.setPrefix(book, letter)] }) },
   바로할일: { options: [], run: ({ ledger: book }) => readyRun(book, true) },
   다시하기: {
     writes: true,

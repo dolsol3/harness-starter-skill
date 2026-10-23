@@ -5,6 +5,25 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-23
+
+### Added
+
+- 설치기(`install.mjs`)의 `--main=<메인 도구 이름>`: 이 컴퓨터의 PATH에서 `claude`·`codex`·`agy`를 찾아, 새 `harness/config.json`을 만들 때 `일감목록`(`동시상한`, `기본맡길곳`)을 적는다(메인 3, 같이 쓸 도구 1씩, `agy`는 `gemini`). 설치 절차(`SKILL.md`)는 도구를 묻지 않고 설치하는 AI가 `--main`을 준다.
+- `앞글자 <영어 대문자>`: 일감 목록(장부)의 작업 번호 앞 글자를 정한다(`앞글자 W` 뒤에는 `W-1`, `W-2`…). 정하면 그 글자의 가장 큰 번호 다음부터 세고, 정하지 않은 장부(옛 장부 포함)는 그대로 `T-`로 센다. 앞 글자는 장부에만 적혀 git에 올라가지 않으므로 컴퓨터마다 장부를 따로 쓰면서 `docs/tasks/`를 함께 쓸 때 명세 번호가 겹치지 않게 한다.
+- 번갈아 보기 바깥 검토 도구로 `claude`를 부르는 법(`guide/usage.md`): 메인이 Codex·제미나이·그 밖의 도구인 사람이 손으로 넘길 때 쓰는 마지막 후보이며, 버릴 복사본에서 Claude 자체 샌드박스로 쓰기를 묶는다.
+
+### Changed
+
+- 번갈아 보기 바깥 검토 도구 Codex가 읽기 전용(`-s read-only`)으로 읽기만 하던 것을, 원격을 지운 버릴 복사본·임시 HOME 안에서 `-s workspace-write`로 명령을 돌려 끝 기준마다 깨뜨릴 입력·환경·순서를 재현하는 깨뜨려 보기로 바꿨다(뒤에서 돌리고 `done` 파일을 기다리며 최대 약 27분, 시간 초과면 자식 프로세스부터 멈춘다). 한계는 `guide/limits.md`에 있다.
+- 같은 깨뜨려 보기를 제미나이 폴백도 한다. 새 제미나이 역할 파일 `.agents/agents/breaker.md`(설치기가 깔고 `--upgrade`가 바꾼다)를 쓰고, 맥에서는 `sandbox-exec`로 복사본·임시 폴더 밖 쓰기를 막되 진짜 홈의 `agentapi` 한 파일 쓰기는 열고 부르기 전 복사본과 끝난 뒤 내용이 같은지 비교한다. 맥이 아니거나 `sandbox-exec`·`breaker.md`가 없으면 기존 읽기 전용 경로(`--agent readonly`)로 돈다. 한계는 `guide/limits.md`에 있다.
+- 이미 깐 프로젝트가 할 일: `install.mjs --upgrade`는 `.claude/workflows/mullebanga.js`와 `.claude/agents/`를 바꾸지 않으므로, 이 판의 `templates/workflows/mullebanga.js`·`templates/agents/planner.md`·`templates/agents/implementer.md`를 사본과 비교해 손으로 맞춰야 이 판의 깨뜨려 보기(Changed), `claude` 후보(Added), 물레방아 고침·도구 고르기(Fixed)가 반영된다.
+
+### Fixed
+
+- 물레방아가 단계 결과를 받는 형식(`agent()`의 결과 모양)의 칸 이름이 한글 `단계모델`이어서 API가 한글 칸 이름을 거절해(영문·숫자·`_.-`만 받음) 첫 단계에서 멈췄다. 칸 이름을 `agents`로 바꾸고 기획 담당 안내문(`templates/agents/planner.md`)도 `agents` 칸으로 돌려주게 맞췄다. 0.7.0을 깐 프로젝트는 이 고침이 없어 물레방아가 돌지 않았다.
+- 물레방아 `번갈아 보기`의 바깥 도구 고르기: 기본 검토 도구(`codex`)를 먼저 고르던 규칙 때문에 메인이 Codex이면 `올림 --검토 codex`가 거절되고, `agy`만 있는 컴퓨터는 없는 Codex를 한 번 부른 뒤 폴백했다. 이제 `검토도구`, `폴백도구` 순서 중 작성 도구(맡길곳)가 아니고 `동시상한`에 있는 첫 도구를 고르고, 없으면 부르지 않는다.
+
 ## [0.7.0] - 2026-10-22
 
 ### Added

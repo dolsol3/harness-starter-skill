@@ -112,13 +112,22 @@ function fill(task, fields) {
 
 export function add(ledger, title, fields) {
   if (!title) throw new Error('추가 거절: 제목이 없다. backlog 추가 "제목"');
-  const task = { 번호: `T-${ledger.다음번호}`, 제목: title, 종류: '기능', 상태: '할일', 영역: [], 확인방법: '', 선행: [] };
+  const task = { 번호: `${ledger.앞글자 ?? 'T'}-${ledger.다음번호}`, 제목: title, 종류: '기능', 상태: '할일', 영역: [], 확인방법: '', 선행: [] };
   fill(task, fields);
   if (!종류.includes(task.종류)) throw new Error(`추가 거절: 종류는 ${종류.join(' 또는 ')}이다`);
   for (const dep of task.선행) find(ledger, dep);
   ledger.다음번호 += 1;
   ledger.작업.push(task);
   return task;
+}
+
+// 장부는 컴퓨터마다 따로 세고 docs/tasks/는 함께 쓰므로, 앞 글자를 달리 정해 명세 번호가 겹치지 않게 한다.
+export function setPrefix(ledger, letter) {
+  if (!/^[A-Z]+$/.test(letter ?? '')) throw new Error('앞글자 거절: 영어 대문자(A~Z)만 쓸 수 있다. backlog 앞글자 W');
+  const used = ledger.작업.map(task => Number(task.번호.match(new RegExp(`^${letter}-(\\d+)$`))?.[1] ?? 0));
+  ledger.앞글자 = letter;
+  ledger.다음번호 = Math.max(0, ...used) + 1;
+  return `앞글자: ${letter} (다음 작업 ${letter}-${ledger.다음번호})`;
 }
 
 const done = (ledger, id) => find(ledger, id).상태 === '완료';

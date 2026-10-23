@@ -61,7 +61,7 @@ test('planner, implementer, and reviewer templates use easy Korean role titles, 
   assert.match(planner, /1\. \*\*쪼개기\*\*.*opus.*high.*단계모델\.쪼개기/);
   assert.match(planner, /2\. \*\*할 일 적기 \(명세 쓰기\)\*\*.*sonnet.*high.*단계모델\.할일적기/);
   assert.match(planner, /3\. \*\*한 일 적기 \(기록 옮기기\)\*\*.*haiku.*medium.*단계모델\.한일적기/);
-  assert.match(planner, /## 물레방아 안에서[\s\S]*`harness\/config\.json`에 `단계모델`\(또는 `agents`\)이 있으면 함께 읽어 응답의 `단계모델` 칸으로 돌려준다/);
+  assert.match(planner, /## 물레방아 안에서[\s\S]*`harness\/config\.json`에 `단계모델`\(또는 `agents`\)이 있으면 함께 읽어 응답의 `agents` 칸으로 돌려준다/);
 
   const implementer = read('implementer.md');
   assert.match(header(implementer).description, /만들기 담당\(구현 담당\).*할 일 적기\(명세\).*돌려보기\(검사\).*번갈아 보기\(교차 리뷰\)/);
