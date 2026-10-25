@@ -1,16 +1,16 @@
 #!/usr/bin/env node
-// 막는 훅: 작업 장부 규칙을 어기는 시도를 도구를 쓰기 전에 거절한다. 거절은 종료 코드 2와 올바른 길을 알리는 글이다.
+// 막는 훅: 일감 목록 규칙을 어기는 시도를 도구를 쓰기 전에 거절한다. 거절은 종료 코드 2와 올바른 길을 알리는 글이다.
 //
 //   node harness/guard.mjs --hook     AI 도구 훅(PreToolUse: Claude Code·Codex·Antigravity): 표준입력의 도구 호출을 본다
 //   node harness/guard.mjs --staged   git pre-commit: 코드 파일을 커밋하는데 진행중인 작업이 없으면 거절한다
 //
-// 거절하는 것: 장부 파일(harness/backlog.json) 직접 읽기·고치기, 진행중인 작업 없이 코드 파일 고치기,
-// 검사 설정·검사기·장부 명령 고치기, 커밋 검사 건너뛰기(--no-verify).
+// 거절하는 것: 일감 목록 파일(harness/backlog.json) 직접 읽기·고치기, 진행중인 작업 없이 코드 파일 고치기,
+// 검사 설정·검사기·일감 목록 명령 고치기, 커밋 검사 건너뛰기(--no-verify).
 // 진행중인 작업이 있어도 지키는 파일(.env, 잠금 파일, .git 아래, harness/config.json의 protect로 바꿈) 고치기. 읽기는 된다.
 // 환경 변수 HARNESS_READ_ONLY=1로 부른 도구(읽기 전용 검토)의 파일 고치기와 명령 실행.
 // 코드 파일은 harness/config.json의 kinds에서 한도(줄 수, 줄 길이, 금지 패턴)를 정한 종류의 파일이다.
-// 설정이나 장부를 읽지 못하는 등 확인하지 못하면 통과시키지 않고 거절한다(종료 코드 2).
-// 한계: 파일을 스크립트나 셸 명령(sed, 리다이렉트, rm 등)으로 바꾸는 것은 명령 글에 장부 이름이 없으면 보지 못한다.
+// 설정이나 일감 목록을 읽지 못하는 등 확인하지 못하면 통과시키지 않고 거절한다(종료 코드 2).
+// 한계: 파일을 스크립트나 셸 명령(sed, 리다이렉트, rm 등)으로 바꾸는 것은 명령 글에 일감 목록 파일 이름이 없으면 보지 못한다.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';

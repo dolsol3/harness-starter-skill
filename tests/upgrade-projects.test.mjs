@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { git, setup, publish, places, snapshot, ok } from './upgrade-setup.mjs';
 
-const HIDDEN = ['.claude', '.agents', '.gemini'];
+const HIDDEN = ['.claude', '.agents', '.gemini', '.workbuddy-ai'];
 
 // 임시 git 저장소에 받은 폴더의 설치기를 --apply로 돌려 명부에 적고 harness/VERSION을 깐다.
 function project(s, name) {

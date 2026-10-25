@@ -179,14 +179,16 @@ test('단계모델 overrides work via args, 작업 고르기, and 기획 담당 
   assert.deepEqual(mergedModel('살피기 담당 T-1'), { model: 'sonnet', effort: 'low' });
 });
 
-test('otherReviewPrompt reads 일감목록.동시상한 and 단계모델.번갈아보기, invokes codex with model and effort, and falls back to gemini-4-argon-high on quota/rate-limit or failure', async () => {
+test('otherReviewPrompt reads 일감목록.동시상한 and 단계모델.번갈아보기, invokes codex with model and effort, and falls back to codex gpt-6.1-sol on quota/rate-limit or failure', async () => {
   const { calls } = await run({ args: ['T-1'] });
   const { prompt } = calls.find(call => call.label.startsWith('다른 도구 검토'));
   assert.match(prompt, /일감목록\.동시상한.*backlog\.limits.*단계모델\.번갈아보기/);
-  assert.match(prompt, /codex exec -s workspace-write --ephemeral -m <바깥모델> -c model_reasoning_effort='"<바깥추론>"' -C <임시>\/copy -o <임시>\/result\.txt - < <임시>\/prompt\.txt/);
-  assert.match(prompt, /토큰·한도 부족\(quota·rate limit·usage limit 등\)이나 실행 실패로 검토를 못 하면.*폴백 도구\(`폴백도구`, 기본 `gemini`, 모델 `폴백모델` 기본 `gemini-4-argon-high`\)로 폴백/);
-  assert.match(prompt, /sandbox-exec -f <임시>\/sb\.sb env TMPDIR=<임시>\/tmp agy -p "\$\(cat <임시>\/prompt\.txt\)" --model <폴백모델> --agent breaker --output-format json --print-timeout 25m --log-file <임시>\/agy\.log > <임시>\/result\.txt/);
-  assert.match(prompt, /cd <임시>\/copy && HARNESS_READ_ONLY=1 agy -p "\$\(cat <임시>\/prompt\.txt\)" --model <폴백모델> --agent readonly --output-format json --print-timeout 5m > <임시>\/result\.txt/);
+  assert.match(prompt, /기본 검토도구·바깥도구 `gemini`, 바깥모델 `gemini-4-argon-medium`, 폴백도구 `codex`, 폴백모델 `gpt-6\.1-sol`, 폴백추론 `medium`/);
+  assert.match(prompt, /<모델>·<추론>은 그 도구가 `검토도구`면 `바깥모델`·`바깥추론`, 폴백으로 부르면 `폴백모델`·`폴백추론`/);
+  assert.match(prompt, /codex exec -s workspace-write --ephemeral -m <모델> -c model_reasoning_effort='"<추론>"' -C <임시>\/copy -o <임시>\/result\.txt - < <임시>\/prompt\.txt/);
+  assert.match(prompt, /토큰·한도 부족\(quota·rate limit·usage limit 등\)이나 실행 실패로 검토를 못 하면.*폴백 도구\(`폴백도구`, 기본 `codex`, 모델 `폴백모델` 기본 `gpt-6\.1-sol`, 추론 `폴백추론` 기본 `medium`; `gemini`면 기본 `gemini-4-argon-medium`\)로 폴백/);
+  assert.match(prompt, /sandbox-exec -f <임시>\/sb\.sb env TMPDIR=<임시>\/tmp agy -p "\$\(cat <임시>\/prompt\.txt\)" --model <모델> --agent breaker --output-format json --print-timeout 25m --log-file <임시>\/agy\.log > <임시>\/result\.txt/);
+  assert.match(prompt, /cd <임시>\/copy && HARNESS_READ_ONLY=1 agy -p "\$\(cat <임시>\/prompt\.txt\)" --model <모델> --agent readonly --output-format json --print-timeout 5m > <임시>\/result\.txt/);
 });
 
 test('otherReviewPrompt picks the first of 검토도구, 폴백도구 that is not the author and is in 동시상한, calls nothing when none, and falls back only to a tool meeting the same condition', async () => {

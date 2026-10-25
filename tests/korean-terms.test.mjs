@@ -112,7 +112,7 @@ test('덧대기 and 지키는파일 Korean config keys and external Korean task 
   assert.match(view, /반려: 1234567 옛사유/);
 });
 
-test('page.mjs renders 일감 목록 (작업 장부) heading and 고칠곳/맡길곳 headers while keeping <title>작업 장부</title>', () => {
+test('page.mjs renders 일감 목록 heading and 고칠곳/맡길곳 headers', () => {
   const html = render({
     다음번호: 3,
     작업: [
@@ -123,8 +123,8 @@ test('page.mjs renders 일감 목록 (작업 장부) heading and 고칠곳/맡�
     질문: [],
     처리함: [],
   }, new Date('2026-10-22T00:00:00Z'));
-  assert.match(html, /<title>작업 장부<\/title>/);
-  assert.match(html, /<h1>일감 목록 \(작업 장부\)<\/h1>/);
+  assert.match(html, /<title>일감 목록<\/title>/);
+  assert.match(html, /<h1>일감 목록<\/h1>/);
   assert.match(html, /<tr><th>번호<\/th><th>제목<\/th><th>고칠곳<\/th><th>맡길곳<\/th><\/tr>/);
   assert.match(html, /<td>첫일<\/td><td>src\/a<\/td><td>배정 claude, 검토 codex<\/td>/);
   assert.match(html, /<td>둘째<\/td><td>src\/b<\/td><td>배정 gemini<\/td>/);
@@ -134,14 +134,19 @@ test('templates/harness/config.json includes valid 단계모델 defaults for all
   const config = JSON.parse(fs.readFileSync(templateConfig, 'utf8'));
   const stages = ['조사', '쪼개기', '할일적기', '맞춰보기', '만들기', '돌려보기', '번갈아보기', '고치기', '한일적기', '고르기', '올림'];
   assert.deepEqual(Object.keys(config.단계모델), stages);
-  assert.deepEqual(config.단계모델.조사, { 모델: 'sonnet', 깊이: 'high', 보조모델: 'gemini-4-argon-high', 최대병렬: 4 });
+  assert.deepEqual(config.단계모델.조사, { 모델: 'sonnet', 깊이: 'medium', 보조모델: 'gemini-4-argon-medium', 최대병렬: 4 });
   assert.deepEqual(config.단계모델.번갈아보기, {
     모델: 'opus',
-    깊이: 'high',
-    검토도구: 'codex',
-    폴백도구: 'gemini',
-    폴백모델: 'gemini-4-argon-high',
+    깊이: 'medium',
+    검토도구: 'gemini',
+    바깥모델: 'gemini-4-argon-medium',
+    폴백도구: 'codex',
+    폴백모델: 'gpt-6.1-sol',
+    폴백추론: 'medium',
   });
+  assert.deepEqual(config.단계모델.쪼개기, { 모델: 'opus', 깊이: 'high' });
+  assert.deepEqual(config.단계모델.돌려보기, { 모델: 'haiku', 깊이: 'medium' });
+  assert.deepEqual(config.단계모델.올림, { 모델: 'sonnet', 깊이: 'low' });
   assert.deepEqual(config.단계모델.한일적기, { 모델: 'haiku', 깊이: 'medium' });
   assert.equal(config.일감목록, undefined, 'default template keeps tool limits off');
 });

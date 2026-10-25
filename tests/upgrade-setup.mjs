@@ -63,6 +63,7 @@ export function places(home) {
     path.join(home, '.agents', 'skills', 'harness-starter'),
     path.join(home, '.gemini', 'antigravity-cli', 'skills', 'harness-starter'),
     path.join(home, '.gemini', 'config', 'skills', 'harness-starter'),
+    path.join(home, '.workbuddy-ai', 'skills', 'harness-starter'),
   ];
 }
 

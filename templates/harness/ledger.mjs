@@ -1,10 +1,10 @@
-// 작업 장부: 읽기·쓰기와 상태 규칙. 명령줄은 backlog.mjs가 맡는다.
+// 일감 목록: 읽기·쓰기와 상태 규칙. 명령줄은 backlog.mjs가 맡는다.
 //
-// 장부는 메인 폴더의 harness/backlog.json 하나다. git에는 올리지 않는다(워크트리마다 사본이 생겨 상태가 갈라지므로).
-// 워크트리 안에서 불러도 git의 공용 .git 폴더(--git-common-dir)의 부모, 곧 메인 폴더를 찾아 같은 장부를 쓴다.
+// 일감 목록은 메인 폴더의 harness/backlog.json 하나다. git에는 올리지 않는다(워크트리마다 사본이 생겨 상태가 갈라지므로).
+// 워크트리 안에서 불러도 git의 공용 .git 폴더(--git-common-dir)의 부모, 곧 메인 폴더를 찾아 같은 일감 목록을 쓴다.
 // git 명령은 부른 폴더에서 돌린다. 워크트리에서 HEAD를 말하면 그 워크트리의 HEAD다.
 // 상태는 할일 → 진행중 → 올림 → 완료로 간다. 올림은 반려로 진행중에 돌아올 수 있다. 필드 이름과 값은 화면에 그대로 보이므로 한글로 둔다.
-// 장부를 쓰는 명령은 withLock 안에서 읽기→바꾸기→저장을 한다. 저장은 임시 파일에 쓴 뒤 바꿔치기해서 읽는 쪽이 반쯤 쓴 장부를 보지 않는다.
+// 일감 목록을 쓰는 명령은 withLock 안에서 읽기→바꾸기→저장을 한다. 저장은 임시 파일에 쓴 뒤 바꿔치기해서 읽는 쪽이 반쯤 쓴 일감 목록을 보지 않는다.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -39,7 +39,7 @@ export function mainRoot() {
 
 const ledgerFile = root => path.join(root, 'harness/backlog.json');
 
-// 질문과 처리함은 4단계에서 생겼다. 옛 장부에 없으면 빈 목록으로 읽는다.
+// 질문과 처리함은 4단계에서 생겼다. 옛 일감 목록에 없으면 빈 목록으로 읽는다.
 const empty = () => ({ 다음번호: 1, 작업: [], 다음질문번호: 1, 질문: [], 처리함: [] });
 
 function normalizeTask(task) {
@@ -84,7 +84,7 @@ export function withLock(root, work) {
     } catch (error) {
       if (error.code !== 'EEXIST') throw error;
       if (Date.now() >= giveUp) {
-        throw new Error('다른 명령이 장부를 쓰는 중이다(harness/backlog.lock). 잠시 뒤 다시 한다. 쓰는 명령이 없는데 이 파일이 남아 있으면 사람이 지운다');
+        throw new Error('다른 명령이 일감 목록을 쓰는 중이다(harness/backlog.lock). 잠시 뒤 다시 한다. 쓰는 명령이 없는데 이 파일이 남아 있으면 사람이 지운다');
       }
       sleep(50);
     }
@@ -121,7 +121,7 @@ export function add(ledger, title, fields) {
   return task;
 }
 
-// 장부는 컴퓨터마다 따로 세고 docs/tasks/는 함께 쓰므로, 앞 글자를 달리 정해 명세 번호가 겹치지 않게 한다.
+// 일감 목록은 컴퓨터마다 따로 세고 docs/tasks/는 함께 쓰므로, 앞 글자를 달리 정해 작업 문서 번호가 겹치지 않게 한다.
 export function setPrefix(ledger, letter) {
   if (!/^[A-Z]+$/.test(letter ?? '')) throw new Error('앞글자 거절: 영어 대문자(A~Z)만 쓸 수 있다. backlog 앞글자 W');
   const used = ledger.작업.map(task => Number(task.번호.match(new RegExp(`^${letter}-(\\d+)$`))?.[1] ?? 0));
@@ -149,7 +149,7 @@ function checkTool(tool, limits, id, what) {
   throw new Error(`${id} ${what} 거절: ${tool}은(는) 쓸 수 있는 도구가 아니다. harness/config.json의 backlog.limits에 적힌 도구만 쓴다(${names})`);
 }
 
-// 구현을 맡길 도구를 적는다. --배정이 없으면 backlog.defaultTool을 쓴다. limits를 적지 않은 프로젝트는 이 규칙이 꺼져 있다.
+// 만들기를 맡길 도구를 적는다. --배정이 없으면 backlog.defaultTool을 쓴다. limits를 적지 않은 프로젝트는 이 규칙이 꺼져 있다.
 // 그 도구의 진행중 작업이 상한에 차면 거절한다. 올림이 된 작업은 세지 않는다.
 function assign(ledger, task, requested, { limits, defaultTool }) {
   if (!limits && !requested) return;
@@ -183,8 +183,8 @@ function review(task, tool, limits) {
 }
 
 // 시작하려면 건드리는 곳과 끝을 확인하는 방법이 있어야 한다. 수정 작업은 원인과 고칠 방향도 있어야 한다.
-// 옵션은 비어 있는 칸만 채운다. 종류와 선행은 추가할 때 정한 그대로다. 거절하면 장부는 저장되지 않는다.
-// 구현을 맡을 도구(배정)는 backlog.limits를 적은 프로젝트에서만 정한다.
+// 옵션은 비어 있는 칸만 채운다. 종류와 선행은 추가할 때 정한 그대로다. 거절하면 일감 목록은 저장되지 않는다.
+// 만들기를 맡을 도구(배정)는 backlog.limits를 적은 프로젝트에서만 정한다.
 export function start(ledger, id, fields, tools) {
   const task = find(ledger, id);
   if (task.상태 !== '할일') throw new Error(`${id} 시작 거절: 이미 ${task.상태}이다`);

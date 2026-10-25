@@ -2,10 +2,10 @@
 
 AI와 개발하면 코드가 점점 커지고, 읽기 어려워지고, 예외에 예외를 덧대기 쉽다.
 harness-starter는 이것을 막는 장치("간결함 하네스")를 프로젝트에 씌우는 스킬이다.
-일감 목록(작업 장부), 질문 페이지, 물레방아로 AI가 사람 없이 오래 일하도록 돕는다.
-Claude Code, Codex, Antigravity, OpenClaw에서 쓴다.
+일감 목록, 질문 페이지, 물레방아로 AI가 사람 없이 오래 일하도록 돕는다.
+Claude Code, Codex, Antigravity, OpenClaw, WorkBuddy AI(딥시크)에서 쓴다.
 
-일감 목록(장부) 명령은 AI가 쓴다. 사람이 하는 일은 설치를 승인하고 질문 페이지에 답하는 것뿐이다.
+일감 목록 명령은 AI가 쓴다. 사람이 하는 일은 설치를 승인하고 질문 페이지에 답하는 것뿐이다.
 
 ## 빠른 시작
 
@@ -17,7 +17,7 @@ Claude Code, Codex, Antigravity, OpenClaw에서 쓴다.
    git clone https://github.com/dolsol3/harness-starter-skill.git
    ```
 
-2. 받은 폴더에서 전역 스킬 네 곳에 깐다. 물으면 y를 누른다.
+2. 받은 폴더에서 전역 스킬 다섯 곳에 깐다. 물으면 y를 누른다.
 
    ```sh
    cd harness-starter-skill
@@ -31,7 +31,7 @@ Claude Code, Codex, Antigravity, OpenClaw에서 쓴다.
 
 ## 전역 스킬 위치
 
-`upgrade.mjs`가 아래 네 곳에 스킬을 복사한다.
+`upgrade.mjs`가 아래 다섯 곳에 스킬을 복사한다.
 
 | 도구 | 전역 스킬 위치 |
 |---|---|
@@ -39,6 +39,7 @@ Claude Code, Codex, Antigravity, OpenClaw에서 쓴다.
 | Codex, OpenClaw | `~/.agents/skills/harness-starter` (둘 다 이 위치를 읽는다) |
 | Antigravity CLI | `~/.gemini/antigravity-cli/skills/harness-starter` |
 | Antigravity IDE | `~/.gemini/config/skills/harness-starter` |
+| WorkBuddy AI | `~/.workbuddy-ai/skills/harness-starter` (macOS·Windows 공통) |
 
 ## 설치되는 장치
 
@@ -48,8 +49,8 @@ Claude Code, Codex, Antigravity, OpenClaw에서 쓴다.
 | git 훅 | 너무 긴 줄, 예외를 삼키는 코드, 너무 큰 커밋이 있으면 커밋을 막는다. |
 | 고친 직후 알림 훅 | AI가 파일을 고치자마자 같은 검사를 돌려 문제를 바로 알려 준다. |
 | 간결함 리뷰 | 작업을 끝내기 전에 지울 수 있는 코드가 남았는지 살피는 절차다. |
-| 일감 목록 (작업 장부) | 할 일, 진행 상태, 사람에게 묻는 질문을 한곳에 적고 질문 페이지로 보여 준다. |
-| 막는 훅 | 일감 목록(장부)에 연 작업 없이 코드를 고치거나 검사 설정을 바꾸려 하면 거절한다. |
+| 일감 목록 | 할 일, 진행 상태, 사람에게 묻는 질문을 한곳에 적고 질문 페이지로 보여 준다. |
+| 막는 훅 | 일감 목록에 연 작업 없이 코드를 고치거나 검사 설정을 바꾸려 하면 거절한다. |
 | 멈출 때 설명 훅 | 일이 남았는데 AI가 멈추려 하면 왜 멈추는지 한 번 설명하게 한다. |
 | 제미나이 읽기 전용 역할 | 제미나이를 파일을 고치지 못하는 검토·조사 역할로 부를 수 있게 한다. |
 

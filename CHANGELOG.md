@@ -5,6 +5,24 @@
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-26
+
+### Added
+
+- 공용 물레방아(`node harness/mullebanga.mjs --도구 codex|gemini|claude`): Codex·Antigravity·Claude 어느 도구에서든 진행중 작업을 `할 일 적기`부터 `올림`까지 같은 순서로 돌린다(담당은 부른 도구가 기본, 단계마다 `단계모델.<단계>.도구`로 바꿈, 읽기 전용은 도구가 아니라 역할로 정함). 설치기가 일감 목록과 함께 여섯 파일을 깔고, 이미 깐 프로젝트는 `install.mjs --upgrade`로 받는다. 클로드판(`.claude/workflows/mullebanga.js`)은 그대로이고 `--upgrade`가 바꾸지 않는다. 쓰는 법은 `guide/usage.md`, 한계는 `guide/limits.md`에 있다.
+- WorkBuddy AI(딥시크) 지원: 설치기에 `workbuddy-hook` 장치를 더해 `.codebuddy/settings.json`에 Claude Code와 같은 훅(고친 직후 알림·쓰기 전 막기·멈출 때 설명)을 깔고, `.codebuddy/skills/lean-review/`에도 간결함 리뷰를 복사한다. `upgrade.mjs`는 다섯째 전역 스킬 폴더 `~/.workbuddy-ai/skills/harness-starter`(macOS·Windows 공통)를 함께 갱신한다. 워크버디 앱은 프로젝트 루트 `AGENTS.md`를 읽고, 단계는 앱 내장 `Agent` 도구(`.codebuddy/agents/`, Claude Code와 같은 파일)로 돌리며 로컬에 없는 클로드 모델 이름은 앱에 선택된 `deepseek-v4.1-flash` 등으로 대체한다. 앱에서 훅·스킬이 실제로 읽히는지는 확인하지 못했다(`guide/limits.md`).
+
+### Changed
+
+- `기다리기` 기본 대기 시간을 55분으로 바꾸고 `--횟수 1~26`을 더했다. 메인이 멈춰 있을 때 질문이 없어도 기다리며 55분마다 프롬프트 캐시를 유지하고, 하루 최대 26회 뒤에는 다시 걸지 않는다.
+- 원칙·역할 파일·물레방아·안내 문서에서 `명세`·`장부` 등 옛 용어와 괄호 병기를 걷어내고, 하위 호환 설정·명령 별칭과 용어집 대조표만 남겼다.
+- 11개 단계 `단계모델` 기본값을 낮췄다(T-155): `조사` `sonnet` `medium` + `보조모델` `gemini-4-argon-medium`, `쪼개기` `opus` `high`, `할일적기`·`만들기`·`고치기` `sonnet` `medium`, `맞춰보기`·`번갈아보기` `opus` `medium`, `돌려보기`·`고르기`·`한일적기` `haiku` `medium`, `올림` `sonnet` `low`. `번갈아보기` 바깥 검토 기본은 `gemini`(`gemini-4-argon-medium`), 폴백은 `codex`(`gpt-6.1-sol` `medium`)다. 근거는 2026-10-25 적대적 리뷰 24회 재시험과 `medium` 실전 검증이다.
+
+### Fixed
+
+- 저장소 루트에 `.gitattributes`(`* text=auto eol=lf`)를 더했다. `core.autocrlf=true`인 Windows에서도 글 파일이 LF로 꺼내져 시험과 설치 파일의 줄바꿈이 맞는다. 공개본에도 들어가고, 이미 꺼낸 폴더는 다시 꺼내야 바뀐다.
+- Windows `cmd.exe`에서 `$(git rev-parse --show-toplevel)` 치환이 되지 않던 문제를 고쳐 Codex 훅(`.codex/hooks.json`)은 `node harness/check.mjs --hook`·`node harness/guard.mjs --hook`, Antigravity 훅(`.agents/hooks.json`)은 `node ../harness/check.mjs --hook`·`node ../harness/guard.mjs --hook` 상대 경로 명령으로 깐다. `install.mjs --upgrade`는 두 파일의 옛 `$(git rev-parse --show-toplevel)` 훅 명령을 새 명령으로 바꾼다.
+
 ## [0.8.0] - 2026-10-23
 
 ### Added

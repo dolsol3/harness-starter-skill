@@ -1,0 +1,2 @@
+# 컴퓨터의 core.autocrlf 설정과 상관없이 글 파일을 LF로 꺼낸다(시험과 설치 파일이 줄바꿈을 \n으로 읽는다).
+* text=auto eol=lf

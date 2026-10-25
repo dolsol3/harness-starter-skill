@@ -71,3 +71,78 @@ test('--upgrade leaves a pre-commit that another tool wrote alone', t => {
   assert.match(install(dir, '--apply', '--upgrade'), /\[건너뜀\] \.git\/hooks\/pre-commit/);
   assert.equal(read(dir, HOOK), other);
 });
+
+test('--upgrade replaces old $(git rev-parse --show-toplevel) commands in .codex/hooks.json and .agents/hooks.json while keeping user hooks and other groups', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-upgrade-hooks-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  install(dir, '--apply');
+  const oldCheck = 'node "$(git rev-parse --show-toplevel)/harness/check.mjs" --hook';
+  const oldGuard = 'node "$(git rev-parse --show-toplevel)/harness/guard.mjs" --hook';
+  const userHook = { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo 내 훅' }] };
+  const oldCodex = {
+    hooks: {
+      PostToolUse: [{ matcher: 'apply_patch|Edit|Write', hooks: [{ type: 'command', command: oldCheck }] }],
+      PreToolUse: [userHook, { matcher: 'apply_patch|Bash', hooks: [{ type: 'command', command: oldGuard }] }],
+    },
+  };
+  const oldAgents = {
+    lint: { PostToolUse: [] },
+    'harness-starter': {
+      PostToolUse: [{ matcher: 'write_to_file|replace_file_content|multi_replace_file_content', hooks: [{ type: 'command', command: oldCheck }] }],
+      PreToolUse: [{ matcher: 'write_to_file|replace_file_content|multi_replace_file_content|run_command|view_file', hooks: [{ type: 'command', command: oldGuard }] }],
+    },
+  };
+  fs.writeFileSync(path.join(dir, '.codex/hooks.json'), `${JSON.stringify(oldCodex, null, 2)}\n`);
+  fs.writeFileSync(path.join(dir, '.agents/hooks.json'), `${JSON.stringify(oldAgents, null, 2)}\n`);
+
+  const plain = install(dir, '--apply');
+  assert.match(plain, /\[그대로\] \.codex\/hooks\.json/);
+  assert.match(plain, /\[그대로\] \.agents\/hooks\.json/);
+  assert.deepEqual(JSON.parse(read(dir, '.codex/hooks.json')), oldCodex);
+  assert.deepEqual(JSON.parse(read(dir, '.agents/hooks.json')), oldAgents);
+
+  const preview = install(dir, '--upgrade');
+  assert.match(preview, /\[고침\] \.codex\/hooks\.json/);
+  assert.match(preview, /\[고침\] \.agents\/hooks\.json/);
+  assert.deepEqual(JSON.parse(read(dir, '.codex/hooks.json')), oldCodex);
+  assert.deepEqual(JSON.parse(read(dir, '.agents/hooks.json')), oldAgents);
+
+  install(dir, '--apply', '--upgrade');
+  const codex = JSON.parse(read(dir, '.codex/hooks.json')).hooks;
+  assert.equal(codex.PostToolUse[0].hooks[0].command, 'node harness/check.mjs --hook');
+  assert.deepEqual(codex.PreToolUse, [userHook, { matcher: 'apply_patch|Bash', hooks: [{ type: 'command', command: 'node harness/guard.mjs --hook' }] }]);
+  const agents = JSON.parse(read(dir, '.agents/hooks.json'));
+  assert.deepEqual(agents.lint, { PostToolUse: [] });
+  assert.equal(agents['harness-starter'].PostToolUse[0].hooks[0].command, 'node ../harness/check.mjs --hook');
+  assert.equal(agents['harness-starter'].PreToolUse[0].hooks[0].command, 'node ../harness/guard.mjs --hook');
+  const second = install(dir, '--apply', '--upgrade');
+  assert.match(second, /\[그대로\] \.codex\/hooks\.json/);
+  assert.match(second, /\[그대로\] \.agents\/hooks\.json/);
+  assert.doesNotMatch(second, /\[고침\]/);
+
+  fs.writeFileSync(path.join(dir, '.codex/hooks.json'), `${JSON.stringify(oldCodex, null, 2)}\n`);
+  fs.writeFileSync(path.join(dir, '.agents/hooks.json'), `${JSON.stringify(oldAgents, null, 2)}\n`);
+  install(dir, '--apply', '--upgrade', '--without=backlog');
+  assert.equal(JSON.parse(read(dir, '.codex/hooks.json')).hooks.PreToolUse[1].hooks[0].command, 'node harness/guard.mjs --hook');
+  assert.equal(JSON.parse(read(dir, '.agents/hooks.json'))['harness-starter'].PreToolUse[0].hooks[0].command, 'node ../harness/guard.mjs --hook');
+
+  const noBacklog = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-upgrade-nobacklog-'));
+  t.after(() => fs.rmSync(noBacklog, { recursive: true, force: true }));
+  execFileSync('git', ['init', '-q'], { cwd: noBacklog });
+  install(noBacklog, '--apply', '--without=backlog');
+  fs.writeFileSync(path.join(noBacklog, '.codex/hooks.json'), JSON.stringify({ hooks: { PostToolUse: oldCodex.hooks.PostToolUse } }));
+  fs.writeFileSync(path.join(noBacklog, '.agents/hooks.json'), JSON.stringify({ 'harness-starter': { PostToolUse: oldAgents['harness-starter'].PostToolUse } }));
+  install(noBacklog, '--apply', '--upgrade', '--without=backlog');
+  const nbCodex = JSON.parse(read(noBacklog, '.codex/hooks.json')).hooks;
+  assert.equal(nbCodex.PostToolUse[0].hooks[0].command, 'node harness/check.mjs --hook');
+  assert.equal(nbCodex.PreToolUse, undefined);
+  const nbAgents = JSON.parse(read(noBacklog, '.agents/hooks.json'))['harness-starter'];
+  assert.equal(nbAgents.PostToolUse[0].hooks[0].command, 'node ../harness/check.mjs --hook');
+  assert.equal(nbAgents.PreToolUse, undefined);
+
+  const claudeHooks = { ...JSON.parse(read(dir, '.claude/settings.json')).hooks, ...oldCodex.hooks };
+  fs.writeFileSync(path.join(dir, '.claude/settings.json'), `${JSON.stringify({ hooks: claudeHooks }, null, 2)}\n`);
+  assert.match(install(dir, '--apply', '--upgrade'), /\[그대로\] \.claude\/settings\.json/);
+  assert.deepEqual(JSON.parse(read(dir, '.claude/settings.json')).hooks, claudeHooks);
+});

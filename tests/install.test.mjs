@@ -56,9 +56,10 @@ test('preview writes nothing; apply installs every part; a second run changes no
   assert.match(settings.hooks.PreToolUse[0].hooks[0].command, /^node "\$CLAUDE_PROJECT_DIR\/harness\/guard\.mjs" --hook$/);
   const codex = JSON.parse(read(dir, '.codex/hooks.json')).hooks.PostToolUse[0];
   assert.equal(codex.matcher, 'apply_patch|Edit|Write');
-  assert.match(codex.hooks[0].command, /git rev-parse --show-toplevel\)\/harness\/check\.mjs" --hook$/);
+  assert.equal(codex.hooks[0].command, 'node harness/check.mjs --hook');
   const antigravity = JSON.parse(read(dir, '.agents/hooks.json'))['harness-starter'].PostToolUse[0];
   assert.match(antigravity.matcher, /^write_to_file\|replace_file_content\|/);
+  assert.equal(antigravity.hooks[0].command, 'node ../harness/check.mjs --hook');
   const hook = path.join(dir, '.git/hooks/pre-commit');
   assert.match(fs.readFileSync(hook, 'utf8'), /node harness\/check\.mjs --staged/);
   assert.match(fs.readFileSync(hook, 'utf8'), /node harness\/guard\.mjs --staged/);

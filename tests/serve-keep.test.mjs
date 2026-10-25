@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
-import { repo, ok, backlog } from './helpers.mjs';
+import { repo, ok, backlog, stopAtEnd, stopServerAtEnd, gone } from './helpers.mjs';
 
 const LINK = /^질문 페이지: (http:\/\/127\.0\.0\.1:(\d+)\/\?token=([0-9a-f]{32}))$/m;
 const state = dir => JSON.parse(fs.readFileSync(path.join(dir, 'harness/serve.json'), 'utf8'));
@@ -14,42 +14,15 @@ const status = async url => (await fetch(url)).status;
 // 이 저장소의 장부 명령으로 돈 서버 프로세스들(ps에 보이는 명령 줄). 맥의 임시 폴더는 링크라 실제 경로로 찾는다.
 const servers = dir => execFileSync('ps', ['-ax', '-o', 'command'], { encoding: 'utf8' }).split('\n').filter(line => line.includes(`${fs.realpathSync(dir)}/harness/backlog.mjs 서버`));
 
-// 시험이 끝나면 띄운 서버를 끈다. 임시 폴더가 먼저 지워져도 끌 수 있게 켠 직후 읽은 pid로 끈다.
-// 단언이 실패해도 서버가 남지 않게 켜는 명령 바로 뒤, 단언보다 먼저 부른다. 상태 파일이 없으면 띄운 서버도 없다.
-function stopLater(t, dir) {
-  if (!fs.existsSync(path.join(dir, 'harness/serve.json'))) return;
-  const { pid } = state(dir);
-  t.after(() => {
-    try {
-      process.kill(pid);
-    } catch (error) {
-      if (error.code !== 'ESRCH') throw error;
-    }
-  });
-}
-
 // 켜두기를 끝날 때까지 기다려 부르고, 링크를 읽어 돌려준다.
 function keep(t, dir, ...args) {
   const started = Date.now();
   const result = backlog(dir, '켜두기', ...args);
-  stopLater(t, dir);
+  stopServerAtEnd(t, dir);
   assert.equal(result.status, 0, result.stderr);
   assert.ok(Date.now() - started < 5000, 'keep returns within 5 seconds');
   const [, url, port, token] = result.stdout.match(LINK);
   return { url, port: Number(port), token, out: result.stdout };
-}
-
-// kill은 신호만 보내고 돌아온다. 죽는 중인 서버에 fetch를 보내면 잡을 수 없는 예외로 시험이 죽으므로(Node 26.3, undici setTypeOfService EINVAL) 프로세스가 사라질 때까지 기다린다.
-async function gone(pid) {
-  for (;;) {
-    try {
-      process.kill(pid, 0);
-    } catch (error) {
-      if (error.code === 'ESRCH') return;
-      throw error;
-    }
-    await new Promise(resolve => setTimeout(resolve, 20));
-  }
 }
 
 // 포트를 잠깐 열어 보고 닫는다. 0이면 빈 포트를 고른다. 다른 프로그램이 쓰고 있으면 undefined.
@@ -95,7 +68,7 @@ test('stop closes the port, a second stop says it is already off, and keep or th
   assert.equal(await status(again.url), 200);
   ok(dir, '끄기');
   const child = spawn(process.execPath, [path.join(dir, 'harness/backlog.mjs'), '서버'], { cwd: dir });
-  t.after(() => child.kill());
+  stopAtEnd(t, child.pid);
   const out = await new Promise(resolve => child.stdout.on('data', chunk => resolve(String(chunk))));
   assert.equal(out.match(LINK)[1], first.url);
 });
@@ -170,7 +143,7 @@ test('keep from a worktree runs the main folder\'s commands, so answers still wo
   const worktree = path.join(fs.realpathSync(dir), '.claude/worktrees/sub-1');
   execFileSync('git', ['worktree', 'add', '-q', '-b', 'sub-1', worktree], { cwd: dir });
   const result = backlog(worktree, '켜두기');
-  stopLater(t, dir);
+  stopServerAtEnd(t, dir);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(servers(dir).length, 1, 'the server runs the main folder\'s backlog.mjs');
   execFileSync('git', ['worktree', 'remove', worktree], { cwd: dir });
@@ -203,7 +176,7 @@ test('a ledger command revives a killed kept page with the same link, and leaves
   process.kill(pid, 'SIGKILL');
   await gone(pid);
   const revived = backlog(dir, '목록');
-  stopLater(t, dir);
+  stopServerAtEnd(t, dir);
   assert.equal(revived.status, 0, revived.stderr);
   assert.match(revived.stdout, /^질문 페이지를 다시 켰다$/m);
   assert.equal(revived.stdout.match(LINK)[1], first.url);

@@ -1,16 +1,16 @@
 #!/usr/bin/env node
-// 이 스킬을 git으로 받은 폴더에서 새 버전을 받고, 바뀐 것을 보이고, 승인받아 전역 스킬 네 곳을 백업한 뒤 바꾼다.
+// 이 스킬을 git으로 받은 폴더에서 새 버전을 받고, 바뀐 것을 보이고, 승인받아 전역 스킬 다섯 곳을 백업한 뒤 바꾼다.
 //
 // 이어서 명부의 프로젝트마다 깐 버전과 설치기 미리보기를 보이고, 승인받은 곳만 install.mjs --upgrade로 올린다.
 //
 //   node scripts/upgrade.mjs [--미리보기 | --예] [--프로젝트 <경로> ...]
 //   node scripts/upgrade.mjs --등록 <경로> ...
 //
-// 깃발 없이: 받고, 네 곳과 프로젝트를 하나씩 보여 주고, y일 때만 바꾼다. --미리보기: 받고 보여 주기만 한다(네 곳·명부·프로젝트는 그대로).
+// 깃발 없이: 받고, 다섯 곳과 프로젝트를 하나씩 보여 주고, y일 때만 바꾼다. --미리보기: 받고 보여 주기만 한다(다섯 곳·명부·프로젝트는 그대로).
 // --예: 받지 않고 묻지 않고 바꾼다(미리보기로 보여 준 그대로 바꾸려고). 프로젝트는 --프로젝트로 고른 곳만 올린다(명부 전체를 한꺼번에 바꾸지 않게).
 // --프로젝트: 명부의 프로젝트 중 그곳만 다룬다. --등록: 명부가 생기기 전에 깐 옛 프로젝트를 명부에 적기만 하고 끝낸다.
 // 받아서 커밋이 바뀌면 새 upgrade.mjs를 --받은뒤=<옛 커밋>으로 다시 돌린다. 옛 코드가 새 파일을 다루지 않게 하려고.
-// 전역 복사본(.git 없음)에서 불리면 명부의 source(마지막으로 네 곳을 바꾼 받은 폴더)로 넘긴다.
+// 전역 복사본(.git 없음)에서 불리면 명부의 source(마지막으로 다섯 곳을 바꾼 받은 폴더)로 넘긴다.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -35,6 +35,7 @@ function places() {
     ['agents', path.join(home, '.agents', 'skills', 'harness-starter')],
     ['antigravity-cli', path.join(home, '.gemini', 'antigravity-cli', 'skills', 'harness-starter')],
     ['antigravity-ide', path.join(home, '.gemini', 'config', 'skills', 'harness-starter')],
+    ['workbuddy', path.join(home, '.workbuddy-ai', 'skills', 'harness-starter')],
   ];
 }
 
@@ -137,7 +138,7 @@ function backupRoot() {
   return path.join(os.homedir(), '.harness-starter', 'backup');
 }
 
-// 여섯 밖의 파일과 네 곳 밖의 것은 건드리지 않는다.
+// 여섯 밖의 파일과 다섯 곳 밖의 것은 건드리지 않는다.
 function replace(plan) {
   const backup = path.join(backupRoot(), new Date().toISOString().replace(/[:.]/g, '-'));
   const changed = plan.filter(place => place.label !== '그대로');
@@ -171,10 +172,10 @@ async function globalStep({ preview, yes }) {
   if (linksOn([...places().map(([, dir]) => dir), registryFile(), backupRoot()])) process.exit(1);
   const plan = places().map(([name, dir]) => ({ name, dir, label: judge(dir) }));
   for (const { dir, label } of plan) console.log(`[${label}] ${dir}${label === '고침' ? ' (바꾸기 전에 백업)' : ''}`);
-  if (plan.every(place => place.label === '그대로')) return console.log('전역 네 곳은 이미 같다.');
+  if (plan.every(place => place.label === '그대로')) return console.log('전역 다섯 곳은 이미 같다.');
   if (preview) return console.log('미리보기입니다. 바꾸려면 --예를 붙입니다.');
-  if (!yes && !(await ask('전역 네 곳을 바꿀까요?'))) return console.log('바꾸지 않았다.');
-  // 명부가 깨져 있으면 네 곳을 바꾸기 전에 멈추도록 먼저 읽는다.
+  if (!yes && !(await ask('전역 다섯 곳을 바꿀까요?'))) return console.log('바꾸지 않았다.');
+  // 명부가 깨져 있으면 다섯 곳을 바꾸기 전에 멈추도록 먼저 읽는다.
   const registry = readRegistry();
   replace(plan);
   writeRegistry({ ...registry, source: ROOT });

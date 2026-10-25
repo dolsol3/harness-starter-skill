@@ -20,7 +20,7 @@ test('preview pulls, reruns the new script, shows the changelog section, and wri
   assert.deepEqual(fs.readdirSync(s.home), []);
 });
 
-test('y copies the six items to all four places, records only the source, and a global copy hands off to it', t => {
+test('y copies the six items to all five places, records only the source, and a global copy hands off to it', t => {
   const s = setup(t);
   const registry = path.join(s.home, '.harness-starter', 'projects.json');
   fs.mkdirSync(path.dirname(registry), { recursive: true });

@@ -43,7 +43,7 @@ test('the page goes permit, confirm, fix, answered, records, patched, progress, 
   assert.match(answered, /→ <b>글로 적음<\/b> \(직접 적음\)/);
   assert.match(answered, /직접 적어 반영함<\/td><td>반영됨: <b>직접 답<\/b> \(직접 적음\) \(커밋 def456, src\/a\.js 반영\)<\/td>/);
   assert.equal((answered.match(/\(직접 적음\)/g) ?? []).length, 2, 'only the typed answers are marked');
-  assert.match(html, /<title>작업 장부<\/title>/);
+  assert.match(html, /<title>일감 목록<\/title>/);
 });
 
 test('a confirm card shows its reason, that the AI goes on with the pick, the deadline and the answer form, not the permit line', () => {

@@ -6,11 +6,12 @@
 |---|---|---|
 | 간결함 원칙 | `AGENTS.md`의 표시 구역, `CLAUDE.md`(`@AGENTS.md`) | 없음(요청), 모든 도구 |
 | git 훅 | `.git/hooks/pre-commit` → `harness/check.mjs --staged`(설치 때 고르면 전체 린트·타입 검사 줄도, 선택) | 커밋 차단(`--no-verify`로 우회 가능), 모든 도구 |
-| 고친 직후 알림 훅 | `.claude/settings.json`, `.codex/hooks.json`, `.agents/hooks.json` → `harness/check.mjs --hook`(종류에 `afterEdit`이 있으면 그 파일에 린트·포맷 명령도) | 고친 직후 AI에게 알림, Claude Code·Codex·Antigravity |
-| 간결함 리뷰 | `.agents/skills/lean-review/`, `.claude/skills/lean-review/` | 없음(절차), 모든 도구 |
-| 일감 목록 (작업 장부) | `harness/backlog.mjs`, `ledger.mjs`, `questions.mjs`, `page.mjs`, `patch.mjs`, `serve.mjs`. 장부 `harness/backlog.json`, 잠금 `backlog.lock`, 질문 페이지 `questions.html`, 질문 페이지 서버 상태 `serve.json`(토큰이 든다)과 로그 `serve.log`는 `.git/info/exclude`로 git에서 뺀다 | 상태 규칙(`다시하기`·`반려` 포함), 나눠 줄 일감 고르기(`바로할일`·`준비`), 도구 맡길곳(`배정`)·동시상한(`일감목록.동시상한`·`backlog.limits`)·검토, 사람에게 넘기는 허락·확인·기록, 같은 파일을 수정 커밋으로 자꾸 고치는 곳의 신호, 읽지 않은 새 답 한 줄(Claude Code에서는 뒤에서 거는 `기다리기`도) |
-| 막는 훅 | `.claude/settings.json`·`.codex/hooks.json`·`.agents/hooks.json`의 `PreToolUse` → `harness/guard.mjs --hook`, pre-commit → `guard.mjs --staged` | 도구 쓰기 전에 거절(Claude Code·Codex·Antigravity. 지키는 파일 `.env`·잠금 파일·`.git` 아래 편집도, `지키는파일`·`protect`로 바꿈), 커밋 차단(모든 도구) |
-| 멈출 때 설명 훅 | `.claude/settings.json`의 `Stop` → `harness/stop.mjs`(일감 목록과 함께) | 진행중 작업이 있는데 멈추려 하면 한 번 이유를 설명하게 함, 읽지 않은 새 답이 있으면 진행중 작업이 없어도 알림, Claude Code |
+| 고친 직후 알림 훅 | `.claude/settings.json`, `.codebuddy/settings.json`, `.codex/hooks.json`, `.agents/hooks.json` → `harness/check.mjs --hook`(종류에 `afterEdit`이 있으면 그 파일에 린트·포맷 명령도) | 고친 직후 AI에게 알림, Claude Code·WorkBuddy·Codex·Antigravity |
+| 간결함 리뷰 | `.agents/skills/lean-review/`, `.claude/skills/lean-review/`, `.codebuddy/skills/lean-review/` | 없음(절차), 모든 도구 |
+| 일감 목록 | `harness/backlog.mjs`, `ledger.mjs`, `questions.mjs`, `page.mjs`, `patch.mjs`, `serve.mjs`. 일감 목록 `harness/backlog.json`, 잠금 `backlog.lock`, 질문 페이지 `questions.html`, 질문 페이지 서버 상태 `serve.json`(토큰이 든다)과 로그 `serve.log`는 `.git/info/exclude`로 git에서 뺀다 | 상태 규칙(`다시하기`·`반려` 포함), 나눠 줄 일감 고르기(`바로할일`·`준비`), 도구 맡길곳(`배정`)·동시상한(`일감목록.동시상한`·`backlog.limits`)·검토, 사람에게 넘기는 허락·확인·기록, 같은 파일을 수정 커밋으로 자꾸 고치는 곳의 신호, 읽지 않은 새 답 한 줄(Claude Code에서는 뒤에서 거는 `기다리기`도) |
+| 막는 훅 | `.claude/settings.json`·`.codebuddy/settings.json`·`.codex/hooks.json`·`.agents/hooks.json`의 `PreToolUse` → `harness/guard.mjs --hook`, pre-commit → `guard.mjs --staged` | 도구 쓰기 전에 거절(Claude Code·WorkBuddy·Codex·Antigravity. 지키는 파일 `.env`·잠금 파일·`.git` 아래 편집도, `지키는파일`·`protect`로 바꿈), 커밋 차단(모든 도구) |
+| 멈출 때 설명 훅 | `.claude/settings.json`·`.codebuddy/settings.json`의 `Stop` → `harness/stop.mjs`(일감 목록과 함께) | 진행중 작업이 있는데 멈추려 하면 한 번 이유를 설명하게 함, 읽지 않은 새 답이 있으면 진행중 작업이 없어도 알림, Claude Code·WorkBuddy |
+| 공용 물레방아 | `harness/mullebanga.mjs`, `mullebanga-call.mjs`, `mullebanga-git.mjs`, `mullebanga-prompts.mjs`, `mullebanga-review.mjs`, `mullebanga-steps.mjs`(일감 목록을 깔 때 같이. `.claude/agents/`의 역할 안내문은 설치기가 깔지 않고 스킬 7단계가 만든다) | 어느 도구에서든 `node harness/mullebanga.mjs --도구 <도구>`로 부르면 코드가 순서를 지켜 진행중 작업을 `올림`까지 돌림, 모든 도구(클로드판 `.claude/workflows/mullebanga.js`와 따로) |
 | 제미나이 역할 | `.agents/agents/readonly.md`, `.agents/agents/research.md`, `.agents/agents/breaker.md`(`antigravity-hook` 장치) | 쓰기 도구를 뺀 검토 역할(`agy --agent readonly`)과 웹 검색·주소 읽기 도구를 더한 조사용 역할(`agy --agent research`), 명령 도구를 더한 깨뜨려 보기 역할(`agy --agent breaker`, `sandbox-exec` 안에서만, 진짜 홈 `agentapi` 한 파일 쓰기를 열고 끝난 뒤 확인), Antigravity |
 
 `harness/check.mjs`는 새로 더한 줄에서 긴 줄, 예외를 삼키는 코드, 경고를 끄는 주석을 찾는다.
@@ -46,7 +47,7 @@
 | `맞춰보기` | `대조`, `명세 대조` | Spec verification | 살피기 담당이 할 일 적기의 `'사용자가 정한 것'` 표시를 맨 위 `## 사용자 원래 말` 절 원문과 맞춰봄 |
 | `만들기` | `구현` | Implementation | 만들기 담당이 격리된 워크트리의 `ai/…` 브랜치에서 코드를 만들고 커밋함(`다시하기` 뒤 이어 고치기 포함) |
 | `돌려보기` | `검사` | Test · Check | 새 에이전트가 프로젝트 확인 명령과 `harness/check.mjs`를 돌려 통과 여부를 확인함 |
-| `번갈아 보기` | `교차 리뷰` | Cross-review | 살피기 담당과 다른 도구(`검토도구` 기본 `codex`, `폴백도구` 기본 `gemini`, 그다음 `claude` 중 작성 도구가 아니고 `동시상한`에 있는 첫 도구)가 서로 모른 채 따로 검토함 |
+| `번갈아 보기` | `교차 리뷰` | Cross-review | 살피기 담당과 다른 도구(`검토도구` 기본 `gemini`, `폴백도구` 기본 `codex`, 그다음 `claude` 중 작성 도구가 아니고 `동시상한`에 있는 첫 도구)가 서로 모른 채 따로 검토함 |
 | `고치기` | `고치기` (유지) | Fix | 만들기 담당이 돌려보기 실패나 번갈아 보기의 `높음` 지적을 고침(작업당 최대 3번) |
 | `올림` | `올림` (유지) | Submit · Raise | 돌려보기 통과이고 `높음` 지적이 없으면 끝 기준 번호별 증거와 검토 도구를 적어 일감 목록에 올림 |
 | `한 일 적기` | `기록 옮기기` | Record notes | 병합·`완료` 뒤 기획 담당이 만들기 담당 보고의 새로 알게 된 것과 정한 것을 `docs/tasks/T-N.md` 끝 `## 한 일`에 옮김 |
@@ -55,26 +56,26 @@
 
 | 새 우리말 호칭 | 옛 호칭 | 역할 파일 (`agentType`) | 맡는 역할 |
 |---|---|---|---|
-| `조사 담당` | `조사 담당` (유지) | `.claude/agents/researcher.md` (`researcher`) | 내부 문서·실험을 먼저 보고 질문 종류대로 본체(`sonnet high`)와 제미나이(`gemini-4-argon-high`)에 나눠 조사·원문 검증 |
-| `기획 담당` | `기획 담당` (유지) | `.claude/agents/planner.md` (`planner`) | 요청을 일감 목록으로 `쪼개기`, 작업마다 `할 일 적기`(명세), 완료 뒤 `한 일 적기`(기록 옮기기) |
+| `조사 담당` | `조사 담당` (유지) | `.claude/agents/researcher.md` (`researcher`) | 내부 문서·실험을 먼저 보고 질문 종류대로 본체(`sonnet medium`)와 제미나이(`gemini-4-argon-medium`)에 나눠 조사·원문 검증 |
+| `기획 담당` | `기획 담당` (유지) | `.claude/agents/planner.md` (`planner`) | 요청을 일감 목록으로 `쪼개기`, 작업마다 `할 일 적기`, 완료 뒤 `한 일 적기` |
 | `만들기 담당` | `구현 담당` | `.claude/agents/implementer.md` (`implementer`) | 격리된 워크트리(`ai/…` 브랜치)에서 `만들기`·`고치기`·증거 적어 `올림` |
 | `살피기 담당` | `리뷰어` | `.claude/agents/reviewer.md` (`reviewer`) | 만들기 담당과 맥락을 나누지 않고 읽기만 하며 `맞춰보기`, `번갈아 보기`, 메인이 직접 고친 작은 문서 수정 diff 검사 |
 
 옛 명령어·플래그(`준비`, `반려`, `--선행`, `--영역`, `--배정`, `질문`, `처리함`)와 영문·한자어 설정 키(`backlog`, `agents`, `patch`, `protect`, `명세`, `대조`, `구현`, `검사`, `교차리뷰` 등)도 별칭으로 그대로 동작한다. 이미 하네스를 깐 프로젝트의 역할·워크플로 사본이 옛 이름으로 불러도 막히지 않는다.
 
-일감 목록(작업 장부)은 `node harness/backlog.mjs <명령>`으로 쓴다. 명령, 상태, 칸 이름이 모두 한글이다.
+일감 목록은 `node harness/backlog.mjs <명령>`으로 쓴다. 명령, 상태, 칸 이름이 모두 한글이다.
 **이 명령은 AI가 쓴다. 사람이 치지 않는다.** 사람이 하는 일은 설치 승인과 질문 페이지의 `답`뿐이다. 질문 페이지는 AI가 켜 둔다.
 이 문서의 "메인"은 사용자와 대화하며 서브에이전트에게 일을 나눠 주는 메인 AI(메인 에이전트)이고, "메인 폴더"는 저장소의 원래 작업 폴더다.
-`추가`·`시작`·`완료`·`다시하기`(`반려`)·`반영`은 메인 에이전트가 적고(필요하면 `허락`·`확인`도), `올림`은 일을 한 만들기 담당(구현 담당, 서브에이전트)이 적는다.
+`추가`·`시작`·`완료`·`다시하기`(`반려`)·`반영`은 메인 에이전트가 적고(필요하면 `허락`·`확인`도), `올림`은 일을 한 만들기 담당(서브에이전트)이 적는다.
 서브에이전트가 그 밖에 적는 것은 허락·확인·기록뿐이다. 물레방아 안의 기획 담당은 `허락`·`확인`·`기록`을, 만들기 담당은 `확인`·`기록`을 적는다(만들기 담당은 허락할 일을 만나면 멈춰 보고하고 메인이 `허락`을 적는다).
 `추가 "제목"` → `시작 T-1 --고칠곳 … --확인방법 …`(옛 `--영역`, 수정 작업은 `--원인`, `--방향`도) → `올림 T-1 --커밋 … --증거 …`
-→ 병합한 뒤 `완료 T-1`. 메인이 받아들이지 않으면 `다시하기 T-1 --사유 "…"`(옛 `반려`)로 `진행중`에 돌려보낸다. `다시하기`(`반려`) 밖에서 거꾸로 가거나 증거 없이 올리거나 병합 전에 끝내면 거절한다. 일감 목록(장부)은 메인 폴더 한 곳에만 있고
-워크트리 안에서 불러도 같은 장부를 쓴다. 시작은 비어 있는 칸만 채우고, 명령마다 쓸 수 있는 옵션이 정해져 있다.
+→ 병합한 뒤 `완료 T-1`. 메인이 받아들이지 않으면 `다시하기 T-1 --사유 "…"`(옛 `반려`)로 `진행중`에 돌려보낸다. `다시하기`(`반려`) 밖에서 거꾸로 가거나 증거 없이 올리거나 병합 전에 끝내면 거절한다. 일감 목록은 메인 폴더 한 곳에만 있고
+워크트리 안에서 불러도 같은 일감 목록을 쓴다. 시작은 비어 있는 칸만 채우고, 명령마다 쓸 수 있는 옵션이 정해져 있다.
 기본 브랜치는 `config.json`의 `일감목록.기본브랜치`(영문 별칭 `backlog.baseBranch`, 기본 `main`, 로컬 브랜치)다. `main`이 아니면 설치할 때 적는다(그 뒤에는 막는 훅이 AI의 수정을 거절한다).
 
 작업 번호 앞 글자는 `node harness/backlog.mjs 앞글자 W`로 정한다. 영어 대문자(A~Z)만 받고, 정하지 않으면 `T`다(`T-1`, `T-2`…).
-앞 글자는 그 일감 목록(장부)에만 적혀 git에 올라가지 않는다. 다시 정하면 그 앞 글자의 가장 큰 번호 다음부터 센다.
-컴퓨터마다 장부를 따로 쓰면서 `docs/tasks/<번호>.md`는 함께 쓸 때, 컴퓨터마다 앞 글자를 달리 정해 번호가 겹치지 않게 한다.
+앞 글자는 그 일감 목록에만 적혀 git에 올라가지 않는다. 다시 정하면 그 앞 글자의 가장 큰 번호 다음부터 센다.
+컴퓨터마다 일감 목록을 따로 쓰면서 `docs/tasks/<번호>.md`는 함께 쓸 때, 컴퓨터마다 앞 글자를 달리 정해 번호가 겹치지 않게 한다.
 
 **일을 나눠 줄 때.** `바로할일`(옛 `준비`)은 지금 같이 시작해도 되는 작업과 미룬 이유를 보여 준다.
 후보는 먼저할일(선행)이 모두 `완료`인 `할일`이고, 다른 작업을 더 많이 막고 있는 것부터 본다.
@@ -101,7 +102,7 @@ T-7 먼저할일 작업 T-3이(가) 완료되지 않았다
 - 숫자 3·1은 이 저장소에서 사람이 쓰는 값이지 실험으로 정한 값이 아니다. 무엇을 적을지는 미리보기의 `[새로 만듦] harness/config.json` 줄에 나온다.
 - 새 `config.json`을 만들 때만 적는다. 이미 깐 프로젝트나 `--upgrade`는 있는 파일을 덮어쓰지 않으므로 자동으로 적히지 않는다.
 
-**사람이 적는 경우.** 이미 깐 프로젝트이거나 숫자를 바꾸고 싶으면 `harness/config.json`에 직접 적는다(AI는 `kinds`가 찬 뒤 이 파일을 못 고친다). 숫자는 근거 없는 예시이고 사용자가 고른다(번갈아 보기는 `동시상한`에 있는 도구만 고르므로 검토 도구 `codex`나 폴백 도구 `gemini`를 쓰려면 그 이름도 함께 적는다).
+**사람이 적는 경우.** 이미 깐 프로젝트이거나 숫자를 바꾸고 싶으면 `harness/config.json`에 직접 적는다(AI는 `kinds`가 찬 뒤 이 파일을 못 고친다). 숫자는 근거 없는 예시이고 사용자가 고른다(번갈아 보기는 `동시상한`에 있는 도구만 고르므로 검토 도구 `gemini`나 폴백 도구 `codex`를 쓰려면 그 이름도 함께 적는다).
 ```json
 "일감목록": { "동시상한": { "claude": 3, "codex": 1, "gemini": 1 }, "기본맡길곳": "claude" }
 ```
@@ -112,57 +113,88 @@ T-7 먼저할일 작업 T-3이(가) 완료되지 않았다
   도구가 하나뿐이면 `--검토`는 선택이다. `동시상한`(`limits`)에 없는 도구 이름은 거절한다. AI는 `config.json`을 고칠 수 없으므로(막는 훅) 상한은 사람이 정한다.
 - 서브에이전트(`isolation: worktree`)가 변경을 남기면 워크트리 `<메인>/.claude/worktrees/agent-<id>`와 브랜치 `worktree-agent-<id>`가 남고, 메인은 완료 알림의 경로와 브랜치 이름을 받는다. 병합한 뒤 지운다.
 - 다른 도구는 각 CLI를 직접 부르고, 만들기 워크트리가 아니라 원격을 지운 버릴 복사본에서 돌린다(물레방아 `번갈아 보기`가 쓰는 모양). 바깥 검토는 복사본 안에서 이 구현을 깨뜨려 보고 명령으로 재현한 것만 높음·중간으로 낸다(2026-10-23 사용자 결정, 복사본 안 쓰기와 명령 실행만 허락).
-  검토 도구는 후보 `단계모델.번갈아보기.검토도구`(기본 `codex`, 바깥모델 기본 `gpt-6.1-sol`, 바깥추론 기본 `high`), `폴백도구`(기본 `gemini`, 모델 `폴백모델` 기본 `gemini-4-argon-high`), 그다음 `claude`(설정 없이 항상 마지막 후보) 순서 중 작성 도구(맡길곳)가 아니고 `동시상한`에 있는 첫 도구다. 고를 도구가 없으면 아무것도 부르지 않는다.
+  검토 도구는 후보 `검토도구`(기본 `gemini`), `바깥모델`(기본 `gemini-4-argon-medium`), `바깥추론`(설정에 없으면 코드 기본 `medium`, `harness/mullebanga-review.mjs:18`), `폴백도구`(기본 `codex`), `폴백모델`(기본 `gpt-6.1-sol`), `폴백추론`(기본 `medium`), 그다음 `claude`(설정 없이 항상 마지막 후보) 순서 중 작성 도구(맡길곳)가 아니고 `동시상한`에 있는 첫 도구다. 고를 도구가 없으면 아무것도 부르지 않는다.
   고른 도구가 `검토도구`이고 토큰·한도 부족(quota·rate limit·usage limit 등)이나 실행 실패로 검토를 못 하면 같은 도구를 되풀이해 부르지 않고, `폴백도구`가 같은 조건(작성 도구가 아니고 `동시상한`에 있음)을 채울 때만 자동으로 폴백해 부른다. 채우지 못하면 폴백 없이 검토 실패로 본다.
   `mktemp -d`로 워크트리 밖에 임시 폴더(아래 `<임시>`)를 만든다.
   `cd <워크트리> && git clone --no-hardlinks . <임시>/copy`로 복사하고(그냥 `git clone`은 같은 디스크에서 객체 파일을 하드링크로 공유해, 복사본에서 객체를 고치면 원본 저장소가 깨진다) `cd <임시>/copy && git checkout --detach <커밋>`으로 검토할 커밋을 꺼낸다.
   복사본의 `origin`은 작업 워크트리를 가리키므로 `cd <임시>/copy && git remote remove origin`으로 끊고 `mkdir <임시>/home`을 만든다. 검토 요청에는 "끝 기준마다 깨뜨릴 입력·환경·순서를 찾아 명령으로 재현하고, 재현한 것만 높음·중간, 못 한 의심은 낮음으로 적고, 시험을 돌릴 때는 HOME·USERPROFILE을 `<임시>/home`으로 준다"는 말을 넣는다.
   검토 요청은 `<임시>/prompt.txt`에, 결과는 `<임시>/result.txt`에 둔다. 둘 다 복사본 밖이다.
-  Codex는 로그인이 홈에 있어 진짜 경로를 먼저 `R=${CODEX_HOME:-$HOME/.codex}`에 담고(같은 줄에서 `HOME=`을 바꾸면 `$HOME`이 임시 홈으로 펼쳐져 로그인을 잃는다) `HOME=<임시>/home CODEX_HOME="$R"`로 `codex exec -s workspace-write --ephemeral -m <바깥모델> -c model_reasoning_effort='"<바깥추론>"' -C <임시>/copy -o <임시>/result.txt - < <임시>/prompt.txt`를 복사본 안에서 뒤에서 시작한다(끝나면 `<임시>/done`에 종료 코드를 적는다).
+  Codex는 로그인이 홈에 있어 진짜 경로를 먼저 `R=${CODEX_HOME:-$HOME/.codex}`에 담고(같은 줄에서 `HOME=`을 바꾸면 `$HOME`이 임시 홈으로 펼쳐져 로그인을 잃는다) `HOME=<임시>/home CODEX_HOME="$R"`로 `codex exec -s workspace-write --ephemeral -m <폴백모델> -c model_reasoning_effort='"<폴백추론>"' -C <임시>/copy -o <임시>/result.txt - < <임시>/prompt.txt`를 복사본 안에서 뒤에서 시작한다(끝나면 `<임시>/done`에 종료 코드를 적는다. Codex를 `검토도구`로 두었으면 `<바깥모델>`·`<바깥추론>`을 쓴다).
   깨뜨려 보기는 최대 908초(T-127) 걸려 Bash 상한(600초)을 넘으므로, 부르는 쪽은 `done` 파일을 기다리는 반복(`for i in $(seq 1 110); do [ -f <임시>/done ] && break; sleep 5; done`)을 호출마다 `timeout 600000`으로 최대 3번(약 27분) 되풀이하고, 그래도 없으면 `pgrep -P`로 자손(도구가 띄운 셸과 그 시험 명령)을 끝까지 따라가 가장 깊은 것부터 `kill`로 멈추고, 이어서 `pkill -P <pid>`로 자식(Codex 또는 `agy`)을 먼저, 이어서 `kill <pid>`로 부모 서브셸을 멈추고(부모를 먼저 멈추면 자식이 고아가 되어 계속 돈다) 실행 실패로 보아 폴백한다.
   제미나이는 복사본에 `.agents/agents/breaker.md`가 있고 `sandbox-exec`가 있으면(맥) 깨뜨려 보기 경로로, 하나라도 없으면 읽기 전용 경로로 부른다.
   깨뜨려 보기 경로: `mkdir <임시>/tmp`를 만들고 `cd <임시> && pwd -P`로 구한 <임시>의 실제 경로와 `cd "$HOME" && pwd -P`로 구한 진짜 홈의 실제 경로(<홈>)(맥의 `/var/folders/…`는 `/private/var/…`로 이어진 링크라 링크 경로로 적은 규칙은 복사본 쓰기도 막는다)로 규칙 파일 `<임시>/sb.sb`를 만든다: `(version 1)` `(allow default)` `(deny file-write*)` `(allow file-write* (subpath "<실제 경로>/copy") (subpath "<실제 경로>/home") (subpath "<실제 경로>/tmp") (literal "<실제 경로>/agy.log") (subpath "/dev") (literal "<홈>/.gemini/antigravity-cli/bin/agentapi"))`. 진짜 홈은 `agy`가 명령 도구를 돌릴 때마다 다시 쓰는 `agentapi` 한 파일만 연다(막으면 `run_command`가 하나도 안 돈다. 2026-10-23 사용자 결정). `done`·`pid`는 막혀 검토 도구가 고칠 수 없다.
   부르기 전에 `cp <홈>/.gemini/antigravity-cli/bin/agentapi <임시>/agentapi.bak`으로 복사해 두고(안 되면 읽기 전용 경로), 기다림이 끝난 뒤(성공·실패는 바로, 시간 초과는 위 멈추기를 마친 뒤에) 보통 파일(링크 아님)이고 내용(`cmp`)이 같은지 본다. 다르면 되돌리지 않고(사람이 본다) 지적 하나를 높음으로 더하며, 물레방아는 그 작업을 고치기·다시 검토로 보내지 않고 높음을 결과에 남긴 채 멈춘다. 원격을 끊기 전에 `git merge-base <기본 브랜치> <커밋>`으로 구한 <기준>으로 복사본에서 `git diff <기준> HEAD`를 만든다(원격을 지우면 기본 브랜치 이름이 없다).
-  그다음 Codex와 같은 모양으로 뒤에서 시작한다(`-w`는 `cmux` 래퍼에서 `flags provided but not defined: -w` 오류가 나므로 쓰지 않고, `HARNESS_READ_ONLY`는 주지 않는다. HOME은 로그인을 읽어야 해서 진짜 홈으로 두고 규칙이 쓰기를 막는다): `( cd <임시>/copy && sandbox-exec -f <임시>/sb.sb env TMPDIR=<임시>/tmp agy -p "$(cat <임시>/prompt.txt)" --model <폴백모델> --agent breaker --output-format json --print-timeout 25m --log-file <임시>/agy.log > <임시>/result.txt; echo $? > <임시>/done ) > /dev/null 2>&1 & echo $! > <임시>/pid`.
-  `--print-timeout 25m`은 최대 908초보다 길고 기다림 합(약 27분)보다 짧아 `agy`가 먼저 스스로 끝난다. 기다리기와 멈추기는 Codex와 같다. Codex를 먼저 불렀다면 제미나이를 부르기 전에(두 경로 모두) `done`·`pid`를 지우고 복사본을 `git checkout -f --detach <검토할 커밋>`과 `git clean -ffdx`로 되돌린다. 이 경로는 복사본에 시험 파일이 생겨 정상이라 `git status --porcelain` 확인을 하지 않는다. 그 대신 `sandbox-exec`가 쓰기를 막는다.
-  읽기 전용 경로: 복사본에 `.agents/agents/readonly.md`가 없으면 부르지 않는다. 있으면 `cd <임시>/copy && HARNESS_READ_ONLY=1 agy -p "$(cat <임시>/prompt.txt)" --model <폴백모델> --agent readonly --output-format json --print-timeout 5m > <임시>/result.txt`로 부르고, 끝나면 `cd <임시>/copy && git status --porcelain`이 비어 있는지 본다.
+  그다음 Codex와 같은 모양으로 뒤에서 시작한다(`-w`는 `agy` 자체가 `flags provided but not defined: -w` 오류로 거절하므로 쓰지 않고, `HARNESS_READ_ONLY`는 주지 않는다. HOME은 로그인을 읽어야 해서 진짜 홈으로 두고 규칙이 쓰기를 막는다): `( cd <임시>/copy && sandbox-exec -f <임시>/sb.sb env TMPDIR=<임시>/tmp agy -p "$(cat <임시>/prompt.txt)" --model <바깥모델> --agent breaker --output-format json --print-timeout 25m --log-file <임시>/agy.log > <임시>/result.txt; echo $? > <임시>/done ) > /dev/null 2>&1 & echo $! > <임시>/pid`(제미나이를 `폴백도구`로 두었으면 `<폴백모델>`을 쓴다).
+  `--print-timeout 25m`은 최대 908초보다 길고 기다림 합(약 27분)보다 짧아 `agy`가 먼저 스스로 끝난다. 기다리기와 멈추기는 Codex와 같다. 제미나이를 먼저 불렀다가 폴백으로 Codex를 부를 때(또는 반대로 부를 때)는 두 번째 도구를 부르기 전에 `done`·`pid`를 지우고 복사본을 `git checkout -f --detach <검토할 커밋>`과 `git clean -ffdx`로 되돌린다. 깨뜨려 보기 경로는 복사본에 시험 파일이 생겨 정상이라 `git status --porcelain` 확인을 하지 않는다. 그 대신 `sandbox-exec`가 쓰기를 막는다.
+  읽기 전용 경로: 복사본에 `.agents/agents/readonly.md`가 없으면 부르지 않는다. 있으면 `cd <임시>/copy && HARNESS_READ_ONLY=1 agy -p "$(cat <임시>/prompt.txt)" --model <바깥모델> --agent readonly --output-format json --print-timeout 5m > <임시>/result.txt`로 부르고, 끝나면 `cd <임시>/copy && git status --porcelain`이 비어 있는지 본다.
   검토가 끝나거나 실패해도 언제나 `rm -rf <임시>`로 지운다.
   `HARNESS_READ_ONLY`는 읽기 전용 경로의 제미나이에게만 준다. Codex는 읽기 도구가 없어 셸로 파일을 읽으므로, 이 변수를 주면 막는 훅의 `Bash` 거절이 읽기까지 막는다.
   `codex exec`에는 시간 제한 옵션이 없고 맥에 `timeout` 명령도 없어 부르는 쪽이 위 반복으로 기다리다 중단한다.
   Claude를 부를 때(메인이 Codex·제미나이·그 밖의 도구여서 작성 도구가 `claude`가 아니고 `동시상한`에 `claude`가 있어 고른 경우, 손으로 넘기는 흐름): 복사본·`origin` 끊기·`<임시>/prompt.txt`·`<임시>/result.txt`·`done`·`pid`는 Codex와 같고, `HOME`·`CLAUDE_CONFIG_DIR`은 바꾸지 않는다. Claude 로그인은 맥 키체인에 있어 임시 `HOME`이나 임시 설정 폴더면 깨끗한 환경에서 `Not logged in`(종료 1)이 되기 때문이다(2026-10-23 사용자 결정: 진짜 홈에서 Claude 자기 기록만 허용).
   먼저 `<임시>/s.json`에 `{"sandbox":{"enabled":true,"failIfUnavailable":true,"autoAllowBashIfSandboxed":true,"allowUnsandboxedCommands":false}}`를 쓴다. 명령은 이 샌드박스(맥 Seatbelt)가 쓰기를 작업 폴더 안으로 묶고(공식 문서는 사용자 임시 폴더도 연다고 하지만 2026-10-23 실험에서 `~/…`·`<임시>` 안 복사본 밖 파일·`/tmp/…` 쓰기는 모두 Operation not permitted였다)(`--allowedTools Bash`는 `;`·`&&`로 묶은 명령이 승인 단계에서 거절돼 깨뜨려 보기가 안 되는 것을 막는 대신, 명령의 쓰기 범위는 샌드박스에 맡긴다), 파일 도구는 `--permission-mode acceptEdits --permission-prompts none`이 작업 폴더 밖 쓰기를 묻지 않고 거부한다. 샌드박스를 쓸 수 없는 환경이면 `failIfUnavailable`이 호출을 실패시켜 안전장치 없이 돌지 않는다.
   `( cd <임시>/copy && claude -p --model <모델> --effort <깊이> --output-format json --no-session-persistence --permission-mode acceptEdits --permission-prompts none --allowedTools Bash --settings <임시>/s.json < <임시>/prompt.txt > <임시>/result.txt 2> <임시>/claude.log; echo $? > <임시>/done ) > /dev/null 2>&1 & echo $! > <임시>/pid`.
-  `<모델>`·`<깊이>`는 `단계모델.번갈아보기`의 `모델`(기본 `opus`)·`깊이`(기본 `high`)다. `바깥모델`(`gpt-6.1-sol`)은 Codex 모델 이름이고 `폴백모델`은 제미나이 몫이다.
+  `<모델>`·`<깊이>`는 `단계모델.번갈아보기`의 `모델`(기본 `opus`)·`깊이`(기본 `medium`)다. `바깥모델`(기본 `gemini-4-argon-medium`)은 검토도구 몫이고 `폴백모델`(기본 `gpt-6.1-sol`)은 폴백도구 몫이다.
   실패 판정: `done`이 0이 아니거나, `result.txt` JSON의 `is_error`가 true이거나, `result`가 비면 실행 실패다. 실패일 때만 `result`에 `hit your .* limit`(예: `You've hit your session limit`)이 있는지 보아 있으면 한도 부족이다(정상 결과가 그 문구를 인용만 해도 한도 부족이 아니다). `claude`는 마지막 후보라 폴백이 없고 둘 다 다른 도구 검토 실패로 본다.
   기다리기와 멈추기는 Codex와 같다(`claude -p`에도 시간 제한 옵션이 없다). 단순한 작업도 벽시계 4분 넘게 걸린 적이 있어 기다림을 넉넉히 잡는다.
   `claude`는 설정 없이 항상 마지막 후보이고, 작성 도구가 `claude`이면(Claude Code 안의 물레방아·만들기 담당) '작성 도구가 아니고' 조건으로 빠진다. 그래서 `검토도구`·`폴백도구`에 `"claude"`를 적지 않는다(물레방아는 `claude`를 부르는 말이 없다).
   한계: (1) `claude -p`는 복사본의 `.claude/settings.json` 훅과 `.mcp.json`을 그대로 돌리고 이것들은 샌드박스 밖이다(복사본은 검토할 커밋의 내용이라 믿는다는 전제). (2) `--bare`는 훅을 끄지만 구독 로그인을 못 읽어 쓰지 못한다. (3) `--safe-mode`는 시험하지 못했다. (4) `--no-session-persistence`로도 진짜 `~/.claude`에 `.claude.json`·`backups`·`projects`·`session-env`·`sessions`가 생긴다(허용한 자기 기록). (5) 맥 밖(리눅스)에서 되는지는 확인하지 못했고, Windows는 다루지 않는다.
 
-**에이전트 구성.** 일감 목록(작업 장부)을 설치하고 Claude Code를 쓰면 스킬이 기획 담당(`planner`)·만들기 담당(`implementer`, 옛 구현 담당)·조사 담당(`researcher`)·살피기 담당(`reviewer`, 옛 리뷰어) 넷을 이 프로젝트에 맞게 제안하고, 승인하면 `.claude/agents/`에 만든다.
+**에이전트 구성.** 일감 목록을 설치하면 메인 도구와 상관없이 스킬이 기획 담당(`planner`)·만들기 담당(`implementer`)·조사 담당(`researcher`)·살피기 담당(`reviewer`) 넷을 이 프로젝트에 맞게 제안하고, 승인하면 `.claude/agents/`에 만든다.
 바탕은 `templates/agents/`이고 `## 이 프로젝트` 절(확인 명령, 실행 확인 방법, 영역 관례)만 프로젝트에 맞게 채운다. 에이전트를 나누는 기준은 맥락을 공유하지 않는 것이다.
-기획 담당은 요청을 작업으로 `쪼개기`하고 `할 일 적기`(`docs/tasks/T-N.md`, 옛 명세)와 완료 뒤 `한 일 적기`(옛 기록 옮기기)를 맡는다. 만들기 담당은 할 일 적기(명세)를 읽고 만들어 끝 기준 번호마다 증거를 적어 `올림`을 적는다. 살피기 담당은 읽기만 하고 만들기 담당과 맥락을 나누지 않는다.
+기획 담당은 요청을 작업으로 `쪼개기`하고 `할 일 적기`(`docs/tasks/T-N.md`)와 완료 뒤 `한 일 적기`를 맡는다. 만들기 담당은 할 일 적기를 읽고 만들어 끝 기준 번호마다 증거를 적어 `올림`을 적는다. 살피기 담당은 읽기만 하고 만들기 담당과 맥락을 나누지 않는다.
 조사 담당은 메인이 질문을 주어 부르고, 메인은 그 결과를 데이터로 받아 기획 담당에게 넘긴다.
-메인은 손으로 만들지 않고 사용자 말을 넘기고 판단해서 `완료`하거나 `다시하기`(`반려`)한다. 예외로 결정이 바뀌지 않는 몇 줄짜리 문서 수정은 메인이 직접 고치고 살피기 담당이 커밋 전에 본다(자세한 것은 원칙). Claude Code 형식만 만든다. 살피기 담당은 `Read`·`Grep`·`Glob`·`Bash`만 허용해서(허용 목록이라 편집·MCP·`Agent` 도구가 없다) `Bash`로 파일을 쓰는 것은 막지 못한다.
+메인은 손으로 만들지 않고 사용자 말을 넘기고 판단해서 `완료`하거나 `다시하기`(`반려`)한다. 예외로 결정이 바뀌지 않는 몇 줄짜리 문서 수정은 메인이 직접 고치고 살피기 담당이 커밋 전에 본다(자세한 것은 원칙). Claude Code 형식만 만든다(워크버디를 쓰면 `.codebuddy/agents/`도 같은 형식이라 같은 파일을 복사하며, 워크버디는 공용 물레방아(`mullebanga.mjs`)나 바깥 `codebuddy -p`를 부르지 않고 앱 안의 내장 `Agent` 도구로 단계를 돌린다). 살피기 담당은 `Read`·`Grep`·`Glob`·`Bash`만 허용해서(허용 목록이라 편집·MCP·`Agent` 도구가 없다) `Bash`로 파일을 쓰는 것은 막지 못한다.
 조사 담당도 허용 목록이고 여기에 `WebSearch`·`WebFetch`만 더했다(`Read`·`Grep`·`Glob`·`Bash`·`WebSearch`·`WebFetch`). 살피기 담당처럼 `Bash`로 파일을 쓰는 것은 막지 못한다.
 
 **조사 담당.** 먼저 내부 문서(결정 기록 등)를 보고, 도구 동작처럼 직접 해 볼 수 있는 것은 저장소 밖 임시 폴더에서 실험해 본다. 거기 없는 것만 밖에서 조사한다.
-본체 기본 모델·추론 깊이는 클로드 `sonnet` `high`(`Sonnet 5.5 high`), 보조(분담) 모델은 제미나이 `gemini-4-argon-high`, 최대 병렬 분담 수는 `4`이며 `harness/config.json`의 `단계모델.조사`(영문 별칭 `agents.research`) 설정을 따른다. 코덱스(`codex`)는 토큰을 아껴 물레방아 `번갈아 보기` 검토에 쓰므로 조사에서 제외한다(2026-10-22 결정).
-나누기는 질문 종류대로 한다. 쉬운 사실과 순서대로 따라가야 하는 조사(순차 조사)는 본체(`sonnet high`) 혼자(1개) 조사하고 원문을 확인한다. 어려운 사실은 본체(`sonnet high`)와 제미나이(`보조모델`, 기본 `gemini-4-argon-high`)가 서로의 답을 보지 않고 각자 조사(2개 병렬)한 뒤 본체(`sonnet high`)가 원문을 직접 열어 검증·채택한다(제미나이의 간헐적 환각 차단). 넓은 질문은 본체가 하위 질문으로 쪼개 본체와 제미나이에 나눠 최대 3~4개(`단계모델.조사.최대병렬`, 기본 `4`)까지 병렬로 분담해 조사하고 본체 한 곳에서 맞춰 원문을 확인·합치기한다. 영상·녹음·긴 문서는 제미나이(`gemini-4-argon-high`)가 전담한다.
-제미나이(`agy -p`)를 부를 때는 번호별 버릴 복사본(`<임시>/gemini-1` 등)에 `.agents/agents/research.md`(머리말 `name`·`description` 필수)가 있는지 확인하고, `-w` 플래그를 쓰지 않고(`cmux` 래퍼에서 `flags provided but not defined: -w` 오류 발생) 반드시 `cd`로 복사본 폴더에 들어간 뒤 `HARNESS_READ_ONLY=1`과 `--model <보조모델>`·`--agent research`로 부르며, 끝난 뒤 `git status --porcelain`이 비어 있는지 확인한다.
+본체 기본 모델·추론 깊이는 클로드 `sonnet` `medium`(`Sonnet 5.5 medium`), 보조(분담) 모델은 제미나이 `gemini-4-argon-medium`, 최대 병렬 분담 수는 `4`이며 `harness/config.json`의 `단계모델.조사`(영문 별칭 `agents.research`) 설정을 따른다. 코덱스(`codex`)는 토큰을 아껴 물레방아 `번갈아 보기` 검토에 쓰므로 조사에서 제외한다(2026-10-22 결정).
+나누기는 질문 종류대로 한다. 쉬운 사실과 순서대로 따라가야 하는 조사(순차 조사)는 본체(`sonnet medium`) 혼자(1개) 조사하고 원문을 확인한다. 어려운 사실은 본체(`sonnet medium`)와 제미나이(`보조모델`, 기본 `gemini-4-argon-medium`)가 서로의 답을 보지 않고 각자 조사(2개 병렬)한 뒤 본체(`sonnet medium`)가 원문을 직접 열어 검증·채택한다(제미나이의 간헐적 환각 차단). 넓은 질문은 본체가 하위 질문으로 쪼개 본체와 제미나이에 나눠 최대 3~4개(`단계모델.조사.최대병렬`, 기본 `4`)까지 병렬로 분담해 조사하고 본체 한 곳에서 맞춰 원문을 확인·합치기한다. 영상·녹음·긴 문서는 제미나이(`gemini-4-argon-medium`)가 전담한다.
+제미나이(`agy -p`)를 부를 때는 번호별 버릴 복사본(`<임시>/gemini-1` 등)에 `.agents/agents/research.md`(머리말 `name`·`description` 필수)가 있는지 확인하고, `-w` 플래그를 쓰지 않고(`agy` 자체가 `flags provided but not defined: -w` 오류로 거절) 반드시 `cd`로 복사본 폴더에 들어간 뒤 `HARNESS_READ_ONLY=1`과 `--model <보조모델>`·`--agent research`로 부르며, 끝난 뒤 `git status --porcelain`이 비어 있는지 확인한다.
 누구에게 맡길지는 역할 파일의 배정표에 날짜와 근거를 적고, 새 모델이 나오면 배정표를 다시 따져 고친다. 기본 모델과 보조 모델·최대 병렬 수는 역할 파일을 고치지 않고 `harness/config.json`의 `단계모델.조사`에서 바꿀 수 있다(없는 모델을 적으면 그 단계가 오류로 멈추고 다른 모델로 대신 돌지 않는다).
 합칠 때는 모델 동의 수로 정하지 않고 주장마다 출처로 판정한다. 출처가 그 말을 하는지는 원래 답을 안 본 채로 따로 확인하고, 같은 원출처를 인용한 것은 한 표로 센다.
 서로 반대면 날짜·버전 차이부터 다시 조사하고, 그래도 남은 충돌만 사용자에게 보고한다. 출처 품질은 공식 문서·논문 → 실무자 경험담 → 2차 블로그 순이다.
 보고는 짧게 하고 전문은 저장소 밖 파일에 쓴다. 유료 검색 API는 쓰지 않는다. 자세한 규칙은 `templates/agents/researcher.md`에 있다.
 
 **물레방아.** 에이전트를 만들 때 스킬이 `.claude/workflows/mullebanga.js`도 함께 깐다(역할을 만들지 않으면 깔지 않는다). Claude Code에서 `/물레방아`로 부르면 맡길곳(배정)이 `codex`가 아닌 진행중 작업을 모두 돌리고,
-`/물레방아 T-28`이나 `/물레방아 T-28, T-29`처럼 뒤에 작업 번호를 글자로 주면(공백·쉼표로 나눔) 그 작업만 돈다. `args`로 작업 번호 목록(예: `["T-30","T-31"]`)을 줘도 같다. 흐름은 작업마다 `고르기` → `할 일 적기`(옛 명세) → `맞춰보기`(옛 대조) → `만들기`(옛 구현) → `돌려보기`(옛 검사) → `번갈아 보기`(옛 교차 리뷰: 살피기 담당과, `검토도구`(기본 `codex`)·`폴백도구`(기본 `gemini`, 모델 `폴백모델` 기본 `gemini-4-argon-high`) 중 작성 도구가 아니고 `일감목록.동시상한`에 있는 첫 도구. `claude`가 마지막 후보이나 물레방아는 작성 도구가 `claude`라 빠진다) → `고치기`(돌려보기 실패·높음 고치기, 합쳐서 최대 3번) → `올림`이다.
+`/물레방아 T-28`이나 `/물레방아 T-28, T-29`처럼 뒤에 작업 번호를 글자로 주면(공백·쉼표로 나눔) 그 작업만 돈다. `args`로 작업 번호 목록(예: `["T-30","T-31"]`)을 줘도 같다. 흐름은 작업마다 `고르기` → `할 일 적기` → `맞춰보기` → `만들기` → `돌려보기` → `번갈아 보기`(살피기 담당과, `검토도구`(기본 `gemini`, `gemini-4-argon-medium`)·`폴백도구`(기본 `codex`, `gpt-6.1-sol`) 중 작성 도구가 아니고 `일감목록.동시상한`에 있는 첫 도구. `claude`가 마지막 후보이나 물레방아는 작성 도구가 `claude`라 빠진다) → `고치기`(돌려보기 실패·높음 고치기, 합쳐서 최대 3번) → `올림`이다.
 메인은 `docs/tasks/T-N.md` 맨 위에 `## 사용자 원래 말` 절(사용자 말 원문)을 적고 `시작`한 뒤 돌린다. 기획 담당은 메인 폴더의 `docs/tasks/T-N.md`에 나머지를 쓰고 커밋하지 않는다(만들기 워크트리는 `보기`로 메인 폴더 문서를 읽는다).
-할 일 적기(명세)에 `## 끝 기준`이 이미 있으면 할 일 적기를 건너뛰고 맞춰보기부터 한다. 살피기 담당은 `'사용자가 정한 것'` 표시를 그 절과 맞춰본다.
-답을 기다리는 허락이 있거나 기획 담당이 허락·실험 필요로 돌려주면 할 일 적기 단계에서 멈추고(`확인`을 남긴 작업은 멈추지 않고 할 일 적기를 끝까지 쓴다), 맞춰보기에 높음·중간이 있거나 `## 사용자 원래 말` 절이 없으면(옛 명세) 맞춰보기에서 멈춘다(메인이 절을 넣고 다시 돌린다). 실험·조사가 필요해 멈추면 메인이 조사 담당을 불러 확인한 뒤 다시 돌린다.
+할 일 적기에 `## 끝 기준`이 이미 있으면 할 일 적기를 건너뛰고 맞춰보기부터 한다. 살피기 담당은 `'사용자가 정한 것'` 표시를 그 절과 맞춰본다.
+답을 기다리는 허락이 있거나 기획 담당이 허락·실험 필요로 돌려주면 할 일 적기 단계에서 멈추고(`확인`을 남긴 작업은 멈추지 않고 할 일 적기를 끝까지 쓴다), 맞춰보기에 높음·중간이 있거나 `## 사용자 원래 말` 절이 없으면 맞춰보기에서 멈춘다(메인이 절을 넣고 다시 돌린다). 실험·조사가 필요해 멈추면 메인이 조사 담당을 불러 확인한 뒤 다시 돌린다.
 다시하기(반려)로 돌아온 작업은 일감 목록의 마지막 반려 커밋이 든 `ai/…` 브랜치에서 이어 고친다(워크트리가 지워졌으면 그 브랜치로 새 워크트리를 만든다).
 물레방아 안에서는 만들기 담당이 `올림`하지 않고 커밋까지만 하며, 돌려보기를 통과하고 높음이 없을 때 물레방아가 끝에 올린다. 3번 고쳐도 남으면 올리지 않고 진행중으로 둔다.
 물레방아가 쓰는 일감 목록 명령은 `올림`과 기획 담당의 `허락`·`확인`·`기록`, 만들기 담당의 `확인`·`기록`이다. 메인은 작업마다 돌려주는 칸(`raised`·`raiseOutput`·`checkPassed`·`checkFailures`·`highs`·`others`·`resumed`·`spec`·`specReview`, 단계가 멈추면 `stopped`, 이유를 담아 멈출 때는 `reason`도)을 보고 병합·`완료`·정리·`다시하기`(`반려`)·`허락`을 정한다(병합·`완료` 뒤에는 기획 담당에게 `한 일 적기`를 맡긴다).
 작업마다 워크트리(`.claude/worktrees/wf_…`)와 브랜치 `ai/…`·`worktree-wf_…`가 남으므로(`worktree`·`branches` 칸) `완료`한 뒤 지운다(`완료` 전에는 지우지 않는다).
+
+**공용 물레방아.** 어느 도구(Codex·Antigravity·Claude)에서든 같은 순서로 돌리는 물레방아다. 클로드판(`/물레방아`)은 그대로 두고 따로 있다. 터미널에서 부른다.
+
+```
+node harness/mullebanga.mjs --도구 codex|gemini|claude [--시간제한 초] [T-1 …]
+```
+
+- `--도구`는 꼭 줘야 한다. 없거나 `codex|gemini|claude`가 아닌 값이면 표준 출력은 비고, 표준 오류에 `--도구는 codex|gemini|claude 중 하나여야 한다`가 나오고 종료 코드 1로 끝난다. 역할 안내문 파일이 없어도 종료 코드 1이다. 작업이 멈춘 것(단계모델에 모르는 도구를 적은 설정 오류 포함)은 종료 코드 0이고 그 작업의 `reason`에 이유가 남는다.
+- 번호를 안 주면 맡길곳(배정)이 `--도구`인 진행중 작업만 돈다(배정이 비면 `일감목록.기본맡길곳`, 그것도 없으면 `claude`). 번호를 주면 그 작업만 돌고, 진행중이 아니면 그 번호만 멈춘다. 동시에 도는 작업 수는 `일감목록.동시상한.<도구>`다(없으면 1, 0 이하면 그 도구로는 돌리지 않고 멈춘다).
+- `--시간제한 <초>`는 0보다 큰 수이고 모든 도구 호출에 같이 적용된다. 안 주면 읽기 단계는 300초, 쓰기 단계(만들기·고치기)는 1800초다. 시간이 다 되면 되풀이해 부르지 않고 그 작업이 멈춘다.
+- 순서는 `할 일 적기` → `맞춰보기` → `만들기` → (확인 명령, 코드가 직접) → 커밋(코드가 직접) → `번갈아 보기` → `고치기`(돌려보기 실패·높음, 합쳐서 작업당 최대 3번) → `올림`이다. 고르기·돌려보기·커밋은 AI가 아니라 코드가 한다. 병합·`완료`·워크트리 정리·`다시하기`(`반려`)는 하지 않는다(메인 몫).
+- 읽기 전용은 도구가 아니라 역할로 정한다. 할 일 적기·맞춰보기·살피기·증거 모으기는 어떤 도구든 읽기 전용이고, 만들기·고치기는 어떤 도구든 그 작업의 워크트리에만 쓴다. 담당은 `--도구`로 부른 도구가 맡는 것이 기본이다.
+- 담당들의 지시문 앞에는 `.claude/agents/`의 `planner`·`reviewer`·`implementer` 본문이 붙는다. 이 세 파일이 없으면 시작에서 `역할 안내문 파일이 없다`로 멈춘다(스킬 7단계가 메인 도구와 상관없이 만든다. 조사 담당 `researcher.md`는 읽지 않는다).
+- 표준 출력에는 작업마다 한 칸인 JSON 배열이 나온다. 칸은 `id`, `worktree`, `branches`, `commit`, `fixes`, `raised`, `raiseOutput`, `checkPassed`, `checkFailures`, `highs`, `others`, `resumed`, `spec`, `specReview`이고, 멈춘 작업은 여기에 `stopped: true`와 `reason`이 더해진다. 진행 줄은 표준 오류에 나오고 `harness/` 안에 상태 파일은 만들지 않는다.
+- Codex 기본 샌드박스 세션 안에서는 자식 `codex exec`가 `Operation not permitted`로 실패한다. 사람 터미널이나 전체 접근 세션에서 부른다. 제미나이를 쓰기 단계(만들기·고치기)에 쓰려면 그 기계에서 `agy`의 권한 모드가 이미 "묻지 않고 진행"(always-proceed)이어야 한다. 이 스킬은 그 설정을 바꾸지 않고 `--dangerously-skip-permissions`도 쓰지 않는다.
+- 이미 깐 프로젝트는 `install.mjs --upgrade`로 이 여섯 파일을 새것으로 받는다(클로드판 사본 `.claude/workflows/`는 `--upgrade`가 바꾸지 않는다).
+
+멈췄을 때 `reason`의 앞말로 보고 사람이 할 일이다. 멈춘 작업은 도구를 되풀이해 부르지 않고 `reason`을 남기고 끝난다.
+
+| `reason` | 사람이 할 일 |
+|---|---|
+| `할 일 적기 단계에서 멈춤`(허락 대기, 답을 기다리는 질문) | 질문 페이지에서 답한 뒤 다시 돌린다 |
+| `맞춰보기 단계에서 멈춤` | 작업 문서에 `## 사용자 원래 말` 절을 넣거나 지적대로 작업 문서를 고친 뒤 다시 돌린다 |
+| `돌려보기 단계에서 멈춤: 돌릴 확인 명령이 없다` | `.claude/agents/implementer.md`의 `- 확인 명령:` 줄을 채운다 |
+| `올림 단계에서 멈춤` | 증거가 모자라거나 바깥 검토 도구가 맡길곳과 같은 경우다. `reason`을 읽고 고친다 |
+| `다른 도구 검토 뒤 진짜 홈 agentapi가 바뀜` | 되돌리지 않았다. 사람이 먼저 그 파일을 본다 |
+| `도구 실패(권한 … 제미나이 쓰기 뒤 진짜 홈 agentapi가 바뀜)` | 제미나이가 만들기·고치기에서 쓴 변경이 워크트리에 그대로 남아 있다. 되돌리지 않았다. 사람이 그 파일과 남은 변경을 검사·복구하기 전에는 다시 돌리지 않는다 |
+| `도구 실패(한도\|결과없음\|시간초과\|권한 …)` (위 경우 말고) | 이유를 보고 다시 돌린다 |
+
+멈추지 않았는데 올리지도 못한 경우도 있다. 3번 고쳐도 돌려보기 실패나 높음이 남으면 올리지 않고 진행중으로 두므로(`raised`가 `false`, `stopped` 없음), 메인이 `checkFailures`·`highs`를 보고 판단한다.
+멈춘 작업은 그대로 다시 돌리면 남은 `ai/<번호>` 브랜치에서 이어 간다. 반려 기록이 없을 때만이고, 할 일 적기·맞춰보기·만들기 도구는 부르지 않고 지금 상태를 확인 명령으로 돌려본다(결과의 `resumed`가 `true`). 한계는 `guide/limits.md`의 (라)에 있다: 앞서 쓴 도구를 몰라 만들기 단계 도구를 작성 도구로 보고, 고치기 3번을 다시 센다.
 
 ## 단계별 기본 모델과 설정 바꾸기
 
@@ -170,17 +202,21 @@ T-7 먼저할일 작업 T-3이(가) 완료되지 않았다
 
 | 단계 (`단계모델` 키) | 영문·옛 별칭 | 맡는 담당 | 기본 모델 (`모델`) | 추론 깊이 (`깊이`) | 추가 설정 기본값 |
 |---|---|---|---|---|---|
-| `조사` | `research` | 조사 담당 | `sonnet` | `high` | `보조모델`: `"gemini-4-argon-high"`, `최대병렬`: `4` (코덱스 제외) |
+| `조사` | `research` | 조사 담당 | `sonnet` | `medium` | `보조모델`: `"gemini-4-argon-medium"`, `최대병렬`: `4` (코덱스 제외) |
 | `쪼개기` | `breakdown` | 기획 담당 | `opus` | `high` | — |
-| `할일적기` | `할 일 적기`, `명세`, `spec` | 기획 담당 | `sonnet` | `high` | — |
-| `맞춰보기` | `대조`, `specReview` | 살피기 담당 | `opus` | `high` | — |
-| `만들기` | `구현`, `build` | 만들기 담당 | `sonnet` | `high` | — |
-| `돌려보기` | `검사`, `check` | 물레방아 검사 에이전트 | `sonnet` | `high` | — |
-| `번갈아보기` | `번갈아 보기`, `교차리뷰`, `교차 리뷰`, `review` | 살피기 담당 + 바깥 검토 도구 | `opus` | `high` | `검토도구`: `"codex"`, `폴백도구`: `"gemini"`, `폴백모델`: `"gemini-4-argon-high"` |
-| `고치기` | `fix` | 만들기 담당 | `sonnet` | `high` | — |
+| `할일적기` | `할 일 적기`, `명세`, `spec` | 기획 담당 | `sonnet` | `medium` | — |
+| `맞춰보기` | `대조`, `specReview` | 살피기 담당 | `opus` | `medium` | — |
+| `만들기` | `구현`, `build` | 만들기 담당 | `sonnet` | `medium` | — |
+| `돌려보기` | `검사`, `check` | 물레방아 검사 에이전트 | `haiku` | `medium` | — |
+| `번갈아보기` | `번갈아 보기`, `교차리뷰`, `교차 리뷰`, `review` | 살피기 담당 + 바깥 검토 도구 | `opus` | `medium` | `검토도구`: `"gemini"`, `바깥모델`: `"gemini-4-argon-medium"`, `폴백도구`: `"codex"`, `폴백모델`: `"gpt-6.1-sol"`, `폴백추론`: `"medium"` |
+| `고치기` | `fix` | 만들기 담당 | `sonnet` | `medium` | — |
 | `한일적기` | `한 일 적기`, `기록옮기기`, `record` | 기획 담당 | `haiku` | `medium` | — |
-| `고르기` | `pick` | 물레방아 고르기 에이전트 | `sonnet` | `high` | — |
-| `올림` | `raise` | 만들기 담당 | `sonnet` | `high` | — |
+| `고르기` | `pick` | 물레방아 고르기 에이전트 | `haiku` | `medium` | — |
+| `올림` | `raise` | 만들기 담당 | `sonnet` | `low` | — |
+
+공용 물레방아는 단계마다 다른 도구를 쓰게 하는 칸 `도구`(영문 별칭 `tool`)를 읽는다. 해당하는 단계는 `할일적기`·`맞춰보기`·`만들기`·`번갈아보기`(살피기 담당 쪽만)·`고치기`·`올림`(증거 모으기) 여섯이고, 없으면 `--도구` 값을 쓴다. 바깥 검토 도구는 계속 `검토도구`·`폴백도구`가 정한다.
+`도구`가 `claude`이면 `모델`·`깊이` 설정값을 넘기고 없으면 위 기본값을 넘긴다. `codex`·`gemini`이면 그 단계 항목에 `도구`가 적힌 단계에서만 `모델`·`깊이`를 넘기고, 안 적혔으면 아무것도 넘기지 않아 그 도구의 기본값을 쓴다(클로드 모델 이름을 다른 도구에 넘기면 거절되기 때문이다). 한 단계만 바꾸는 예: `"만들기": { "도구": "gemini", "모델": "gemini-4-argon-medium" }`.
+단계 도구를 바꿔 실제 작성 도구가 일감 목록의 맡길곳과 달라지면, 바깥 검토 도구가 맡길곳과 같아져 `올림`이 거절될 수 있다. 그러면 `올림 단계에서 멈춤`으로 끝난다.
 
 `harness/config.json`에서 단계별 모델·병렬 수·검토 도구와 일감 목록·덧대기·지키는 파일을 설정하는 예시는 아래와 같다.
 
@@ -193,23 +229,25 @@ T-7 먼저할일 작업 T-3이(가) 완료되지 않았다
     "출력줄수": 100
   },
   "단계모델": {
-    "조사": { "모델": "sonnet", "깊이": "high", "보조모델": "gemini-4-argon-high", "최대병렬": 4 },
+    "조사": { "모델": "sonnet", "깊이": "medium", "보조모델": "gemini-4-argon-medium", "최대병렬": 4 },
     "쪼개기": { "모델": "opus", "깊이": "high" },
-    "할일적기": { "모델": "sonnet", "깊이": "high" },
-    "맞춰보기": { "모델": "opus", "깊이": "high" },
-    "만들기": { "모델": "sonnet", "깊이": "high" },
-    "돌려보기": { "모델": "sonnet", "깊이": "high" },
+    "할일적기": { "모델": "sonnet", "깊이": "medium" },
+    "맞춰보기": { "모델": "opus", "깊이": "medium" },
+    "만들기": { "모델": "sonnet", "깊이": "medium" },
+    "돌려보기": { "모델": "haiku", "깊이": "medium" },
     "번갈아보기": {
       "모델": "opus",
-      "깊이": "high",
-      "검토도구": "codex",
-      "폴백도구": "gemini",
-      "폴백모델": "gemini-4-argon-high"
+      "깊이": "medium",
+      "검토도구": "gemini",
+      "바깥모델": "gemini-4-argon-medium",
+      "폴백도구": "codex",
+      "폴백모델": "gpt-6.1-sol",
+      "폴백추론": "medium"
     },
-    "고치기": { "모델": "sonnet", "깊이": "high" },
+    "고치기": { "모델": "sonnet", "깊이": "medium" },
     "한일적기": { "모델": "haiku", "깊이": "medium" },
-    "고르기": { "모델": "sonnet", "깊이": "high" },
-    "올림": { "모델": "sonnet", "깊이": "high" }
+    "고르기": { "모델": "haiku", "깊이": "medium" },
+    "올림": { "모델": "sonnet", "깊이": "low" }
   },
   "덧대기": { "횟수": 3, "최근커밋": 50, "수정패턴": "^(fix\\b|🐛)" },
   "지키는파일": [".env", ".env.*", "package-lock.json", ".git"]
@@ -244,15 +282,15 @@ $ node harness/backlog.mjs 확인 T-2 "보고서에 성명을 그대로 쓸까�
 `기록 T-1 "제목" --설명 … --이유 …`: 허락·확인에 들지 않아 AI가 스스로 정한 일을 적어 둔다. 사람은 하나하나 읽지 않고 질문 페이지의 하루 요약으로 본다.
 `질문목록`(기본은 답을 기다리는 허락, `--상태 대기|확인중|확정|고칠것|답함|반영함`), `답 Q-1 둔다`(보기 이름) 또는 `답 Q-1 --직접 "글"`, `반영 Q-1 --커밋 <해시> --설명 "…"`이 있다.
 `질문목록`은 보여 준 질문의 새 답 표시를 지운다(새 답을 앞에 두고, 줄 제한에 잘려 안 보인 것은 남긴다).
-새 답은 `답`으로 답함·고칠것이 된 질문이고, 3일 지나 확정된 확인은 들지 않는다. `서버`·`켜두기`·`끄기`·`답`·`기다리기` 말고 모든 장부 명령은 읽지 않은 답이 있으면 출력 끝(허락·확인의 링크 줄 앞)에 이 줄을 보인다.
+새 답은 `답`으로 답함·고칠것이 된 질문이고, 3일 지나 확정된 확인은 들지 않는다. `서버`·`켜두기`·`끄기`·`답`·`기다리기` 말고 모든 일감 목록 명령은 읽지 않은 답이 있으면 출력 끝(허락·확인의 링크 줄 앞)에 이 줄을 보인다.
 ```
 새 답 1개(Q-3 답함). 메인은 node harness/backlog.mjs 질문목록 --상태 답함(고칠것은 --상태 고칠것)으로 읽는다
 ```
-`기다리기 [--분 N]`은 읽지 않은 답이 있으면(시작 때 이미 있으면 바로) 위 줄을 내고 끝난다. 답을 기다리는 질문(대기·확인중)도 새 답도 없으면 `기다릴 질문도 새 답도 없다`로 바로 끝난다.
-N분(기본 1440, 소수 가능, 0 이하는 거절)이 지나면 `답 없이 지났다(N분). 다시 걸지 않는다`로 끝난다. 장부는 쓰지 않고 2초마다 읽으며, 새 답 표시를 지우지 않는다. 끝나는 세 경우 모두 종료 코드 0이다.
-Claude Code에서 허락을 물어 놓고 할 일이 없으면 메인이 `기다리기`를 뒤에서(`run_in_background`) 걸어 두고 쉰다. 사람이 답하면 명령이 끝나 메인이 다시 불린다. 물레방아·서브에이전트·Codex·제미나이에서는 걸지 않는다.
+`기다리기 [--분 N] [--횟수 K]`는 읽지 않은 답이 있으면(시작 때 이미 있으면 바로) 위 줄을 내고 끝난다. `--횟수`를 생략하면 답을 기다리는 질문(대기·확인중)도 새 답도 없을 때 `기다릴 질문도 새 답도 없다`로 바로 끝난다.
+N분(기본 55, 소수 가능, 0 이하는 거절)이 지나면 `답 없이 지났다(N분). 캐시 유지를 위해 --횟수 2로 다시 건다(하루 최대 26회)`로 끝난다. `--횟수 1`~`26`을 주면 질문이 없어도 기다리고, 시간이 지나면 `캐시 유지(N분, K/26회): 다음은 --횟수 K+1로 다시 건다`로 다음 횟수를 알린다. 26회째는 `답 없이 지났다(N분, 26/26회 하루 상한). 다시 걸지 않는다`로 끝난다. 일감 목록은 쓰지 않고 2초마다 읽으며, 새 답 표시를 지우지 않는다. 정상 종료 코드는 모두 0이다.
+메인이 멈춰 있을 때(허락을 물어 놓고 할 일이 없을 때, 또는 작업을 마치고 사람의 다음 지시를 기다릴 때)는 `node harness/backlog.mjs 기다리기 --횟수 1`을 건다. Claude Code·WorkBuddy는 뒤에서(`run_in_background`), Antigravity는 `schedule` 55분 타이머(`TimerCondition: 'any'`)도 가능하다. 55분마다 깨어나 다음 횟수로 다시 걸어 프롬프트 캐시(1시간)를 유지하고, 최대 하루(55분 × 26회 = 23시간 50분)까지 이어 간다. 답이나 새 지시가 오면 이어서 일하고, 26회가 다 되면 다시 걸지 않고 사람에게 알린다. 계속 작업 중일 때나 물레방아·서브에이전트에서는 걸지 않는다.
 옛 이름 `질문`(`--행동`에 따라 허락이나 확인)과 `처리함`(기록)도 같은 뜻으로 받는다. 이미 하네스를 깐 프로젝트의 역할·워크플로 사본이 계속 부르기 때문이다.
-장부를 쓰는 명령이 끝날 때마다 `harness/questions.html`이 다시 쓰이고, AI가 `node harness/backlog.mjs 켜두기`로 켜 둔 질문 페이지에서 사람이 브라우저로 보기를 고르거나 직접 적어 답한다.
+일감 목록을 쓰는 명령이 끝날 때마다 `harness/questions.html`이 다시 쓰이고, AI가 `node harness/backlog.mjs 켜두기`로 켜 둔 질문 페이지에서 사람이 브라우저로 보기를 고르거나 직접 적어 답한다.
 ```
 $ node harness/backlog.mjs 켜두기
 질문 페이지: http://127.0.0.1:55236/?token=…
@@ -262,13 +300,13 @@ $ node harness/backlog.mjs 켜두기
 포트·토큰·pid는 `harness/serve.json`에, 서버 출력은 `harness/serve.log`에 둔다. 포트는 `--포트 N`으로 정하고, 안 주면 저장된 포트를, 그것도 없으면 빈 포트를 골라 저장해 계속 쓴다.
 켜져 있을 때 다른 `--포트`를 주면 거절하고, 저장된 포트를 다른 프로그램이 쓰고 있으면 `serve.log` 끝의 까닭을 보이며 거절한다.
 `끄기`는 켜 둔 페이지를 끄고 `serve.json`에서 pid만 빼므로 다시 `켜두기`하면 같은 링크로 열린다. AI는 처음 켤 때 링크를 사람에게 한 번 알려 즐겨찾기하게 한다.
-`서버`·`켜두기`·`끄기` 말고 모든 장부 명령은 돌기 전에, 켜 둔 적 있는(`serve.json`에 pid가 있는) 페이지가 꺼져 있으면(맥을 다시 켠 뒤 등) 저장된 포트로 다시 켜고 "질문 페이지를 다시 켰다"와 링크 줄을 보인다.
+`서버`·`켜두기`·`끄기` 말고 모든 일감 목록 명령은 돌기 전에, 켜 둔 적 있는(`serve.json`에 pid가 있는) 페이지가 꺼져 있으면(맥을 다시 켠 뒤 등) 저장된 포트로 다시 켜고 "질문 페이지를 다시 켰다"와 링크 줄을 보인다.
 켜 둔 적이 없거나 `끄기` 뒤에는 다시 `켜두기`할 때까지 켜지 않는다. 다시 켜지 못하면 `backlog: 질문 페이지를 다시 켜지 못했다(…)` 한 줄을 보이고 명령은 그대로 돈다.
 `허락`·`확인`(옛 `질문`)은 페이지가 켜져 있으면 출력 마지막 줄에 `질문 페이지: …` 링크 줄을 보인다. AI는 이 링크를 대화에서도 알린다.
 `node harness/backlog.mjs 서버 [--포트 N]`은 같은 서버를 이 터미널 앞에서 돌리고 Ctrl+C로 끈다. 저장된 포트·토큰을 같이 쓴다.
 페이지는 허락할 것 → 확인할 것 → 고칠 것 → 답한 것 → 기록(날짜별로 접은 하루 요약, 확정된 확인도 확정된 날에 들어감) → 덧댄 곳 → 진행 현황 순이다.
 맨 위에 허락할 것·확인할 것·고칠 것·덧댄 곳·병합 대기(`올림`)·진행중·할일·완료 수가 있고, 앞의 넷은 0보다 크면 강조한다. 기록은 읽을 목록이 아니라 수 칸이 없다.
-서버는 127.0.0.1에서만 열고, 토큰은 처음 한 번 만들어 `harness/serve.json`에 두고 계속 써서 링크가 바뀌지 않는다. 주소에 토큰이 없거나 틀린 요청은 거절한다. 서버는 장부를 읽기만 하고 답은 `답` 명령으로 적는다.
+서버는 127.0.0.1에서만 열고, 토큰은 처음 한 번 만들어 `harness/serve.json`에 두고 계속 써서 링크가 바뀌지 않는다. 주소에 토큰이 없거나 틀린 요청은 거절한다. 서버는 일감 목록을 읽기만 하고 답은 `답` 명령으로 적는다.
 쓰는 명령은 `harness/backlog.lock`을 잡고 읽기→바꾸기→저장을 하므로 여러 명령을 동시에 불러도 기록이 사라지지 않는다.
 
 **같은 곳을 자꾸 고칠 때(덧대기 신호).** 기본 브랜치의 최근 커밋 50개 중 제목이 `fix`나 🐛로 시작하는 수정 커밋을 모아, 같은 파일이 3번 이상 들어 있으면 페이지의 "덧댄 곳"에 파일, 횟수, 그 커밋 제목을 보인다.
@@ -283,20 +321,20 @@ $ node harness/backlog.mjs 시작 T-4
 "덧대기": { "횟수": 3, "최근커밋": 50, "수정패턴": "^(fix\\b|🐛)" }
 ```
 
-막는 훅(`harness/guard.mjs`)은 일감 목록(작업 장부)을 설치했을 때 같이 들어가고, 아래를 종료 코드 2와 올바른 길을 알리는 글로 거절한다.
-- 장부 파일(`harness/backlog.json`)을 직접 읽거나 고치는 것 → "명령으로 다룬다"
+막는 훅(`harness/guard.mjs`)은 일감 목록을 설치했을 때 같이 들어가고, 아래를 종료 코드 2와 올바른 길을 알리는 글로 거절한다.
+- 일감 목록 파일(`harness/backlog.json`)을 직접 읽거나 고치는 것 → "명령으로 다룬다"
 - 진행중인 작업이 없을 때 코드 파일을 고치는 것 → "작업을 만들고 `시작`한다". 코드 파일은 `kinds` 중 한도(줄 수, 줄 길이, 금지 패턴)를 정한 종류의 파일이다.
   한도를 정하지 않은 종류(문서, 설정 등)는 제외한다. 검사기의 `ignore` 목록은 보지 않으므로 한도 있는 종류에 든 이미지나 `vendor/` 파일도 코드로 본다.
 - 검사 설정과 하네스 파일(`harness/config.json`, `check.mjs`, `guard.mjs`, `backlog.mjs`, `ledger.mjs`, `questions.mjs`, `page.mjs`, `patch.mjs`, `serve.mjs`)을 고치는 것. 단 `kinds`가 비어 있는 설치 직후에는 `config.json`을 채울 수 있다.
 - 셸 명령의 `--no-verify`
 
 pre-commit은 코드 파일을 커밋하는데 진행중인 작업이 없으면 거절한다(충돌을 풀어 병합할 때는 상대 브랜치에서 그대로 온 파일을 세지 않는다).
-설정이나 장부를 읽지 못하는 등 확인하지 못하면 통과시키지 않고 거절한다. 그때는 사람이 `harness/config.json`이나 `harness/backlog.json`을 고친다.
-서브에이전트의 워크트리에서도 같은 훅이 돌고, 입력의 `cwd`를 따라 메인 폴더의 장부를 찾는다.
+설정이나 일감 목록을 읽지 못하는 등 확인하지 못하면 통과시키지 않고 거절한다. 그때는 사람이 `harness/config.json`이나 `harness/backlog.json`을 고친다.
+서브에이전트의 워크트리에서도 같은 훅이 돌고, 입력의 `cwd`를 따라 메인 폴더의 일감 목록을 찾는다.
 이것은 Claude Code에서 확인한 것이다. Codex·Antigravity는 시험하지 않았으니 [한계](limits.md)를 본다.
 
-멈출 때 설명 훅(`harness/stop.mjs`)도 작업 장부를 설치했을 때 같이 들어가고 Claude Code에만 건다.
-장부에 진행중 작업이 있을 때만, AI가 멈추려 하면 한 번 "왜 멈추는지 짧게 설명하라"(끝났는지, 질문을 기다리는지, 막혔는지)를 넣는다.
+멈출 때 설명 훅(`harness/stop.mjs`)도 일감 목록을 설치했을 때 같이 들어가고 Claude Code·WorkBuddy에 건다.
+일감 목록에 진행중 작업이 있을 때만, AI가 멈추려 하면 한 번 "왜 멈추는지 짧게 설명하라"(끝났는지, 질문을 기다리는지, 막혔는지)를 넣는다.
 설명한 뒤 다시 멈출 때는 입력의 `stop_hook_active`가 참이라 통과한다.
 읽지 않은 새 답이 있으면 진행중 작업이 없어도 새 답 줄(`새 답 N개(…)`)을 넣는다. 새 답 표시는 지우지 않아 메인이 `질문목록`으로 읽을 때까지 멈출 때마다 알린다. 진행중 작업도 새 답도 없으면 아무것도 하지 않는다.
 출력은 `hookSpecificOutput.additionalContext`라서 훅 오류로 보이지 않는다. 계속 일하게 붙잡는 장치가 아니다.
@@ -312,8 +350,9 @@ pre-commit은 코드 파일을 커밋하는데 진행중인 작업이 없으면 
 | Codex, OpenClaw | `~/.agents/skills/harness-starter` (둘 다 이 위치를 읽는다) |
 | Antigravity CLI | `~/.gemini/antigravity-cli/skills/harness-starter` |
 | Antigravity IDE | `~/.gemini/config/skills/harness-starter` |
+| WorkBuddy AI | `~/.workbuddy-ai/skills/harness-starter` (macOS·Windows 공통) |
 
-네 곳 모두 `SKILL.md`, `package.json`, `CHANGELOG.md`, `scripts/`, `templates/`, `guide/`를 복사해 둔다. 개발 중인 저장소를 가리키는 심링크는
+다섯 곳 모두 `SKILL.md`, `package.json`, `CHANGELOG.md`, `scripts/`, `templates/`, `guide/`를 복사해 둔다. 개발 중인 저장소를 가리키는 심링크는
 저장소가 있는 디스크가 빠지거나 고치는 중인 상태가 그대로 쓰이므로 쓰지 않는다.
 
 처음 설치와 업그레이드는 git으로 받은 폴더에서 같은 한 줄이다.
@@ -324,20 +363,20 @@ cd harness-starter-skill
 node scripts/upgrade.mjs
 ```
 
-새 버전을 받고(`git pull --ff-only`), 바뀐 것(`CHANGELOG.md`의 절)을 보이고, 전역 네 곳을 보여 주고 y면 `~/.harness-starter/backup/`에 백업한 뒤 바꾸고,
+새 버전을 받고(`git pull --ff-only`), 바뀐 것(`CHANGELOG.md`의 절)을 보이고, 전역 다섯 곳을 보여 주고 y면 `~/.harness-starter/backup/`에 백업한 뒤 바꾸고,
 명부(`~/.harness-starter/projects.json`)의 프로젝트를 하나씩 미리보기로 보여 주고 y인 곳만 올린다. AI에게는 "업그레이드 해 줘"라고 하면 된다.
 
-- `--미리보기`: 받기만 하고 전역 네 곳·명부·프로젝트는 그대로 두고 무엇을 바꿀지 보인다.
+- `--미리보기`: 받기만 하고 전역 다섯 곳·명부·프로젝트는 그대로 두고 무엇을 바꿀지 보인다.
 - `--예`: 받지 않고 묻지 않고 바꾼다. AI는 미리보기를 대화에 보이고 사용자가 대화에서 직접 승인한 것만 이것으로 바꾸고, 사람 없이 도는 작업(물레방아 등)에서는 돌리지 않는다.
 - `--프로젝트 <경로>`: 명부의 프로젝트 중 그곳만 다룬다. `--예`로는 이것으로 고른 곳만 올린다.
 - `--등록 <경로>`: 명부가 생기기 전에 깐 옛 프로젝트를 명부에 적기만 한다.
 
 스킬을 부르면 공개본의 버전 번호만 하루 한 번 읽어 새 버전이 있으면 한 줄로 알린다(코드는 받지 않는다). 끄려면 `HARNESS_STARTER_NO_UPDATE_CHECK=1`을 준다.
 
-git 없이 받았거나 이 저장소를 고친 뒤에는 그 폴더에서 아래 명령으로 네 곳을 손으로 갱신해도 된다.
+git 없이 받았거나 이 저장소를 고친 뒤에는 그 폴더에서 아래 명령으로 다섯 곳을 손으로 갱신해도 된다.
 
 ```sh
-for d in ~/.claude/skills ~/.agents/skills ~/.gemini/antigravity-cli/skills ~/.gemini/config/skills; do
+for d in ~/.claude/skills ~/.agents/skills ~/.gemini/antigravity-cli/skills ~/.gemini/config/skills ~/.workbuddy-ai/skills; do
   rm -rf "$d/harness-starter/scripts" "$d/harness-starter/templates" "$d/harness-starter/guide"
   mkdir -p "$d/harness-starter" && cp -R SKILL.md package.json CHANGELOG.md scripts templates guide "$d/harness-starter/"
 done
@@ -349,7 +388,7 @@ done
 node scripts/install.mjs <대상 폴더>            # 미리보기
 node scripts/install.mjs <대상 폴더> --apply    # 설치
 node scripts/install.mjs <대상 폴더> --apply --without=codex-hook,antigravity-hook
-node scripts/install.mjs <대상 폴더> --upgrade   # 옛 설치를 새 버전으로 바꾼다: 검사기·설정, 장부 명령 파일, 제미나이 역할 파일, pre-commit의 막는 훅 줄, harness/VERSION(미리보기)
+node scripts/install.mjs <대상 폴더> --upgrade   # 옛 설치를 새 버전으로 바꾼다: 검사기·설정, 일감 목록 명령 파일, 제미나이 역할 파일, pre-commit의 막는 훅 줄, harness/VERSION(미리보기)
 ```
 
 `--apply`는 깐 버전을 `harness/VERSION`에 적고, 대상 폴더를 명부(`~/.harness-starter/projects.json`)에 적는다(`[명부]` 줄). 업그레이드가 이 명부로 프로젝트를 찾는다.
@@ -376,7 +415,7 @@ Claude Code는 경로가 맞는 파일을 다룰 때 규칙 파일을 스스로 
 
 하네스가 하지 않는 것:
 - 디자인 규칙을 만들어 주는 단계. 가이드에 적힌 규칙만 후보가 된다.
-- 토큰 파일과 코드의 교차 대조(토큰에 없는 값을 쓰는지 따지기).
+- 토큰 파일과 코드의 맞춰보기(토큰에 없는 값을 쓰는지 따지기).
 - 렌더링(화면) 점검.
 - 디자인 품질 판단. 뜻을 판단하는 규칙은 `AGENTS.md`의 `## 이 프로젝트 규칙`에 적은 지침일 뿐이다.
 

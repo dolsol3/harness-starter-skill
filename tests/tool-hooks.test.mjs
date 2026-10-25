@@ -116,8 +116,6 @@ function install(dir, ...args) {
   return result.stdout;
 }
 
-const GUARD_COMMAND = 'node "$(git rev-parse --show-toplevel)/harness/guard.mjs" --hook';
-
 test('the installer adds the before-use guard to the Codex and Antigravity hooks only with the ledger, once, keeping other hooks', t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-toolhooks-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -127,12 +125,12 @@ test('the installer adds the before-use guard to the Codex and Antigravity hooks
   fs.writeFileSync(path.join(dir, '.codex/hooks.json'), JSON.stringify({ hooks: { PreToolUse: [userHook] } }));
   install(dir, '--apply');
   const codex = JSON.parse(fs.readFileSync(path.join(dir, '.codex/hooks.json'), 'utf8')).hooks;
-  assert.deepEqual(codex.PreToolUse, [userHook, { matcher: 'apply_patch|Bash', hooks: [{ type: 'command', command: GUARD_COMMAND }] }]);
+  assert.deepEqual(codex.PreToolUse, [userHook, { matcher: 'apply_patch|Bash', hooks: [{ type: 'command', command: 'node harness/guard.mjs --hook' }] }]);
   assert.equal(codex.PostToolUse[0].matcher, 'apply_patch|Edit|Write');
   const antigravity = JSON.parse(fs.readFileSync(path.join(dir, '.agents/hooks.json'), 'utf8'))['harness-starter'];
   assert.deepEqual(antigravity.PreToolUse, [{
     matcher: 'write_to_file|replace_file_content|multi_replace_file_content|run_command|view_file',
-    hooks: [{ type: 'command', command: GUARD_COMMAND }],
+    hooks: [{ type: 'command', command: 'node ../harness/guard.mjs --hook' }],
   }]);
   assert.doesNotMatch(install(dir, '--apply'), /\[(고침|건너뜀|새로 만듦)\]/, 'a second run changes nothing');
 
@@ -141,4 +139,65 @@ test('the installer adds the before-use guard to the Codex and Antigravity hooks
   execFileSync('git', ['init', '-q'], { cwd: plain });
   install(plain, '--apply', '--without=backlog');
   for (const rel of ['.codex/hooks.json', '.agents/hooks.json']) assert.doesNotMatch(fs.readFileSync(path.join(plain, rel), 'utf8'), /PreToolUse|guard\.mjs/, rel);
+});
+
+// WorkBuddy AI는 Claude Code와 같은 훅 구조·도구 이름을 쓰고 CLAUDE_PROJECT_DIR도 넣어 준다(조사 2026-10-25).
+const CLAUDE_GUARD = { matcher: 'Read|Edit|Write|MultiEdit|Bash', hooks: [{ type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/harness/guard.mjs" --hook' }] };
+const CLAUDE_STOP = { hooks: [{ type: 'command', command: 'node "$CLAUDE_PROJECT_DIR/harness/stop.mjs"' }] };
+const skillFile = fileURLToPath(new URL('../templates/lean-review/SKILL.md', import.meta.url));
+
+function gitDir(t) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-workbuddy-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  return dir;
+}
+
+const workbuddyHooks = dir => JSON.parse(fs.readFileSync(path.join(dir, '.codebuddy/settings.json'), 'utf8')).hooks;
+
+test('the installer puts the hooks in .codebuddy/settings.json and copies lean-review to .codebuddy/skills once', t => {
+  const dir = gitDir(t);
+  const preview = install(dir);
+  assert.match(preview, /\[새로 만듦\] \.codebuddy\/settings\.json/, preview);
+  assert.match(preview, /\[새로 만듦\] \.codebuddy\/skills\/lean-review\/SKILL\.md/, preview);
+  install(dir, '--apply');
+  const hooks = workbuddyHooks(dir);
+  assert.equal(hooks.PostToolUse[0].matcher, 'Edit|Write|MultiEdit');
+  assert.deepEqual(hooks.PreToolUse, [CLAUDE_GUARD]);
+  assert.deepEqual(hooks.Stop, [CLAUDE_STOP]);
+  assert.doesNotMatch(install(dir, '--apply'), /\[(고침|건너뜀|새로 만듦)\]/, 'a second run changes nothing');
+  const copied = fs.readFileSync(path.join(dir, '.codebuddy/skills/lean-review/SKILL.md'));
+  assert.ok(copied.equals(fs.readFileSync(skillFile)), 'the skill is copied byte for byte');
+});
+
+test('--without=workbuddy-hook leaves .codebuddy/settings.json out, and --without=backlog keeps only the after-edit hook', t => {
+  const off = gitDir(t);
+  install(off, '--apply', '--without=workbuddy-hook');
+  assert.equal(fs.existsSync(path.join(off, '.codebuddy/settings.json')), false);
+
+  const dir = gitDir(t);
+  install(dir, '--apply', '--without=backlog');
+  const hooks = workbuddyHooks(dir);
+  assert.equal(hooks.PostToolUse[0].matcher, 'Edit|Write|MultiEdit');
+  assert.equal(hooks.PreToolUse, undefined);
+  assert.equal(hooks.Stop, undefined);
+});
+
+test('the checker is installed for the workbuddy hook alone, and in a subfolder the two CLAUDE_PROJECT_DIR hooks still install', t => {
+  for (const without of ['instructions,claude-hook,codex-hook,antigravity-hook,git-hook,lean-review',
+    'instructions,claude-hook,codex-hook,antigravity-hook,git-hook,lean-review,backlog']) {
+    const dir = gitDir(t);
+    install(dir, '--apply', `--without=${without}`);
+    assert.ok(fs.existsSync(path.join(dir, 'harness/check.mjs')), without);
+    assert.ok(fs.existsSync(path.join(dir, '.codebuddy/settings.json')), without);
+  }
+
+  const repoDir = gitDir(t);
+  const sub = path.join(repoDir, 'sub');
+  fs.mkdirSync(sub);
+  const out = install(sub, '--apply');
+  assert.match(out, /\[새로 만듦\] \.codebuddy\/settings\.json/, out);
+  assert.match(out, /\[새로 만듦\] \.claude\/settings\.json/, out);
+  assert.match(out, /\[건너뜀\] \.codex\/hooks\.json/, out);
+  assert.match(out, /\[건너뜀\] \.agents\/hooks\.json/, out);
 });

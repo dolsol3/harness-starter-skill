@@ -3,9 +3,9 @@
 // 이 컴퓨터(127.0.0.1)에서만 열린다. 토큰은 처음 한 번 만들어 포트와 함께 harness/serve.json에 두고 계속 써서 링크가 바뀌지 않는다(사용자 결정 2026-10-16:
 // 폰 즐겨찾기로 아무 때나 본다). 주소(?token=…)에 토큰이 없거나 틀린 요청은 거절한다.
 // 인증 없는 쓰기 서버가 되지 않게 하려는 것이다(다른 웹 페이지가 이 컴퓨터의 서버로 몰래 답을 보내 막힘을 풀어 버리지 못하게).
-// 서버는 장부를 읽기만 한다. 답은 backlog 답 명령을 불러 적는다. 그래서 쓰는 길이 명령 하나뿐이고 잠금과 질문 확인(이미 답함,
+// 서버는 일감 목록을 읽기만 한다. 답은 backlog 답 명령을 불러 적는다. 그래서 쓰는 길이 명령 하나뿐이고 잠금과 질문 확인(이미 답함,
 // 오래된 페이지)도 명령이 한다. 원격에서 보려면 사용자 환경(Tailscale 등)에서 이 포트를 전달한다. 하네스는 이 컴퓨터 밖으로 열지 않는다.
-// 다시 켜기(revive): 켜 둔 적 있는데(상태 파일에 pid) 꺼져 있으면 장부 명령이 다시 켠다(사용자 결정 2026-10-16: 맥을 다시 켠 뒤 AI가 장부를 볼 때). 끄기는 pid를 빼서 사람이 끈 것을 지킨다.
+// 다시 켜기(revive): 켜 둔 적 있는데(상태 파일에 pid) 꺼져 있으면 일감 목록 명령이 다시 켠다(사용자 결정 2026-10-16: 맥을 다시 켠 뒤 AI가 일감 목록을 볼 때). 끄기는 pid를 빼서 사람이 끈 것을 지킨다.
 // 링크 줄(pageLine): 켜져 있으면 허락·확인 출력에 링크를 보여 AI가 대화창에서 알려 줄 수 있게 한다.
 import http from 'node:http';
 import crypto from 'node:crypto';
@@ -16,7 +16,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import * as ledger from './ledger.mjs';
 import * as page from './page.mjs';
 
-// 장부 명령은 이 파일 옆이 아니라 메인 폴더의 것을 부른다. 작업 폴더에서 켜두기해도 작업 폴더를 지운 뒤 계속 답을 적을 수 있게 하려는 것이다.
+// 일감 목록 명령은 이 파일 옆이 아니라 메인 폴더의 것을 부른다. 작업 폴더에서 켜두기해도 작업 폴더를 지운 뒤 계속 답을 적을 수 있게 하려는 것이다.
 const backlogOf = root => path.join(root, 'harness/backlog.mjs');
 const MAX_BODY = 20_000; // 글자 수. 답은 명령의 인자로 넘어가는데 한 인자가 길면(리눅스는 128KB) 명령을 못 부르므로 한글로 그 밑이다
 const HEADERS = {
@@ -168,7 +168,7 @@ export async function stop(root) {
     process.kill(state.pid, 'SIGTERM');
     if (!(await waitFor(async () => !(await alive(state))))) throw new Error(`끄기 거절: pid ${state.pid}에 끄라고 알렸지만 ${state.포트} 포트가 아직 답한다`);
   }
-  // pid를 빼면 다음 장부 명령이 다시 켜지 않는다. 포트·토큰은 남겨 다시 켜두기하면 같은 링크다.
+  // pid를 빼면 다음 일감 목록 명령이 다시 켜지 않는다. 포트·토큰은 남겨 다시 켜두기하면 같은 링크다.
   if (state.pid) writeState(root, { 포트: state.포트, 토큰: state.토큰 });
   return [on ? '질문 페이지를 껐다. 다시 켜두기하면 같은 링크로 열린다' : '질문 페이지는 이미 꺼져 있다'];
 }

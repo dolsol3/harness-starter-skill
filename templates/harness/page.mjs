@@ -1,5 +1,5 @@
-// 질문 페이지: 장부를 사람이 읽는 HTML 한 장으로 그린다. 장부를 쓰는 명령이 끝날 때마다 harness/questions.html로 다시 쓰고,
-// 서버(serve.mjs)는 보낼 때마다 새로 그린다. 외부 파일 없이 한 장이다. 장부의 글은 모두 이스케이프한다(AI가 쓴 글이 화면에서 코드로 돌지 않게).
+// 질문 페이지: 일감 목록을 사람이 읽는 HTML 한 장으로 그린다. 일감 목록을 쓰는 명령이 끝날 때마다 harness/questions.html로 다시 쓰고,
+// 서버(serve.mjs)는 보낼 때마다 새로 그린다. 외부 파일 없이 한 장이다. 일감 목록의 글은 모두 이스케이프한다(AI가 쓴 글이 화면에서 코드로 돌지 않게).
 // 순서: 허락할 것 → 확인할 것 → 고칠 것 → 답한 것 → 기록(날짜별로 접은 하루 요약) → 덧댄 곳 → 진행 현황. 답은 서버로 보낸다(주소의 ?token=… 을 그대로 실어 보낸다).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -178,8 +178,8 @@ export function render(book, now = new Date(), patched = []) {
   const answered = book.질문.filter(item => ['답함', '반영함'].includes(shownState(item, now)));
   return `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark">
-<title>작업 장부</title><style>${STYLE}</style></head><body><main>
-<h1>일감 목록 (작업 장부)</h1>
+<title>일감 목록</title><style>${STYLE}</style></head><body><main>
+<h1>일감 목록</h1>
 <p class="sub">마지막 갱신 ${esc(now.toLocaleString('ko-KR'))}</p>
 <p class="hint">이 페이지는 저절로 새로 고쳐지지 않습니다. 새 질문이 올라왔는지 보려면 새로 고침하세요.</p>
 ${tiles(book, permits.length, confirms.length, fixes.length, patched.length)}
@@ -206,7 +206,7 @@ ${progress(book)}
 `;
 }
 
-// 장부와 git 기록을 읽어 그린 페이지. 쓰는 명령과 서버가 함께 쓴다.
+// 일감 목록과 git 기록을 읽어 그린 페이지. 쓰는 명령과 서버가 함께 쓴다.
 export const draw = (root, book) => render(book, new Date(), signals(root));
 
 // 신호를 이미 읽었으면(수정 작업 시작) 받아서 쓰고, 아니면 읽는다.

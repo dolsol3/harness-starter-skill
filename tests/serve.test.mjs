@@ -6,7 +6,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
-import { repo, ok, backlog } from './helpers.mjs';
+import { repo, ok, backlog, stopAtEnd } from './helpers.mjs';
 
 const ASK = ['--행동', '삭제', '--설명', '쓰지 않는 열이다', '--보기', '지운다=열이 사라진다|둔다=그대로 남는다', '--추천', '둔다', '--이유', '되돌릴 수 없다'];
 
@@ -21,7 +21,7 @@ function seed(t) {
 // 그 저장소에서 서버를 켜고, 켜졌다고 알린 주소와 토큰을 돌려준다. 설정(config.json)은 서버가 켜질 때 읽는다.
 async function launch(t, dir, ...serverArgs) {
   const child = spawn(process.execPath, [path.join(dir, 'harness/backlog.mjs'), '서버', ...serverArgs], { cwd: dir });
-  t.after(() => child.kill());
+  stopAtEnd(t, child.pid);
   const server = await new Promise((resolve, reject) => {
     let out = '';
     child.stdout.on('data', chunk => {

@@ -170,11 +170,11 @@ test('no prompt writes the ledger beyond 올림, apart from the planner asking �
   assert.doesNotMatch(body, /Date\.now|Math\.random|new Date\(\)|\bimport\b|\brequire\(/);
 });
 
-test('맞춰보기 and 번갈아 보기 살피기 담당 run on opus high; every other claude step, the resumed fix included, runs on sonnet high', async () => {
+test('맞춰보기 and 번갈아 보기 살피기 담당 run on opus medium, 돌려보기 and 고르기 on haiku medium, 올림 on sonnet low, the rest on sonnet medium', async () => {
   const { calls } = await run({ checks: [{ passed: false, failures: 'x' }] });
   const resumed = (await run({ args: ['T-1'], spec: { rejectedCommit: 'abc1234', rejectedReason: 'r' } })).calls.find(call => call.label.includes('이어 고치기'));
   assert.deepEqual(new Set(calls.map(call => call.phase)), new Set(meta.phases.map(entry => entry.title)));
-  for (const { agentType, model, effort, label } of [...calls, resumed]) assert.deepEqual({ model, effort }, label.startsWith('다른 도구 검토') ? { model: undefined, effort: undefined } : { model: agentType === 'reviewer' ? 'opus' : 'sonnet', effort: 'high' }, label);
+  for (const { agentType, model, effort, label } of [...calls, resumed]) assert.deepEqual({ model, effort }, label.startsWith('다른 도구 검토') ? { model: undefined, effort: undefined } : label.startsWith('올림') ? { model: 'sonnet', effort: 'low' } : /^(작업 고르기|돌려보기)/.test(label) ? { model: 'haiku', effort: 'medium' } : { model: agentType === 'reviewer' ? 'opus' : 'sonnet', effort: 'medium' }, label);
 });
 
 test('each task result names the task, worktree, both branches, commit, fixes and whether it was raised', async () => {
@@ -220,7 +220,7 @@ test('the planner (no isolation) and the reviewer check the spec before the impl
   const { calls, result } = await run({ args: ['T-1'], spec: { outcome: '건너뜀' } });
   const firstThree = calls.slice(0, 3).map(call => [call.phase, call.agentType, call.isolation]);
   assert.deepEqual(firstThree, [['할 일 적기', 'planner', undefined], ['맞춰보기', 'reviewer', undefined], ['만들기', 'implementer', 'worktree']]);
-  assert.match(calls[0].prompt, /`## 끝 기준`이 이미 있으면 명세를 쓰지 않고 건너뜀/);
+  assert.match(calls[0].prompt, /`## 끝 기준`이 이미 있으면 작업 문서를 쓰지 않고 건너뜀/);
   assert.equal(result[0].spec.outcome, '건너뜀');
   assert.deepEqual(result[0].specReview, { passed: true, findings: [] });
   assert.equal(result[0].resumed, false);
@@ -234,7 +234,7 @@ test('the planner writes docs/tasks/T-N.md in the main folder, keeps the user wo
   assert.match(prompt, /보기 T-3/);
   assert.match(prompt, /메인 폴더\(.*\)의 `docs\/tasks\/T-3\.md`에 나머지를 쓴다/);
   assert.match(prompt, /맨 위 `## 사용자 원래 말` 절은 한 글자도 바꾸지 않는다/);
-  assert.match(prompt, /명세는 커밋하지 않는다/);
+  assert.match(prompt, /작업 문서는 커밋하지 않는다/);
   assert.match(prompt, /지우거나 바꾸는 일.*약속.*배포·발송·게시.*돈.*지키는 장치.*backlog\.mjs 허락 T-3.*--행동 .*그 작업은 멈춘다/);
   assert.match(prompt, /문서끼리 말이 달라.*개인정보.*새 의존성.*아키텍처.*backlog\.mjs 확인 T-3.*--까닭 문서충돌\|실데이터\|구조변경.*그 작업은 멈추지 않는다/);
   assert.match(prompt, /그 밖의 결정.*backlog\.mjs 기록 T-3/);

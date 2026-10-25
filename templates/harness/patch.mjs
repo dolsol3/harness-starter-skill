@@ -2,7 +2,7 @@
 //
 // 기본 브랜치(backlog.baseBranch)의 최근 커밋 patch.lastCommits(기본 50)개 중 제목이 patch.fixPattern(기본: fix 또는 🐛로 시작)에 맞는 커밋을 모아
 // 파일마다 몇 번 들어 있는지 센다. patch.times(기본 3)번 이상이면 신호다. 한도(줄 수, 줄 길이, 금지 패턴)가 정해진 종류(config.json의 kinds)의 파일만 센다. 문서·설정은 세지 않는다.
-// 기본 브랜치를 찾지 못하면(커밋이 아직 없거나 이름이 다름) 신호가 없는 것으로 본다. 신호 때문에 장부를 쓰는 명령이 멈추면 안 된다.
+// 기본 브랜치를 찾지 못하면(커밋이 아직 없거나 이름이 다름) 신호가 없는 것으로 본다. 신호 때문에 일감 목록을 쓰는 명령이 멈추면 안 된다.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -18,7 +18,7 @@ const 일감설정 = config.일감목록 ?? config.backlog ?? {};
 const baseBranch = 일감설정.기본브랜치 ?? 일감설정.baseBranch ?? 'main';
 
 // 수정 커밋 제목의 규칙(fixPattern)을 정규식으로 만든다. 틀렸으면 어느 설정인지 알린다.
-// 장부를 저장한 뒤에 실패하지 않도록 backlog가 명령을 돌리기 전에도 부른다.
+// 일감 목록을 저장한 뒤에 실패하지 않도록 backlog가 명령을 돌리기 전에도 부른다.
 export function check() {
   try {
     return new RegExp(fixPattern, 'i');
@@ -35,7 +35,7 @@ function limited(file) {
 
 // 신호가 뜬 파일: [{ file, subjects }] (많이 고친 것부터). 제목은 그 파일을 고친 수정 커밋의 제목이다.
 // -z로 읽으면 파일 이름을 따옴표로 감싸지 않으므로 "나 역슬래시가 든 이름도 그대로 온다. 출력은 커밋마다 \x01제목, 파일 이름들이 NUL로 이어진다.
-// 파일 이름이 많은 커밋(처음 가져온 코드 등)이 있어도 장부 쓰기가 실패하지 않게 출력 한도를 크게 잡는다.
+// 파일 이름이 많은 커밋(처음 가져온 코드 등)이 있어도 일감 목록 쓰기가 실패하지 않게 출력 한도를 크게 잡는다.
 export function signals(root) {
   const isFix = check();
   let log;

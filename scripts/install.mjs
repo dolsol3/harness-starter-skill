@@ -2,12 +2,12 @@
 // 간결함 하네스를 대상 프로젝트에 설치한다. 기본은 미리보기이고 --apply일 때만 쓴다.
 //
 //   node scripts/install.mjs <대상 폴더> [--apply] [--upgrade] [--main=<메인 도구 이름>] [--without=<장치,...>]
-//   장치: instructions, claude-hook, codex-hook, antigravity-hook, git-hook, lean-review, backlog
+//   장치: instructions, claude-hook, workbuddy-hook, codex-hook, antigravity-hook, git-hook, lean-review, backlog
 //
 // 원칙은 AGENTS.md에 넣는다(Codex·Antigravity가 읽는다). Claude Code는 CLAUDE.md의 @AGENTS.md로 불러온다.
 //
 // 사용자가 쓴 내용은 덮어쓰지 않는다. 이미 다른 내용이 있으면 건너뛰고 할 일을 알린다.
-// 예외는 --upgrade뿐이다. 옛 검사기, 옛 모양의 harness/config.json, 설치된 장부 명령 파일(backlog·ledger·questions·page·patch·serve·guard·stop), 제미나이 역할 파일(readonly·research·breaker), 깐 버전(harness/VERSION)을 새것으로 바꾸고
+// 예외는 --upgrade뿐이다. 옛 검사기, 옛 모양의 harness/config.json, 설치된 일감 목록 명령 파일(backlog·ledger·questions·page·patch·serve·guard·stop)과 공용 물레방아 여섯 파일(mullebanga*), 제미나이 역할 파일(readonly·research·breaker), 깐 버전(harness/VERSION), .codex/hooks.json·.agents/hooks.json의 옛 훅 명령을 새것으로 바꾸고
 // 우리가 만든 pre-commit에 막는 훅 줄을 더한다. 사용자가 승인했고 미리보기에서 [고침]으로 먼저 보인다.
 // --apply면 대상 폴더를 명부(~/.harness-starter/projects.json)에 한 번 적는다. 업그레이드 명령이 이 명부로 프로젝트를 찾는다.
 // 대상이 git 워크트리면 메인 작업 폴더를 적는다. 워크트리는 작업이 끝나면 지워진다.
@@ -20,48 +20,41 @@ import { toolsConfig } from './tools.mjs';
 
 const TEMPLATES = fileURLToPath(new URL('../templates/', import.meta.url));
 const { version: VERSION } = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-const PARTS = ['instructions', 'claude-hook', 'codex-hook', 'antigravity-hook', 'git-hook', 'lean-review', 'backlog'];
+const PARTS = ['instructions', 'claude-hook', 'workbuddy-hook', 'codex-hook', 'antigravity-hook', 'git-hook', 'lean-review', 'backlog'];
 const BEGIN = '<!-- harness-starter:begin -->';
 const END = '<!-- harness-starter:end -->';
 const CHECK = 'harness/check.mjs';
 const GUARD = 'harness/guard.mjs';
 const STOP = 'harness/stop.mjs';
 const LEDGER = 'harness/backlog.json';
-const UNTRACKED = [LEDGER, `${LEDGER}.tmp`, 'harness/backlog.lock', 'harness/questions.html', 'harness/serve.json', 'harness/serve.json.tmp', 'harness/serve.log'];
-const CLAUDE_COMMAND = `node "$CLAUDE_PROJECT_DIR/${CHECK}" --hook`;
-const ROOT_COMMAND = `node "$(git rev-parse --show-toplevel)/${CHECK}" --hook`;
-const GUARD_ROOT_COMMAND = `node "$(git rev-parse --show-toplevel)/${GUARD}" --hook`;
+const UNTRACKED = [LEDGER, `${LEDGER}.tmp`, 'harness/backlog.lock', 'harness/questions.html', 'harness/serve.json', 'harness/serve.json.tmp', 'harness/serve.log', '.claude/worktrees/'];
 // 도구별 "파일을 고친 직후" 훅: 설정 파일, 편집 도구 이름, 훅 항목을 넣을 자리(공식 문서 2026-10-06).
-// guard는 "도구를 쓰기 전" 훅(작업 장부를 설치할 때만). 이름은 도구마다 다르다(공식 문서와 직접 시험 2026-10-10).
-// stop은 Claude Code가 멈추려 할 때 진행중 작업이 있으면 이유를 설명하게 하는 훅(작업 장부를 설치할 때만). Stop은 matcher를 받지 않는다.
-// Codex: apply_patch(편집)·Bash. 읽기 전용 도구가 없어 장부 읽기는 Bash 명령 글로만 거른다. Antigravity: 편집 셋·run_command·view_file.
+// guard는 "도구를 쓰기 전" 훅(일감 목록을 설치할 때만). 이름은 도구마다 다르다(공식 문서와 직접 시험 2026-10-10).
+// stop은 Claude Code가 멈추려 할 때 진행중 작업이 있으면 이유를 설명하게 하는 훅(일감 목록을 설치할 때만). Stop은 matcher를 받지 않는다.
+// Codex: apply_patch(편집)·Bash. 읽기 전용 도구가 없어 일감 목록 읽기는 Bash 명령 글로만 거른다. Antigravity: 편집 셋·run_command·view_file.
+const HOOK_CLAUDE = { matcher: 'Edit|Write|MultiEdit', command: `node "$CLAUDE_PROJECT_DIR/${CHECK}" --hook`, guard: { matcher: 'Read|Edit|Write|MultiEdit|Bash', command: `node "$CLAUDE_PROJECT_DIR/${GUARD}" --hook` }, stop: `node "$CLAUDE_PROJECT_DIR/${STOP}"` };
 const HOOKS = {
-  'claude-hook': {
-    rel: '.claude/settings.json',
-    matcher: 'Edit|Write|MultiEdit',
-    command: CLAUDE_COMMAND,
-    guard: { matcher: 'Read|Edit|Write|MultiEdit|Bash', command: `node "$CLAUDE_PROJECT_DIR/${GUARD}" --hook` },
-    stop: `node "$CLAUDE_PROJECT_DIR/${STOP}"`,
-  },
+  'claude-hook': { rel: '.claude/settings.json', ...HOOK_CLAUDE },
+  'workbuddy-hook': { rel: '.codebuddy/settings.json', ...HOOK_CLAUDE },
   'codex-hook': {
     rel: '.codex/hooks.json',
     matcher: 'apply_patch|Edit|Write',
-    command: ROOT_COMMAND,
-    guard: { matcher: 'apply_patch|Bash', command: GUARD_ROOT_COMMAND },
+    command: `node ${CHECK} --hook`,
+    guard: { matcher: 'apply_patch|Bash', command: `node ${GUARD} --hook` },
   },
   'antigravity-hook': {
     rel: '.agents/hooks.json',
     group: 'harness-starter',
     matcher: 'write_to_file|replace_file_content|multi_replace_file_content',
-    command: ROOT_COMMAND,
-    guard: { matcher: 'write_to_file|replace_file_content|multi_replace_file_content|run_command|view_file', command: GUARD_ROOT_COMMAND },
+    command: `node ../${CHECK} --hook`,
+    guard: { matcher: 'write_to_file|replace_file_content|multi_replace_file_content|run_command|view_file', command: `node ../${GUARD} --hook` },
   },
 };
 const GIT_LINE = `node ${CHECK} --staged || exit 1`;
 const GUARD_LINE = `if [ -f ${GUARD} ]; then node ${GUARD} --staged || exit 1; fi`;
 const GIT_HOOK = [
   '#!/bin/sh',
-  '# harness-starter: 커밋 전에 간결함 검사를 돌리고, 작업 장부가 있으면 진행중 작업을 확인한다.',
+  '# harness-starter: 커밋 전에 간결함 검사를 돌리고, 일감 목록이 있으면 진행중 작업을 확인한다.',
   `[ -f ${CHECK} ] || exit 0  # 하네스가 없는 브랜치에서는 건너뛴다`,
   GIT_LINE,
   GUARD_LINE,
@@ -166,7 +159,7 @@ function planClaudeMd(target) {
 
 // 훅 설정 파일에 "고친 직후 검사" 항목을 더한다(withBacklog면 "쓰기 전 막기"와 "멈출 때 설명" 항목도). 다른 설정은 그대로 둔다.
 // Antigravity는 이름 붙인 묶음 안에 이벤트를 둔다: { "묶음 이름": { "PostToolUse": [...] } }
-function planHook(target, { rel, group, matcher, command, guard, stop }, withBacklog) {
+function planHook(target, { rel, group, matcher, command, guard, stop }, withBacklog, upgrade) {
   const now = read(path.join(target, rel));
   let settings = {};
   if (now !== null) {
@@ -177,15 +170,18 @@ function planHook(target, { rel, group, matcher, command, guard, stop }, withBac
     }
   }
   const key = group ?? 'hooks';
-  const events = [['PostToolUse', CHECK, matcher, command]];
-  if (guard && withBacklog) events.push(['PreToolUse', GUARD, guard.matcher, guard.command]);
-  if (stop && withBacklog) events.push(['Stop', STOP, undefined, stop]);
+  const events = [['PostToolUse', CHECK, matcher, command, true]];
+  if (guard) events.push(['PreToolUse', GUARD, guard.matcher, guard.command, withBacklog]);
+  if (stop && withBacklog) events.push(['Stop', STOP, undefined, stop, true]);
   let changed = false;
-  for (const [event, marker, eventMatcher, eventCommand] of events) {
+  for (const [event, marker, eventMatcher, eventCommand, add] of events) {
     const entries = settings[key]?.[event] ?? [];
-    if (JSON.stringify(entries).includes(marker)) continue;
-    const hook = { matcher: eventMatcher, hooks: [{ type: 'command', command: eventCommand }] };
-    settings[key] = { ...settings[key], [event]: [...entries, hook] };
+    for (const h of upgrade && rel !== '.claude/settings.json' ? entries.flatMap(e => e.hooks ?? []).filter(h => h.command === `node "$(git rev-parse --show-toplevel)/${marker}" --hook`) : []) {
+      h.command = eventCommand;
+      changed = true;
+    }
+    if (!add || JSON.stringify(entries).includes(marker)) continue;
+    settings[key] = { ...settings[key], [event]: [...entries, { matcher: eventMatcher, hooks: [{ type: 'command', command: eventCommand }] }] };
     changed = true;
   }
   return changed ? decide(rel, now, `${JSON.stringify(settings, null, 2)}\n`) : { rel, action: 'same' };
@@ -218,17 +214,17 @@ function planGitHook(target, upgrade) {
   return { ...decide(rel, now, now ?? GIT_HOOK), mode: 0o755 };
 }
 
-// 작업 장부: 명령 파일(backlog, ledger, questions, page, patch, serve, 멈출 때 설명 훅 stop, 막는 훅 guard)을 복사하고, 장부 파일(장부, 잠금, 질문 페이지)과 서버 상태·로그(토큰이 든 serve.json, serve.log)는 git에 올리지 않게 .git/info/exclude에 더한다
-// (워크트리마다 사본이 생겨 상태가 갈라지고, git add -A가 작업 브랜치에 실어 가기 때문이다). 장부는 저장소 맨 위의 harness/에 있어야 한다.
+// 일감 목록: 명령 파일(backlog, ledger, questions, page, patch, serve, 멈출 때 설명 훅 stop, 막는 훅 guard, 공용 물레방아 mullebanga*)을 복사하고, 일감 목록 파일(일감 목록, 잠금, 질문 페이지)과 서버 상태·로그(토큰이 든 serve.json, serve.log)와 물레방아 작업 폴더(.claude/worktrees/)는 git에 올리지 않게 .git/info/exclude에 더한다
+// (워크트리마다 사본이 생겨 상태가 갈라지고, git add -A가 작업 브랜치에 실어 가기 때문이다). 일감 목록은 저장소 맨 위의 harness/에 있어야 한다.
 function planBacklog(target, upgrade) {
   const issue = rootIssue(target);
-  if (issue) return [{ rel: 'harness/backlog.mjs', action: 'skip', note: `${issue}. 작업 장부는 저장소 맨 위에 설치한다` }];
+  if (issue) return [{ rel: 'harness/backlog.mjs', action: 'skip', note: `${issue}. 일감 목록은 저장소 맨 위에 설치한다` }];
   const excludePath = path.resolve(target, git(target, ['rev-parse', '--git-path', 'info/exclude']));
   const exclude = path.relative(target, excludePath).split(path.sep).join('/');
   const now = read(path.join(target, exclude));
   const kept = now && !now.endsWith('\n') ? `${now}\n` : (now ?? '');
   const missing = UNTRACKED.filter(line => !now?.split('\n').includes(line));
-  const files = ['backlog', 'ledger', 'questions', 'page', 'patch', 'serve', 'stop'].map(name => `harness/${name}.mjs`);
+  const files = ['backlog', 'ledger', 'questions', 'page', 'patch', 'serve', 'stop', 'mullebanga', 'mullebanga-call', 'mullebanga-git', 'mullebanga-prompts', 'mullebanga-review', 'mullebanga-steps'].map(name => `harness/${name}.mjs`);
   return [
     ...[...files, GUARD].map(rel => planCopy(target, rel, rel, upgrade)),
     missing.length ? decide(exclude, now, `${kept}${missing.join('\n')}\n`) : { rel: exclude, action: 'same' },
@@ -239,7 +235,7 @@ function plan(target, without, upgrade, main) {
   const wants = part => !without.includes(part);
   const items = [];
   if (wants('instructions')) items.push(planBlock(target, 'AGENTS.md'), planClaudeMd(target));
-  if (['claude-hook', 'codex-hook', 'antigravity-hook', 'git-hook', 'backlog'].some(wants)) {
+  if (['claude-hook', 'workbuddy-hook', 'codex-hook', 'antigravity-hook', 'git-hook', 'backlog'].some(wants)) {
     if (upgrade) {
       items.push(...planUpgrade(target, main, without));
     } else {
@@ -249,9 +245,9 @@ function plan(target, without, upgrade, main) {
   const issue = rootIssue(target);
   for (const [part, hook] of Object.entries(HOOKS)) {
     if (!wants(part)) continue;
-    // Claude Code는 CLAUDE_PROJECT_DIR로 검사기를 찾으므로 저장소 맨 위가 아니어도 된다.
+    // Claude Code·WorkBuddy는 CLAUDE_PROJECT_DIR로 검사기를 찾으므로 저장소 맨 위가 아니어도 된다.
     const note = `${issue}. 이 훅은 저장소 맨 위에 설치한다`;
-    items.push(issue && part !== 'claude-hook' ? { rel: hook.rel, action: 'skip', note } : planHook(target, hook, wants('backlog') && !issue));
+    items.push(issue && !['claude-hook', 'workbuddy-hook'].includes(part) ? { rel: hook.rel, action: 'skip', note } : planHook(target, hook, wants('backlog') && !issue, upgrade));
   }
   // 제미나이 역할(agy --agent readonly·research·breaker): readonly·research는 쓰기 도구를 모델에 넘기지 않는다. 검사기 경로가 필요 없어 저장소 맨 위가 아니어도 깐다.
   // research는 조사용이라 웹 도구를 더 받고, readonly는 검토용이라 읽기 도구만 받는다. breaker는 깨뜨려 보기용이라 명령 도구를 받고 물레방아가 sandbox-exec 안에서만 부른다.
@@ -259,9 +255,9 @@ function plan(target, without, upgrade, main) {
     for (const role of ['readonly', 'research', 'breaker']) items.push(planCopy(target, `.agents/agents/${role}.md`, `antigravity/${role}.md`, upgrade));
   }
   if (wants('git-hook')) items.push(planGitHook(target, upgrade));
-  // lean-review: Codex·Antigravity·OpenClaw는 .agents/skills, Claude Code는 .claude/skills에서 찾는다.
+  // lean-review: Codex·Antigravity·OpenClaw는 .agents/skills, Claude Code는 .claude/skills, WorkBuddy는 .codebuddy/skills에서 찾는다.
   if (wants('lean-review')) {
-    for (const dir of ['.agents/skills', '.claude/skills']) {
+    for (const dir of ['.agents/skills', '.claude/skills', '.codebuddy/skills']) {
       items.push(planCopy(target, `${dir}/lean-review/SKILL.md`, 'lean-review/SKILL.md'));
     }
   }

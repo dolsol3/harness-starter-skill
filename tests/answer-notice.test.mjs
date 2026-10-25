@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { repo, ok, refused, rewrite } from './helpers.mjs';
+import { repo, ok, refused, rewrite, stopServerAtEnd } from './helpers.mjs';
 import { answerNotice } from '../templates/harness/questions.mjs';
 
 const READ = '메인은 node harness/backlog.mjs 질문목록 --상태 답함(고칠것은 --상태 고칠것)으로 읽는다';
@@ -80,23 +80,11 @@ test('질문목록 shows new answers first, so a new answer after 100 read ones 
   assert.equal(ok(dir, '목록'), 'T-1 [할일] 기능 일');
 });
 
-// 시험이 끝나면 켜두기로 띄운 서버를 끈다(tests/serve-keep.test.mjs의 stopLater와 같다).
-function stopLater(t, dir) {
-  const { pid } = JSON.parse(fs.readFileSync(path.join(dir, 'harness/serve.json'), 'utf8'));
-  t.after(() => {
-    try {
-      process.kill(pid);
-    } catch (error) {
-      if (error.code !== 'ESRCH') throw error;
-    }
-  });
-}
-
 test('with the page kept on, 허락 still ends with the link and the new-answer line is just before it', t => {
   const dir = repo(t);
   ok(dir, '추가', '일');
   ok(dir, '켜두기');
-  stopLater(t, dir);
+  stopServerAtEnd(t, dir);
   ok(dir, ...PERMIT);
   ok(dir, '답', 'Q-1', '둔다');
   const lines = ok(dir, ...PERMIT).split('\n');
