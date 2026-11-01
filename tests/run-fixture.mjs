@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { repo, ok, rewrite } from './helpers.mjs';
+import { repo, ok, rewrite, writeFakeTool, gitDirs } from './helpers.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const fakeTool = fs.readFileSync(path.join(root, 'tests/fake-tool.cjs'), 'utf8');
@@ -53,11 +53,12 @@ export function setup(t, { tools = ['codex'], bareSpec = false, checkLine = '- �
   });
   const bin = path.join(aux, 'bin');
   fs.mkdirSync(bin);
-  for (const name of ['codex', 'agy', 'claude']) fs.writeFileSync(path.join(bin, name), fakeTool, { mode: 0o755 });
+  for (const name of ['codex', 'agy', 'claude']) writeFakeTool(bin, name, fakeTool);
   // 쓰기 묶기를 실제로 걸지 않고 규칙 파일만 FAKE_CALLS.rules에 남기는 가짜: 시험이 호출 기록을 쓰려면 묶이지 않아야 한다. 진짜 묶기는 이 파일을 지워 시험한다.
   fs.writeFileSync(path.join(bin, 'sandbox-exec'), '#!/bin/sh\ncp "$2" "$FAKE_CALLS.rules"\nshift 2\nexec "$@"\n', { mode: 0o755 });
-  const gitDir = path.dirname(execFileSync('which', ['git'], { encoding: 'utf8' }).trim());
-  const searchPath = [bin, path.dirname(process.execPath), gitDir, '/usr/bin', '/bin'].join(path.delimiter);
+  // Windows 본체는 확인 명령용 sh를 `git --exec-path`의 Git 루트에서 찾으므로 git이 잡히는 폴더면 어디든 된다.
+  const gitDir = gitDirs()[0];
+  const searchPath = [bin, path.dirname(process.execPath), gitDir, ...(process.platform === 'win32' ? [path.join(process.env.SystemRoot, 'System32')] : ['/usr/bin', '/bin'])].join(path.delimiter);
   const home = path.join(aux, 'home');
   fs.mkdirSync(home);
   const calls = path.join(aux, 'calls');
@@ -66,7 +67,7 @@ export function setup(t, { tools = ['codex'], bareSpec = false, checkLine = '- �
   scenario({});
   const run = (args, extraEnv = {}) => new Promise(resolve => {
     // TMPDIR은 넘긴다: /tmp 쓰기가 막히고 TMPDIR만 열린 샌드박스(바깥 검토)에서도 본체가 임시 폴더를 만든다.
-    const env = { PATH: searchPath, HOME: home, USERPROFILE: home, FAKE_CALLS: calls, FAKE_SCENARIO: scenarioFile, ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }), ...extraEnv };
+    const env = { PATH: searchPath, HOME: home, USERPROFILE: home, ...(process.platform === 'win32' && { SystemRoot: process.env.SystemRoot, PATHEXT: process.env.PATHEXT }), FAKE_CALLS: calls, FAKE_SCENARIO: scenarioFile, ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }), ...extraEnv };
     const child = spawn(process.execPath, ['harness/mullebanga.mjs', ...args], { cwd: dir, env });
     let stdout = '';
     let stderr = '';

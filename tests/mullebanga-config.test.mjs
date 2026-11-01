@@ -183,20 +183,20 @@ test('otherReviewPrompt reads 일감목록.동시상한 and 단계모델.번갈�
   const { calls } = await run({ args: ['T-1'] });
   const { prompt } = calls.find(call => call.label.startsWith('다른 도구 검토'));
   assert.match(prompt, /일감목록\.동시상한.*backlog\.limits.*단계모델\.번갈아보기/);
-  assert.match(prompt, /기본 검토도구·바깥도구 `gemini`, 바깥모델 `gemini-4-argon-medium`, 폴백도구 `codex`, 폴백모델 `gpt-6\.1-sol`, 폴백추론 `medium`/);
-  assert.match(prompt, /<모델>·<추론>은 그 도구가 `검토도구`면 `바깥모델`·`바깥추론`, 폴백으로 부르면 `폴백모델`·`폴백추론`/);
+  assert.match(prompt, /기본 검토도구·바깥도구 `gemini`, 폴백도구 `codex`/);
+  assert.match(prompt, /<모델>·<추론>은 검토도구면 `바깥모델`·`바깥추론`, 폴백이면 `폴백모델`·`폴백추론`.*없으면 바깥 값→도구 기본값: `gemini`는 `gemini-4-argon-medium`, `codex`는 `gpt-6\.1-sol` `medium`/);
   assert.match(prompt, /codex exec -s workspace-write --ephemeral -m <모델> -c model_reasoning_effort='"<추론>"' -C <임시>\/copy -o <임시>\/result\.txt - < <임시>\/prompt\.txt/);
-  assert.match(prompt, /토큰·한도 부족\(quota·rate limit·usage limit 등\)이나 실행 실패로 검토를 못 하면.*폴백 도구\(`폴백도구`, 기본 `codex`, 모델 `폴백모델` 기본 `gpt-6\.1-sol`, 추론 `폴백추론` 기본 `medium`; `gemini`면 기본 `gemini-4-argon-medium`\)로 폴백/);
-  assert.match(prompt, /sandbox-exec -f <임시>\/sb\.sb env TMPDIR=<임시>\/tmp agy -p "\$\(cat <임시>\/prompt\.txt\)" --model <모델> --agent breaker --output-format json --print-timeout 25m --log-file <임시>\/agy\.log > <임시>\/result\.txt/);
-  assert.match(prompt, /cd <임시>\/copy && HARNESS_READ_ONLY=1 agy -p "\$\(cat <임시>\/prompt\.txt\)" --model <모델> --agent readonly --output-format json --print-timeout 5m > <임시>\/result\.txt/);
+  assert.match(prompt, /토큰·한도 부족\(quota·rate limit·usage limit 등\)이나 실행 실패로 검토를 못 하면.*위에서 정한 모델·추론으로 `폴백도구`를 부른다/);
+  assert.match(prompt, /sandbox-exec -f <임시>\/sb\.sb env TMPDIR=<임시>\/tmp agy --input-format stream-json --output-format stream-json --model <모델> --agent breaker --print-timeout 25m --log-file <임시>\/agy\.log < <임시>\/prompt\.json > <임시>\/result\.txt/);
+  assert.match(prompt, /cd <임시>\/copy && HARNESS_READ_ONLY=1 agy --input-format stream-json --output-format stream-json --model <모델> --agent readonly --print-timeout 5m < <임시>\/prompt\.json > <임시>\/result\.txt/);
 });
 
 test('otherReviewPrompt picks the first of 검토도구, 폴백도구 that is not the author and is in 동시상한, calls nothing when none, and falls back only to a tool meeting the same condition', async () => {
   const { calls } = await run({ args: ['T-1'] });
   const { prompt } = calls.find(call => call.label.startsWith('다른 도구 검토'));
-  assert.match(prompt, /후보는 `검토도구`, `폴백도구` 순서다.*작성 도구가 아니고 `동시상한`에 있는 첫 도구를 고른다/);
+  assert.match(prompt, /`검토도구`→`폴백도구` 중 작성 도구가 아니고 `동시상한`에 있으며 PATH에 있는 첫 도구를 고른다/);
   assert.match(prompt, /고를 도구가 없으면 아무것도 부르지 않고 tool을 빈 문자열.*다른 도구 검토 없음/);
-  assert.match(prompt, /`폴백도구`가 작성 도구가 아니고 `동시상한`에 있을 때만.*이미 `폴백도구`였으면 폴백 없이/);
+  assert.match(prompt, /`폴백도구`가 작성 도구가 아니고 `동시상한`에 있으며 이 컴퓨터에서 실행할 수 있을 때만.*다음 후보.*이미 폴백이었으면 폴백 없이/);
   assert.doesNotMatch(prompt, /기본 검토도구\(`codex`\)를 우선 고르고|작성 도구 `claude` 말고/);
 });
 
@@ -230,7 +230,7 @@ test('otherReviewPrompt has the other tool break the clone: cut origin first, te
   const { calls } = await run({ args: ['T-1'] });
   const { prompt } = calls.find(call => call.label.startsWith('다른 도구 검토'));
   assert.doesNotMatch(prompt, /s read.only/);
-  const order = ['git clone --no-hardlinks . <임시>/copy', 'git checkout --detach c0', 'git remote remove origin', 'mkdir <임시>/home', 'R=${CODEX_HOME:-$HOME/.codex}; cd <임시>/copy && HOME=<임시>/home CODEX_HOME="$R" codex exec'].map(text => prompt.indexOf(text));
+  const order = ['git clone --no-hardlinks . <임시>/copy', 'git checkout --detach c0', 'git remote remove origin', 'mkdir <임시>/home', 'R=${CODEX_HOME:-$HOME/.codex}; cd <임시>/copy && HOME=<임시>/home USERPROFILE=<임시>/home CODEX_HOME="$R" codex exec'].map(text => prompt.indexOf(text));
   assert.ok(order.every((at, index) => at >= 0 && (index === 0 || at > order[index - 1])), order.join());
   assert.ok(prompt.indexOf('pkill -P $(cat <임시>/pid)') < prompt.indexOf('kill $(cat <임시>/pid)`로 부모'), '자식을 먼저 멈춘다');
   assert.match(prompt, /깨뜨릴 입력·환경·순서를 직접 찾아 명령으로 재현한다/);
@@ -239,7 +239,7 @@ test('otherReviewPrompt has the other tool break the clone: cut origin first, te
   assert.match(prompt, /& echo \$! > <임시>\/pid/);
   assert.match(prompt, /timeout 600000으로 최대 3번.*seq 1 110.*sleep 5/);
   assert.match(prompt, /kill \$\(cat <임시>\/pid\).*시간이 다 된 것은 모두 실행 실패/);
-  assert.match(prompt, /HARNESS_READ_ONLY=1 agy -p .* --agent readonly --output-format json --print-timeout 5m/);
+  assert.match(prompt, /HARNESS_READ_ONLY=1 agy --input-format stream-json --output-format stream-json .* --agent readonly --print-timeout 5m/);
 });
 
 test('the gemini breaker path builds the sandbox rule from the real temp path, runs behind the same wait and stop as Codex, and keeps the read-only path for no sandbox-exec or no breaker.md', async () => {
@@ -250,18 +250,18 @@ test('the gemini breaker path builds the sandbox rule from the real temp path, r
   const order = ['git merge-base', 'git remote remove origin', 'mkdir <임시>/home', 'mkdir <임시>/tmp', 'pwd -P', '<임시>/sb.sb`를 만든다', 'agentapi.bak`으로', 'sandbox-exec -f <임시>/sb.sb env', 'cmp <임시>/agentapi.bak'].map(text => prompt.indexOf(text));
   assert.ok(order.every((at, index) => at >= 0 && (index === 0 || at > order[index - 1])), order.join());
   assert.match(line('(version 1)'), /`\(version 1\)` `\(allow default\)` `\(deny file-write\*\)` `\(allow file-write\* \(subpath "<실제 경로>\/copy"\) \(subpath "<실제 경로>\/home"\) \(subpath "<실제 경로>\/tmp"\) \(literal "<실제 경로>\/agy\.log"\) \(subpath "\/dev"\) \(literal "<홈>\/\.gemini\/antigravity-cli\/bin\/agentapi"\)\)`/);
-  assert.match(line('(version 1)'), /`agentapi` 한 파일만 열리고, `done`·`pid`와 그 밖의 진짜 홈은 막힌다.*막으면 `run_command`가 `operation not permitted`로 실패한다.*2026-10-23 사용자가 열기로 정했다/);
-  assert.match(line('cmp <임시>'), /성공·실패는 바로, 시간 초과는 위 멈추기를 마친 뒤에.*\[ ! -L <홈>.*cmp <임시>\/agentapi\.bak <홈>.*내용이 같은지.*되돌리지 않고.*높음으로 더하고 `agentapiChanged`를 true로.*진짜 홈 agentapi가 바뀜.*고치기·다시 검토로 가지 않고 그 작업을 멈춘다/);
+  assert.match(line('(version 1)'), /`agentapi` 한 파일만 열리고, `done`·`pid`와 그 밖의 진짜 홈은 막힌다.*진짜 홈 쓰기 예외다.*2026-10-23 사용자 결정/);
+  assert.match(line('cmp <임시>'), /종료 뒤.*시간 초과면 자손·부모를 멈춘 뒤.*\[ ! -L <홈>.*cmp <임시>\/agentapi\.bak <홈>.*동일 내용을 확인.*되돌리지 않고.*높음으로 더하고 `agentapiChanged`를 true로.*진짜 홈 agentapi가 바뀜.*고치기·다시 검토로 가지 않고 그 작업을 멈춘다/);
   assert.match(line('git merge-base'), /원격을 끊기 전에.*<기준>/);
   assert.match(prompt, /git diff <기준> HEAD/);
-  assert.match(line('pwd -P'), /링크 경로로 적은 규칙은 복사본 쓰기도 막는다/);
+  assert.match(line('pwd -P'), /링크가 아닌 실제 경로를 쓴다/);
   assert.match(line('breaker.md`가 있고'), /command -v sandbox-exec.*하나라도 없으면 읽기 전용 경로/);
   assert.match(line('sandbox-exec -f'), /& echo \$! > <임시>\/pid/);
   assert.match(line('sandbox-exec -f'), /`HARNESS_READ_ONLY`는 주지 않고 `-w`도 쓰지 않는다/);
   assert.match(line('pkill -P'), /자식\(Codex 또는 `agy`\)을 먼저 멈추고/);
   assert.ok(prompt.indexOf('kill $(cat <임시>/pid)`로 부모') < prompt.indexOf('cmp <임시>/agentapi.bak'), '시간 초과면 멈춘 뒤에 비교한다');
-  assert.match(line('폴백해 부른다'), /부르기 전에 Codex가 복사본에 남긴 것을 .*cd <임시>\/copy && git checkout -f --detach c0 && git clean -ffdx` 한 줄로.*`<임시>\/done`과 `<임시>\/pid`를 `rm -f`로 지운다/);
-  assert.match(line('pkill -P'), /가장 깊은 것부터 `kill`로 멈추고, 이어서 `pkill -P/);
+  assert.match(line('위에서 정한 모델·추론'), /부르기 전에 Codex가 복사본에 남긴 것을 .*cd <임시>\/copy && git checkout -f --detach c0 && git clean -ffdx` 한 줄로.*`<임시>\/done`과 `<임시>\/pid`를 `rm -f`로 지운다/);
+  assert.match(line('pkill -P'), /깊은 것부터 `kill`로 멈추고, 이어서 `pkill -P/);
   const printTimeout = Number(line('sandbox-exec -f').match(/--print-timeout (\d+)m/)[1]) * 60;
   const waitSeconds = Number(prompt.match(/최대 (\d)번/)[1]) * Number(prompt.match(/seq 1 (\d+)/)[1]) * Number(prompt.match(/sleep (\d+)/)[1]);
   assert.ok(printTimeout > 908 && printTimeout < waitSeconds, `${printTimeout} ${waitSeconds}`);

@@ -4,16 +4,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setup, calledStages, stoppedAt } from './run-fixture.mjs';
+import { writeFakeTool } from './helpers.mjs';
 import { rolePrompt } from '../templates/harness/mullebanga-prompts.mjs';
 import { runChecks } from '../templates/harness/mullebanga-git.mjs';
 import { callTool, callWritingGemini } from '../templates/harness/mullebanga-call.mjs';
 
+const noSandbox = process.platform === 'win32' && 'Windows에는 sandbox-exec가 없어 제미나이 만들기(쓰기)가 권한으로 멈춘다(맥 전용, W-21)';
 const starts = s => s.called().filter(call => call.ph === 'start');
 const startOf = (s, id, stage) => starts(s).find(call => call.id === id && call.stage === stage);
 const after = (args, flag) => args[args.indexOf(flag) + 1];
 
 // 일감 목록의 배정(claude)과 실제로 쓴 도구(gemini)가 달라야 바깥 검토 codex를 일감 목록이 받는다: 일감 목록은 배정만 보고 검토 도구를 거른다.
-test('단계 도구: 설정의 도구가 먹고 agents·tool 별칭도 먹으며, 도구가 없으면 --도구 값이다', async t => {
+test('단계 도구: 설정의 도구가 먹고 agents·tool 별칭도 먹으며, 도구가 없으면 --도구 값이다', { skip: noSandbox }, async t => {
   const s = setup(t, { tools: ['claude'] });
   s.editConfig(config => {
     delete config.단계모델;
@@ -45,7 +47,7 @@ test('모델·깊이: 클로드는 기본값이나 설정값을 받고, 코덱�
   assert.equal(after(startOf(named, 'T-1', 'specReview').args, '--model'), 'haiku');
 });
 
-test('제미나이 쓰기 단계는 쓰기 규칙을 작업 워크트리에만 열고, 읽기 단계는 규칙을 쓰지 않는다', async t => {
+test('제미나이 쓰기 단계는 쓰기 규칙을 작업 워크트리에만 열고, 읽기 단계는 규칙을 쓰지 않는다', { skip: noSandbox }, async t => {
   const s = setup(t, { tools: ['gemini'] });
   const [task] = (await s.run(['--도구', 'gemini', 'T-1'])).json;
   assert.equal(task.raised, true);
@@ -79,8 +81,7 @@ test('읽기·쓰기 역할: 읽기 단계는 읽기 전용, 만들기는 작업
     const write = ['build', 'fix'].includes(call.stage);
     const task = Number(call.id.slice(2)) - 1;
     assert.equal(modeOf[call.tool](call), modes[call.tool][write ? 1 : 0], `${call.id} ${call.stage}`);
-    const prompt = call.tool === 'agy' ? call.args[call.args.indexOf('-p') + 1] : call.args.at(-1);
-    assert.ok(prompt.startsWith(rolePrompt(s.dir, ROLE[call.stage], '')), `${call.id} ${call.stage}`);
+    assert.ok(call.prompt.startsWith(rolePrompt(s.dir, ROLE[call.stage], '')), `${call.id} ${call.stage}`);
     const inMain = ['spec', 'specReview'].includes(call.stage);
     assert.equal(fs.realpathSync(call.cwd), inMain ? s.dir : fs.realpathSync(worktrees[task]), `${call.id} ${call.stage}`);
     if (call.tool === 'codex') assert.equal(fs.realpathSync(after(call.args, '-C')), fs.realpathSync(call.cwd));
@@ -167,10 +168,10 @@ test('앞 작업 고침 (a): 한글 한 글자의 바이트가 둘로 쪼개져 
 test('앞 작업 고침 (b): 제미나이 쓰기 단계는 권한 모드를 확인하지 못하면 권한 실패이고 읽기 단계는 그대로다', async t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-perm-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  fs.writeFileSync(path.join(dir, 'agy'), '#!/bin/sh\nprintf "%s" "$FAKE_OUT"\n', { mode: 0o755 });
+  writeFakeTool(dir, 'agy', `#!${process.execPath}\nprocess.stdout.write(process.env.FAKE_OUT);\n`);
   const lines = (...events) => `${events.map(event => JSON.stringify(event)).join('\n')}\n`;
   const result = { event: 'result', result: { status: 'SUCCESS', structured_output: { done: true } } };
-  const env = out => ({ PATH: `${dir}:/usr/bin:/bin`, FAKE_OUT: out });
+  const env = out => ({ PATH: [dir, ...(process.platform === 'win32' ? [] : ['/usr/bin', '/bin'])].join(path.delimiter), FAKE_OUT: out });
   const call = (write, out) => callTool({ tool: 'gemini', cwd: dir, prompt: 'x', timeoutMs: 5000, write, env: env(out), schema: { type: 'object', properties: { done: { type: 'boolean' } }, required: ['done'] } });
   const noInit = lines(result);
   const noMode = lines({ event: 'init', init: {} }, result);

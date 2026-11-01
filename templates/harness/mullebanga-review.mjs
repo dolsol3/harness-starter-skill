@@ -5,13 +5,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { callTool, agentapiPath, onPath, intact, sandboxWrap } from './mullebanga-call.mjs';
+import { callTool, agentapiPath, onPath, hasTool, intact, sandboxWrap } from './mullebanga-call.mjs';
 import { schemas } from './mullebanga-prompts.mjs';
 
 const AUTHORS = ['codex', 'gemini', 'claude'];
 const LEVELS = ['높음', '중간', '낮음'];
 const DEFAULT_TIMEOUTS = { breaking: 1500000, readOnly: 300000 };
-const NO_TOOL = '다른 도구 검토 없음: 작성 도구가 아니고 동시상한에 있는 검토·폴백 도구가 없다';
+const NO_TOOL = '다른 도구 검토 없음: 작성 도구가 아니고 동시상한에 있으며 이 컴퓨터에서 실행할 수 있는 검토·폴백 도구가 없다';
 const AGENTAPI_CHANGED = '다른 도구 검토 뒤 진짜 홈 agentapi가 바뀜';
 const DETAIL_LINE = 200;
 const DEFAULT_MODEL = { gemini: 'gemini-4-argon-medium', codex: 'gpt-6.1-sol' };
@@ -43,12 +43,14 @@ function readSettings(repo) {
   };
 }
 
-// 부를 도구 차례: 작성 도구가 아니고 동시상한에 있는 첫 도구, 그것이 검토도구면 폴백도구 한 번.
-function planTools(settings, author) {
+// 부를 도구 차례: 작성 도구가 아니고 동시상한에 있으며 이 컴퓨터에서 실행할 수 있는 첫 도구, 그것이 검토도구면 폴백도구 한 번.
+// 실행할 수 있는지까지 보는 이유: Windows에는 npm이 놓은 `.cmd`만 있는 도구가 있어 고른 뒤에야 실행 실패로 드러난다(2026-10-27).
+function planTools(settings, author, env) {
   const candidates = [settings.reviewTool, settings.fallbackTool, 'claude'];
-  const usable = candidates.filter((tool, i) => candidates.indexOf(tool) === i && tool !== author && AUTHORS.includes(tool) && settings.limits.includes(tool));
-  const [chosen] = usable;
-  const fallback = chosen === settings.reviewTool ? usable.find(tool => tool === settings.fallbackTool && tool !== chosen) : undefined;
+  const usable = candidates.filter((tool, i) => candidates.indexOf(tool) === i && tool !== author && AUTHORS.includes(tool) && settings.limits.includes(tool) && hasTool(tool, env));
+  const [chosen, ...rest] = usable;
+  // 폴백은 설정한 도구가 먼저고, 그 도구를 실행할 수 없으면 다음 후보(보통 claude)로 잇는다.
+  const fallback = chosen === settings.reviewTool ? (rest.find(tool => tool === settings.fallbackTool) ?? rest[0]) : undefined;
   return [chosen, fallback].filter(Boolean);
 }
 
@@ -61,7 +63,7 @@ function toolOptions(settings, tool) {
 }
 
 function git(cwd, ...args) {
-  const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new ReviewFailure(`git ${args[0]} 실패: ${oneLine(result.stderr || result.stdout)}`);
   return result.stdout.trimEnd();
@@ -156,10 +158,10 @@ function attemptGemini(ctx) {
   return breakGemini(ctx, agentapi, backup);
 }
 
-// codex 로그인은 진짜 홈에 있어 HOME만 임시로 바꾸고 CODEX_HOME은 진짜 홈 쪽을 가리킨다.
+// codex 로그인은 진짜 홈에 있어 HOME·USERPROFILE(Windows 홈)을 임시로 바꾸고 CODEX_HOME은 진짜 홈 쪽을 가리킨다.
 const attemptCodex = ctx => callChecked(ctx, {
   tool: 'codex', write: true, prompt: breakPrompt(ctx), ...toolOptions(ctx.settings, 'codex'), timeoutMs: ctx.timeouts.breaking,
-  env: { ...ctx.env, HOME: ctx.home, CODEX_HOME: ctx.env.CODEX_HOME ?? path.join(ctx.realHome, '.codex') },
+  env: { ...ctx.env, HOME: ctx.home, USERPROFILE: ctx.home, CODEX_HOME: ctx.env.CODEX_HOME ?? path.join(ctx.realHome, '.codex') },
 });
 
 // 샌드박스가 allowUnsandboxedCommands:false로 켜져 있어 모든 Bash가 샌드박스 안이다.
@@ -202,7 +204,7 @@ export async function reviewOther(input) {
   const specFile = path.join(repo, 'docs', 'tasks', `${id}.md`);
   if (!fs.existsSync(specFile)) throw new Error(`작업 문서 파일이 없다: ${specFile}`);
   const settings = readSettings(repo);
-  const plan = planTools(settings, author);
+  const plan = planTools(settings, author, env);
   if (!plan.length) return { tool: '', findings: [finding('중간', NO_TOOL)], agentapiChanged: false, attempts: [] };
   const realHome = fs.realpathSync(env.HOME ?? os.homedir());
   // 맥의 /var/folders/…는 /private/var/…로 이어진 링크라 링크 경로의 샌드박스 규칙은 복사본 쓰기도 막는다.

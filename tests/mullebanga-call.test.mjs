@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { writeFakeTool, setTmpdir } from './helpers.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -10,8 +11,7 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const modulePath = path.join(root, 'templates/harness/mullebanga-call.mjs');
 const schema = { type: 'object', additionalProperties: false, properties: { done: { type: 'boolean' } }, required: ['done'] };
 const answer = { done: true };
-
-// 가짜 도구: 받은 인자·작업 폴더·stdin 길이·스키마 파일 내용을 FAKE_LOG에 남기고, 환경 변수로 정한 대로 -o 파일·stdout·stderr를 쓰고 끝낸다.
+// 가짜 도구: 받은 인자·작업 폴더·stdin 전체·스키마 파일 내용을 FAKE_LOG에 남기고, 환경 변수로 정한 대로 -o 파일·stdout·stderr를 쓰고 끝낸다.
 // FAKE_SLEEP이면 자손(오래 자는 node)을 띄워 pid를 FAKE_PIDFILE에 적고(FAKE_LOG·stdin·-o 파일보다 먼저: 시간초과가 이 일 앞에서 일어나면 시험이 읽을 pid가 없다) 안 끝난다. FAKE_TERM_EXIT0이면 SIGTERM을 받고 exit 0으로 끝난다. FAKE_GC_IGNORE_TERM이면 자손이 SIGTERM을 무시한다.
 const FAKE = `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -27,7 +27,7 @@ if (env.FAKE_SLEEP) {
 const schemaFlag = ['--output-schema', '--json-schema'].find(flag => args.includes(flag));
 const schemaFile = schemaFlag && args[args.indexOf(schemaFlag) + 1];
 const schemaText = schemaFile && fs.existsSync(schemaFile) ? fs.readFileSync(schemaFile, 'utf8') : undefined;
-fs.writeFileSync(env.FAKE_LOG, JSON.stringify({ args, cwd: process.cwd(), stdinLength: fs.readFileSync(0).length, schemaText }));
+fs.writeFileSync(env.FAKE_LOG, JSON.stringify({ args, cwd: process.cwd(), stdin: fs.readFileSync(0, 'utf8'), schemaText }));
 if (env.FAKE_FILE !== undefined) fs.writeFileSync(args[args.indexOf('-o') + 1], env.FAKE_FILE);
 if (env.FAKE_OUT_DIR) fs.mkdirSync(args[args.indexOf('-o') + 1]);
 if (env.FAKE_OUT_FIFO) require('node:child_process').execFileSync('mkfifo', [args[args.indexOf('-o') + 1]]);
@@ -43,7 +43,7 @@ function setup(t) {
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const bin = path.join(dir, 'bin');
   fs.mkdirSync(bin);
-  for (const name of ['codex', 'agy', 'claude']) fs.writeFileSync(path.join(bin, name), FAKE, { mode: 0o755 });
+  for (const name of ['codex', 'agy', 'claude']) writeFakeTool(bin, name, FAKE);
   const searchPath = [bin, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter);
   let count = 0;
   const call = async (tool, extra = {}, fake = {}) => {
@@ -84,8 +84,8 @@ test('codex: 인자를 만들고 -o 파일의 결과를 돌려준다', async t =
   assert.ok(args.includes('--json'));
   assert.equal(valueAfter(args, '-m'), 'gpt-x');
   assert.equal(valueAfter(args, '-c'), 'model_reasoning_effort="high"');
-  assert.equal(args.indexOf('--') + 1, args.length - 1);
-  assert.equal(args.at(-1), '일을 해');
+  assert.ok(args.at(-1) === '-' && !args.includes('일을 해'));
+  assert.equal(log.stdin, '일을 해');
   assert.ok(valueAfter(args, '--output-schema').endsWith('schema.json'));
   assert.ok(valueAfter(args, '-o').endsWith('out.json'));
   assert.equal(log.cwd, dir);
@@ -107,7 +107,9 @@ test('gemini: agy 인자를 만들고 result 줄의 structured_output을 돌려�
   const { res, log } = await call('gemini', { timeoutMs: 2500 }, { FAKE_OUT: geminiOut() });
   assert.deepEqual(res, { ok: true, result: answer });
   const { args } = log;
-  assert.equal(valueAfter(args, '-p'), '일을 해');
+  assert.ok(!args.includes('-p') && !args.includes('일을 해'));
+  assert.equal(valueAfter(args, '--input-format'), 'stream-json');
+  assert.deepEqual(JSON.parse(log.stdin), { event: 'user', message: { content: '일을 해' } });
   assert.equal(valueAfter(args, '--output-format'), 'stream-json');
   assert.ok(valueAfter(args, '--json-schema').endsWith('schema.json'));
   assert.equal(valueAfter(args, '--print-timeout'), '3s');
@@ -138,21 +140,20 @@ test('claude: 인자를 만들고 봉투의 structured_output을 돌려준다', 
   assert.ok(args.includes('--no-session-persistence'));
   assert.deepEqual(JSON.parse(valueAfter(args, '--settings')), { sandbox: { enabled: true, allowUnsandboxedCommands: false } });
   assert.deepEqual(args.slice(args.indexOf('--allowedTools') + 1, args.indexOf('--allowedTools') + 3), ['Read', 'Grep']);
-  assert.equal(args.indexOf('--') + 1, args.length - 1);
-  assert.equal(args.at(-1), '일을 해');
+  assert.ok(!args.includes('--') && !args.includes('일을 해') && log.stdin === '일을 해');
   assert.equal(log.cwd, dir);
   const writing = await call('claude', { write: true }, { FAKE_OUT: claudeOut });
   assert.equal(valueAfter(writing.log.args, '--permission-mode'), 'acceptEdits');
   assert.ok(!writing.log.args.includes('--allowedTools'));
 });
 
-test('세 도구 모두 stdin이 닫혀 있다', async t => {
+test('세 도구 모두 지시문을 stdin에 쓰고 닫는다', async t => {
   const { call } = setup(t);
   const fakes = { codex: { FAKE_FILE: JSON.stringify(answer) }, gemini: { FAKE_OUT: geminiOut() }, claude: { FAKE_OUT: claudeOut } };
   for (const tool of Object.keys(fakes)) {
     const { res, log } = await call(tool, { timeoutMs: 8000 }, fakes[tool]);
     assert.equal(res.ok, true, tool);
-    assert.equal(log.stdinLength, 0, tool);
+    assert.ok(log.stdin.includes('일을 해'), tool);
   }
 });
 
@@ -212,8 +213,11 @@ test('결과 없는 exit 0은 결과없음이다', async t => {
 test('codex -o 경로가 폴더나 FIFO여도 읽다 멈추거나 던지지 않고 결과없음이다', async t => {
   const { call } = setup(t);
   for (const fake of [{ FAKE_OUT_DIR: '1' }, { FAKE_OUT_FIFO: '1' }]) {
-    const { res } = await call('codex', {}, fake);
-    assert.deepEqual([res.ok, res.reason], [false, '결과없음'], JSON.stringify(fake));
+    const skip = fake.FAKE_OUT_FIFO && process.platform === 'win32' && 'Windows 파일 시스템에는 FIFO를 만들 수 없다(가짜가 mkfifo를 부른다, W-21)';
+    await t.test(JSON.stringify(fake), { skip }, async () => {
+      const { res } = await call('codex', {}, fake);
+      assert.deepEqual([res.ok, res.reason], [false, '결과없음']);
+    });
   }
 });
 
@@ -282,12 +286,8 @@ test('도구가 없으면 던지지 않고 실패로 돌려주고, 입력이 틀
 test('임시 파일을 지우고, 동시에 불러도 결과가 섞이지 않는다', async t => {
   const { call } = setup(t);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-call-tmp-'));
-  const before = process.env.TMPDIR;
-  t.after(() => {
-    process.env.TMPDIR = before;
-    fs.rmSync(tmp, { recursive: true, force: true });
-  });
-  process.env.TMPDIR = tmp;
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  setTmpdir(t, tmp);
   const ok = await call('codex', {}, { FAKE_FILE: JSON.stringify(answer) });
   const failed = await call('codex', {}, { FAKE_FILE: 'x', FAKE_EXIT: '1' });
   assert.equal(ok.res.ok, true);

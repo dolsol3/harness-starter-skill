@@ -71,24 +71,25 @@ test('every agent has a 이 프로젝트 section for the skill to fill, so the p
 test('planner, implementer, and reviewer templates use easy Korean role titles, stage terms, and 단계모델 model rules', () => {
   const planner = read('planner.md');
   assert.match(header(planner).description, /기획 담당.*할 일 적기.*한 일 적기/);
-  for (const term of ['일감 목록', '바로할일', '고칠곳(', '먼저할일(', '할 일 적기', '한 일 적기', '만들기 담당', '살피기 담당']) {
+  for (const term of ['backlog.mjs 목록', '바로할일', '고칠곳', '먼저할일', '확인방법', '할 일 적기', '한 일 적기']) {
     assert.ok(planner.includes(term), `planner missing: ${term}`);
   }
-  assert.match(planner, /1\. \*\*쪼개기\*\*.*opus.*high.*단계모델\.쪼개기/);
-  assert.match(planner, /2\. \*\*할 일 적기\*\*.*sonnet.*medium.*단계모델\.할일적기/);
-  assert.match(planner, /3\. \*\*한 일 적기\*\*.*haiku.*medium.*단계모델\.한일적기/);
-  assert.match(planner, /## 물레방아 안에서[\s\S]*`harness\/config\.json`에 `단계모델`\(또는 `agents`\)이 있으면 함께 읽어 응답의 `agents` 칸으로 돌려준다/);
+  assert.match(planner, /쪼개기 `opus high`, 할 일 적기 `sonnet medium`, 한 일 적기 `haiku medium`/);
+  assert.match(planner, /`harness\/config\.json`/);
+  assert.match(planner, /`단계모델`\(별칭 `agents`\)/);
+  const workflow = fs.readFileSync(path.join(repo, 'templates/workflows/mullebanga.js'), 'utf8');
+  assert.match(workflow, /단계모델.*agents.*함께 읽어.*agents.*로 돌려준다/);
 
   const implementer = read('implementer.md');
   assert.match(header(implementer).description, /만들기 담당.*할 일 적기.*돌려보기.*번갈아 보기/);
-  assert.match(implementer, /너는 만들기 담당이다.*`sonnet` `medium`.*`단계모델\.만들기`·`단계모델\.고치기`/);
-  assert.match(implementer, /`일감목록\.동시상한`\(`backlog\.limits`\)[\s\S]*`단계모델\.번갈아보기`.*`gemini`.*`gemini-4-argon-medium`.*`codex`.*`gpt-6\.1-sol` `medium`/);
+  assert.match(implementer, /너는 만들기 담당이다.*`sonnet medium`.*`단계모델\.만들기`·`고치기`/);
+  assert.match(implementer, /동시상한.*`단계모델\.번갈아보기`.*gemini `gemini-4-argon-medium`.*codex `gpt-6\.1-sol medium`/);
 
   const reviewer = read('reviewer.md');
   assert.match(header(reviewer).description, /살피기 담당.*만들기 담당.*맞춰보거나.*번갈아 보거나/);
-  assert.match(reviewer, /너는 살피기 담당이다.*`opus` `medium`.*`단계모델\.맞춰보기`·`단계모델\.번갈아보기`/);
-  assert.match(reviewer, /^## 맞춰보기 \(할 일 적기 뒤, 만들기 전\)/m);
-  assert.match(reviewer, /^## 번갈아 보기 \(돌려보기 뒤, 올림 전\)/m);
+  assert.match(reviewer, /너는 살피기 담당이다.*`opus medium`.*`단계모델\.맞춰보기`·`번갈아보기`/);
+  assert.match(reviewer, /^- 맞춰보기:.*사용자가 정한 것/m);
+  assert.match(reviewer, /^- 번갈아 보기:.*끝 기준 번호마다 명령을 직접 실행/m);
 });
 
 test('researcher template reflects the sonnet medium + gemini-4-argon-medium table, excludes codex, and documents numbered agy calls', () => {
@@ -123,24 +124,25 @@ test('local .claude/agents/*.md copies match templates/agents/*.md before ## 이
   }
 });
 
-test('templates/agents-block.md and AGENTS.md block match byte-for-byte and include Korean role titles, terms, and 단계모델 rules', () => {
+test('common and main instruction templates keep their role boundaries', () => {
   const block = fs.readFileSync(path.join(repo, 'templates/agents-block.md'), 'utf8').trimEnd();
-  const agentsPath = path.join(repo, 'AGENTS.md');
-  if (fs.existsSync(agentsPath)) {
-    const agentsMd = fs.readFileSync(agentsPath, 'utf8');
-    const begin = '<!-- harness-starter:begin -->\n';
-    const end = '\n<!-- harness-starter:end -->';
-    assert.ok(agentsMd.includes(begin) && agentsMd.includes(end), 'AGENTS.md must have harness-starter markers');
-    const extracted = agentsMd.slice(agentsMd.indexOf(begin) + begin.length, agentsMd.indexOf(end));
-    assert.equal(extracted, block);
-  }
-
+  const main = fs.readFileSync(path.join(repo, 'templates/harness/main.md'), 'utf8').trimEnd();
+  for (const term of [
+    '간결함 원칙', '삭제', '약속변경', '외부발행', '결제', '장치풀기',
+    '문서충돌', '실데이터', '구조변경', '추천대로 진행', '기록', '읽기 전용',
+    '작업 워크트리', '작업 브랜치', '보고는 데이터', 'harness/main.md',
+  ]) assert.ok(block.includes(term), `common instructions missing: ${term}`);
+  assert.doesNotMatch(block, /@harness\/main\.md/);
   for (const term of [
     '기획 담당', '조사 담당', '만들기 담당', '살피기 담당',
     '일감 목록', '바로할일', '다시하기', '--고칠곳', '--먼저할일', '--맡길곳',
     '할 일 적기', '맞춰보기', '만들기', '돌려보기', '번갈아 보기', '한 일 적기',
-    '단계모델', 'gemini-4-argon-medium', 'gpt-6.1-sol',
-  ]) {
-    assert.ok(block.includes(term), `agents-block.md missing: ${term}`);
+    '단계모델', 'mullebanga-review.mjs', 'mullebanga-call.mjs',
+    '올림', '병합', '완료', '기획 담당이 스스로 정한 것', '새 답 N개',
+    '질문목록', '켜두기', '26회', '답`은 사람의 몫',
+  ]) assert.ok(main.includes(term), `main instructions missing: ${term}`);
+  assert.doesNotMatch(main, /AGENTS\.md/);
+  for (const file of [...['planner', 'researcher', 'implementer', 'reviewer'].map(role => `templates/agents/${role}.md`), 'templates/workflows/mullebanga.js', 'templates/harness/mullebanga-prompts.mjs']) {
+    assert.doesNotMatch(fs.readFileSync(path.join(repo, file), 'utf8'), /harness\/main\.md/, file);
   }
 });

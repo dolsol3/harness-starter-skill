@@ -24,7 +24,7 @@ const KEEP = ['.env', '.env.*', ...LOCKS, '.git'];
 const START = 'node harness/backlog.mjs 추가 "제목"으로 작업을 만들고 시작 T-1 --고칠곳(--영역) … --확인방법 "…"으로 시작한 뒤 고친다';
 let config;
 
-const git = args => execFileSync('git', ['-c', 'core.quotePath=false', ...args], { encoding: 'utf8' }).trim();
+const git = args => execFileSync('git', ['-c', 'core.quotePath=false', ...args], { encoding: 'utf8', windowsHide: true }).trim();
 
 function loadConfig() {
   try {

@@ -5,6 +5,31 @@
 
 ## [Unreleased]
 
+- 공통 AGENTS 블록에서 메인 운영 절차를 `harness/main.md`로 분리하고, 물레방아 역할·단계의 중복 지시를 줄였다. instructions는 두 지침을 함께 설치하며 운영 파일 충돌 시 지침 세 파일을 함께 보존한다.
+
+## [0.9.1] - 2026-10-29
+
+- 물레방아 할 일 적기 검사가 specText의 줄 머리 `## 사용자 원래 말` 제목만 막고, 본문에서 그 절을 가리키는 말은 통과시킨다. 확인 명령 시간 기본값을 300초에서 900초로 늘렸다(두 워크트리를 같이 돌리면 전체 pytest가 300초를 넘겼다).
+- 물레방아 바깥 검토 codex 호출이 `HOME`과 함께 `USERPROFILE`도 임시 홈으로 줘서 Windows에서 실제 명부(`~/.harness-starter/`)에 적히지 않는다. 역할 파일에 검증용 설치는 HOME·USERPROFILE을 임시 폴더로 하라는 지침을 더했다.
+
+## [0.9.0] - 2026-10-28
+
+- Windows에서 하네스가 띄우는 모든 자식 프로세스(도구 호출·확인 명령·질문 페이지 서버·git 등)가 새 콘솔 창을 만들지 않게 `windowsHide: true`를 더했다.
+- 설치기(`install.mjs --main`)의 도구 찾기가 물레방아와 같은 `onPath`를 써서 Windows의 `codex.cmd`·`agy.exe`·`claude.exe`도 찾는다. PATH 항목의 폴더·권한 오류는 던지지 않고 없는 것으로 본다.
+- 물레방아가 Windows에서 npm이 놓은 `.cmd` 도구(`codex`)도 셸 없이 부른다. `.cmd` 안의 `.js`를 꺼내 `node`로 직접 부르고, 도구 후보 판정(`onPath`)도 같은 함수(`launcher`)를 쓴다.
+- 공개본 내보내기(`export-public.mjs`)가 Windows에서도 대상의 `npm test`를 부른다(셸 없이 `node npm-cli.js test`). 시험은 대상 시험이 실제로 돈 표지 파일을 확인한다.
+- `install.mjs --upgrade`가 프로젝트에 이미 있는 역할 사본(`.claude/agents/`)과 물레방아 사본(`.claude/workflows/mullebanga.js`)도 새 템플릿으로 맞춘다. 역할 파일은 `## 이 프로젝트` 줄부터 끝까지를 지키고, 없는 사본은 만들지 않는다.
+- 고친 직후 명령(`afterEdit`)을 실행하지 못해도(Windows `.cmd` 등) 잡히지 않은 예외로 죽지 않고 알림(종료 2)으로 알려 한도 위반 알림을 덮지 않는다. Windows `.cmd` 도구는 `node 진입파일`로 적는다고 안내했다.
+- 물레방아가 도구 지시문을 명령줄 인자 대신 stdin으로 넘긴다(Windows 명령줄 길이 한도 회피, 제미나이 `agy`는 `--input-format stream-json` 한 줄). stdin 전달 오류는 실패로 본다.
+- Windows에서 시간 초과 때 `taskkill /T /F`로 자손 프로세스까지 끈다. 끄기가 실패해도 시간 안에 돌아오고 남은 pid를 드러낸다.
+- Windows에서 확인 명령용 `sh`를 `git --exec-path`가 가리키는 Git 루트의 `usr\bin\sh.exe`에서 찾는다(`mingw64\bin`에서 git이 잡혀도 맞다).
+- 번갈아 보기 바깥 검토 도구를 고르기 전에 PATH에서 실행할 수 있는지 보고, 못 쓰면 다음 후보(`claude`)로 넘어간다. 도구 이름과 실행 파일 이름이 다른 것(제미나이 `agy`)을 반영했다.
+- 질문 페이지 상태 파일 바꿔 끼우기가 Windows에서 `EPERM`이면 잠깐 기다렸다 다시 한다.
+- Windows에서 돌지 못하던 시험(가짜 도구, 링크, 경로 구분자, 한글 이름, 서버 프로세스 확인 등)을 고치거나 이유를 붙여 건너뛰게 했다. 사용자에게 보이는 동작은 바뀌지 않는다.
+- Windows에서 물레방아가 도구를 못 찾거나 낡은 판을 잡던 것을 고쳤다. npm이 놓은 `.cmd`가 `.js`가 아니라 `.exe`를 가리켜(`claude`) `launcher`가 `undefined`가 되던 것을 그 대상까지 풀게 하고, `HARNESS_CLAUDE_BIN`·`HARNESS_CODEX_BIN`·`HARNESS_GEMINI_BIN`으로 실행 파일을 바꿔 끼울 수 있게 했다. 도구마다 처음 부를 때 `--version`을 표준 오류에 남기고, `--help`에 없는 인자(`--permission-prompts`)는 빼고 부른다.
+- 검사 명령의 `python`이 프로젝트가 쓰는 인터프리터와 다를 수 있어 `harness/config.json`의 `일감목록.파이썬`(별칭 `python`)으로 바꿔 끼울 수 있게 했다.
+- 바깥 검토가 `agy`의 `response`에 같은 JSON을 여러 번 담아 오면 마지막으로 성립하는 JSON 객체를 써서, 지적 0건이 '검토 실패'로 기록되던 것을 고쳤다.
+
 ## [0.8.1] - 2026-10-26
 
 ### Added

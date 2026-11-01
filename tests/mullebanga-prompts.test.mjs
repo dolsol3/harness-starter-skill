@@ -125,3 +125,74 @@ test('evidencePrompt: 읽기 전용이고 올림 명령을 시키지 않으며 E
   assert.doesNotMatch(text, /backlog\.mjs 올림/);
   assert.ok(text.indexOf('implementer 본문 끝') < text.indexOf('abc123'));
 });
+
+// 실제 역할과 프로젝트 지침을 합친 입력을 포착한다. 도구는 기존 가짜 실행기를 쓴다.
+async function workflowCalls() {
+  const source = fs.readFileSync(new URL('../templates/workflows/mullebanga.js', import.meta.url), 'utf8');
+  const body = source.replace(/^export const meta = \{[\s\S]*?\n\};\n/, '');
+  const calls = [];
+  const agent = async (prompt, options) => {
+    calls.push({ prompt, ...options });
+    if (options.phase === '할 일 적기') return { outcome: '건너뜀', pendingQuestions: [], rejectedCommit: '' };
+    if (options.phase === '만들기') return { worktree: '/repo/work', branch: 'ai/sample', commit: 'abc' };
+    return { passed: true, findings: [], tool: 'gemini', raised: true };
+  };
+  const pipeline = (items, ...stages) => Promise.all(items.map(async item => {
+    for (const stage of stages) item = await stage(item);
+    return item;
+  }));
+  await new (async () => {}).constructor('agent', 'pipeline', 'parallel', 'phase', 'log', 'args', body)(
+    agent, pipeline, jobs => Promise.all(jobs.map(job => job())), () => {}, () => {}, ['T-1'],
+  );
+  return calls;
+}
+
+const actualRole = role => fs.readFileSync(new URL(`../templates/agents/${role}.md`, import.meta.url), 'utf8');
+const requireParts = (text, parts) => {
+  for (const part of parts) assert.ok(text.includes(part), `필수 지시 없음: ${part}`);
+};
+
+test('직접 호출 역할은 책임·권한·근거·보고를 유지하고 기획은 전체 기록 읽기나 공통 지침 복사를 시키지 않는다', () => {
+  const planner = actualRole('planner');
+  requireParts(planner, ['쪼개기', '종류', '고칠곳', '먼저할일', '확인방법', '원인·방향', '한 일 적기', '## 한 일', '파일:줄', '사용자 말:', '날짜·이유', '확인 못 함', 'docs/tasks/', '코드는 고치지 않는다', '실험 필요', '메인에게']);
+  requireParts(planner, ['필요한 대목만', '공통 운영 지침은 복사하지 않는다']);
+  assert.doesNotMatch(planner, /먼저.*docs\/.*결정 기록/);
+  const implementer = actualRole('implementer');
+  requireParts(implementer, ['직접 호출', '처음은 만들기·검증·커밋', '다시 맡았을 때만', '--증거', '--검토', '작성 도구가 아니고', '원격 없는 버릴 복사본', '후보 없으면 부르지', '같은 도구를 반복하지', '실제 검토 도구만', '병합·푸시는 하지 않는다', 'harness/backlog.json', '문서와 다른 점']);
+  const reviewer = actualRole('reviewer');
+  requireParts(reviewer, ['생각·보고 없이', '작은 문서 수정', 'git diff', '코드·시험·설정', '새 규칙·결정', '사실·줄 번호·인용', '정상 흐름으로', '파일:줄', '사용자 결정', '별도 원문', '높음 실패']);
+});
+
+test('CLI와 Claude의 실제 단계 호출에 권한·원문 대조·직접 실행·프로젝트 지침이 전달된다', async t => {
+  const { setup } = await import('./run-fixture.mjs');
+  const s = setup(t);
+  for (const role of ROLES) {
+    const file = path.join(s.dir, '.claude/agents', `${role}.md`);
+    fs.appendFileSync(file, '\n- 실행 확인 방법: `node sample-run.mjs`를 터미널에서 실행\n');
+  }
+  const result = await s.run(['--도구', 'codex', 'T-1']);
+  assert.equal(result.json[0].raised, true, result.stderr);
+  const cli = s.called().filter(call => call.ph === 'start' && call.stage !== 'other');
+  const workflow = await workflowCalls();
+  const claude = workflow.filter(call => call.agentType).map(call => ({
+    ...call,
+    prompt: rolePrompt(s.dir, call.agentType, call.prompt),
+    stage: ({ '할 일 적기': 'spec', '맞춰보기': 'specReview', '만들기': 'build', '번갈아 보기': 'review', '올림': 'evidence' })[call.phase],
+  }));
+  for (const calls of [cli, claude]) {
+    assert.deepEqual(calls.map(call => call.stage), ['spec', 'specReview', 'build', 'review', 'evidence']);
+    for (const call of calls) requireParts(call.prompt, ['node sample-run.mjs', 'HOME', 'USERPROFILE']);
+    requireParts(calls[0].prompt, ['한 글자도 바꾸지 않', '허락', '그 작업은 멈춘다', '확인', '그 작업은 멈추지 않는다', '문서충돌', '실데이터', '구조변경', '기록']);
+    requireParts(calls[1].prompt, ['## 사용자 원래 말', '사용자가 정한 것', '출처', '앞으로', '높음', '중간']);
+    requireParts(calls[2].prompt, ['작업 문서는 고치지 않는다', '범위 밖', '작업 워크트리', 'ai/<작업명>', '100줄', 'git rev-parse --git-common-dir', 'node ci.mjs']);
+    requireParts(calls[3].prompt, ['독립적으로', '명령을 직접 실행', '테스트로 대신하지 않는다', '실행 못 함']);
+    requireParts(calls[4].prompt, ['번호', '명령', '본 결과', '실행 못 함', '다시 부르지 않는다']);
+  }
+  requireParts(cli[0].prompt, ['파일을 쓰지 않고', 'specText', 'asks']);
+  requireParts(cli[2].prompt, ['커밋하지 않는다', '브랜치를 바꾸지 않는다']);
+  requireParts(cli[4].prompt, ['파일을 쓰지 않고', 'unconfirmed']);
+  requireParts(claude[2].prompt, ['git switch -c ai/<작업명>', '만들고 커밋한다']);
+  requireParts(claude[4].prompt, ['backlog.mjs 올림 T-1', '--검토 gemini']);
+  const fix = fixPrompt(s.dir, 'T-1', { passed: false, failures: '고칠 실패' }, []);
+  requireParts(fix, ['작업 워크트리에서만', '보기 T-1', '작업 문서는 고치지 않는다', '커밋하지 않는다']);
+});

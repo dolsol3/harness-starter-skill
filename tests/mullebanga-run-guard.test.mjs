@@ -95,7 +95,7 @@ test('동시상한 0: 그 도구로는 돌리지 않고 이유를 남기며, 멈
   assert.deepEqual(s.called(), []);
 });
 
-test('맡길곳과 실제 작성 도구가 달라 바깥 검토가 맡길곳과 같으면 올리기 전에 이유를 남기고 멈춘다', async t => {
+test('맡길곳과 실제 작성 도구가 달라 바깥 검토가 맡길곳과 같으면 올리기 전에 이유를 남기고 멈춘다', { skip: process.platform === 'win32' && 'Windows에는 sandbox-exec가 없어 제미나이 만들기(쓰기)가 권한으로 멈춘다(맥 전용, W-21)' }, async t => {
   const s = setup(t);
   s.editConfig(config => { config.단계모델.만들기 = { 도구: 'gemini' }; });
   const [task] = (await s.run(['--도구', 'codex', 'T-1'])).json;
@@ -109,7 +109,7 @@ test('읽기 단계 claude는 Bash를 통째로 받지 않고 읽기 명령만 �
   const s = setup(t, { tools: ['claude'] });
   const [task] = (await s.run(['--도구', 'claude', 'T-1'])).json;
   assert.equal(task.raised, true);
-  const allowed = call => call.args.slice(call.args.indexOf('--allowedTools') + 1, call.args.indexOf('--'));
+  const allowed = call => call.args.slice(call.args.indexOf('--allowedTools') + 1);
   for (const call of s.called().filter(item => item.ph === 'start' && item.tool === 'claude')) {
     const tools = allowed(call);
     if (call.stage === 'build') assert.deepEqual(tools, ['Bash']);

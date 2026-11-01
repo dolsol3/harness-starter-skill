@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { repo, ok } from './helpers.mjs';
+import { repo, ok, linkDir, fileLinkSkip } from './helpers.mjs';
 
 // 진행중인 작업이 있는 임시 저장소. 지키는 파일은 작업이 있어도 편집 도구로 고치지 못하고 읽기만 된다.
 function project(t) {
@@ -90,7 +90,7 @@ test('protected files under hidden folders and hidden files under .git are refus
   passed(guard(dir, claude(dir, 'Write', path.join(dir, '.hidden/notes.md'))), 'a plain file in a hidden folder');
 });
 
-test('a protected name that is a symbolic link is refused by its own name, not only by its target', t => {
+test('a protected name that is a symbolic link is refused by its own name, not only by its target', { skip: fileLinkSkip }, t => {
   const dir = project(t);
   fs.mkdirSync(path.join(dir, 'secrets'));
   fs.writeFileSync(path.join(dir, 'secrets/prod'), 'KEY=1\n');
@@ -110,7 +110,7 @@ test('a file under a protected folder whose parent is a symbolic link is refused
   fs.mkdirSync(path.join(dir, 'shared-hooks'));
   fs.writeFileSync(path.join(dir, 'shared-hooks/pre-commit'), '#!/bin/sh\n');
   fs.rmSync(path.join(dir, '.git/hooks'), { recursive: true, force: true });
-  fs.symlinkSync('../shared-hooks', path.join(dir, '.git/hooks'));
+  linkDir(path.join(dir, 'shared-hooks'), path.join(dir, '.git/hooks'));
   for (const input of writers(dir, '.git/hooks/pre-commit')) blocked(guard(dir, input), '.git/hooks/pre-commit');
   passed(guard(dir, claude(dir, 'Write', path.join(dir, 'shared-hooks/pre-commit'))), 'the link target itself is not a protected name');
 });

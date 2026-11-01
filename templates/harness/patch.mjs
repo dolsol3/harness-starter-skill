@@ -41,7 +41,7 @@ export function signals(root) {
   let log;
   try {
     log = execFileSync('git', ['log', '-z', `-n${lastCommits}`, '--name-only', '--format=%x01%s', `refs/heads/${baseBranch}`, '--'], {
-      cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 28,
+      cwd: root, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 28,
     });
   } catch (error) {
     if (typeof error.status === 'number') return [];

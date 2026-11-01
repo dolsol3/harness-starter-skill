@@ -7,22 +7,23 @@
 // 원칙은 AGENTS.md에 넣는다(Codex·Antigravity가 읽는다). Claude Code는 CLAUDE.md의 @AGENTS.md로 불러온다.
 //
 // 사용자가 쓴 내용은 덮어쓰지 않는다. 이미 다른 내용이 있으면 건너뛰고 할 일을 알린다.
-// 예외는 --upgrade뿐이다. 옛 검사기, 옛 모양의 harness/config.json, 설치된 일감 목록 명령 파일(backlog·ledger·questions·page·patch·serve·guard·stop)과 공용 물레방아 여섯 파일(mullebanga*), 제미나이 역할 파일(readonly·research·breaker), 깐 버전(harness/VERSION), .codex/hooks.json·.agents/hooks.json의 옛 훅 명령을 새것으로 바꾸고
+// 예외는 --upgrade뿐이다. 옛 검사기, 옛 모양의 harness/config.json, 설치된 일감 목록 명령 파일(backlog·ledger·questions·page·patch·serve·guard·stop)과 공용 물레방아 여섯 파일(mullebanga*), 제미나이 역할 파일(readonly·research·breaker), 이미 있는 역할·물레방아 사본(.claude/agents/, .claude/workflows/mullebanga.js, 역할 파일은 '## 이 프로젝트' 줄부터 지킨다), 깐 버전(harness/VERSION), .codex/hooks.json·.agents/hooks.json의 옛 훅 명령을 새것으로 바꾸고
 // 우리가 만든 pre-commit에 막는 훅 줄을 더한다. 사용자가 승인했고 미리보기에서 [고침]으로 먼저 보인다.
 // --apply면 대상 폴더를 명부(~/.harness-starter/projects.json)에 한 번 적는다. 업그레이드 명령이 이 명부로 프로젝트를 찾는다.
 // 대상이 git 워크트리면 메인 작업 폴더를 적는다. 워크트리는 작업이 끝나면 지워진다.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { restartServer, serverRunning } from './serve-restart.mjs';
 import { fileURLToPath } from 'node:url';
 import { addProject, registryFile } from './registry.mjs';
+import { planRoleCopies } from './role-copies.mjs';
 import { toolsConfig } from './tools.mjs';
+import { planInstructions } from './instructions.mjs';
 
 const TEMPLATES = fileURLToPath(new URL('../templates/', import.meta.url));
 const { version: VERSION } = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const PARTS = ['instructions', 'claude-hook', 'workbuddy-hook', 'codex-hook', 'antigravity-hook', 'git-hook', 'lean-review', 'backlog'];
-const BEGIN = '<!-- harness-starter:begin -->';
-const END = '<!-- harness-starter:end -->';
 const CHECK = 'harness/check.mjs';
 const GUARD = 'harness/guard.mjs';
 const STOP = 'harness/stop.mjs';
@@ -133,30 +134,6 @@ function planUpgrade(target, main, without) {
   return [...items, { ...decide(rel, now, `${JSON.stringify(moved, null, 2)}\n`), note }];
 }
 
-// 원칙 구역: 표시 구역 안만 바꾸고, 구역 밖의 사용자 내용은 그대로 둔다.
-function planBlock(target, rel) {
-  const block = `${BEGIN}\n${template('agents-block.md').trimEnd()}\n${END}`;
-  const now = read(path.join(target, rel));
-  let content = `${block}\n`;
-  if (now !== null && now.includes(BEGIN) && now.includes(END)) {
-    content = now.slice(0, now.indexOf(BEGIN)) + block + now.slice(now.indexOf(END) + END.length);
-  } else if (now !== null) {
-    content = `${now.trimEnd()}\n\n${block}\n`;
-  }
-  return decide(rel, now, content);
-}
-
-// CLAUDE.md가 있으면 Claude Code는 AGENTS.md를 따로 읽지 않는다. 없으면 AGENTS.md를 불러오는 한 줄로 만들고,
-// 이미 있는데 불러오지 않으면 같은 원칙 구역을 넣는다. 불러오는데 예전 구역이 남아 있으면 지운다(원칙은 한 곳에만).
-function planClaudeMd(target) {
-  const now = read(path.join(target, 'CLAUDE.md'));
-  if (now === null) return decide('CLAUDE.md', now, '@AGENTS.md\n');
-  if (!/^@AGENTS\.md\s*$/m.test(now)) return planBlock(target, 'CLAUDE.md');
-  if (!now.includes(BEGIN) || !now.includes(END)) return { rel: 'CLAUDE.md', action: 'same' };
-  const without = now.slice(0, now.indexOf(BEGIN)) + now.slice(now.indexOf(END) + END.length);
-  return decide('CLAUDE.md', now, without.replace(/\n{3,}/g, '\n\n'));
-}
-
 // 훅 설정 파일에 "고친 직후 검사" 항목을 더한다(withBacklog면 "쓰기 전 막기"와 "멈출 때 설명" 항목도). 다른 설정은 그대로 둔다.
 // Antigravity는 이름 붙인 묶음 안에 이벤트를 둔다: { "묶음 이름": { "PostToolUse": [...] } }
 function planHook(target, { rel, group, matcher, command, guard, stop }, withBacklog, upgrade) {
@@ -234,7 +211,7 @@ function planBacklog(target, upgrade) {
 function plan(target, without, upgrade, main) {
   const wants = part => !without.includes(part);
   const items = [];
-  if (wants('instructions')) items.push(planBlock(target, 'AGENTS.md'), planClaudeMd(target));
+  if (wants('instructions')) items.push(...planInstructions(target));
   if (['claude-hook', 'workbuddy-hook', 'codex-hook', 'antigravity-hook', 'git-hook', 'backlog'].some(wants)) {
     if (upgrade) {
       items.push(...planUpgrade(target, main, without));
@@ -262,6 +239,7 @@ function plan(target, without, upgrade, main) {
     }
   }
   if (wants('backlog')) items.push(...planBacklog(target, upgrade));
+  if (upgrade) items.push(...planRoleCopies(target, TEMPLATES));
   // 깐 버전: 업그레이드 명령이 프로젝트마다 보여 준다. 장치 선택과 상관없이 늘 적는다.
   items.push(planKeep(target, 'harness/VERSION', `${VERSION}\n`, upgrade));
   return items;
@@ -293,4 +271,5 @@ else {
   const folder = fs.realpathSync(projectFolder(target));
   console.log(`[명부] ${registryFile()} — ${folder}${addProject(folder) ? '를 적었다' : '는 이미 적혀 있다'}`);
 }
+if (args.includes('--upgrade') && serverRunning(target)) restartServer(target, apply);
 console.log(apply ? '설치했습니다.' : '미리보기입니다. 쓰려면 --apply를 붙입니다.');

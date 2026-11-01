@@ -11,8 +11,14 @@ const LINK = /^질문 페이지: (http:\/\/127\.0\.0\.1:(\d+)\/\?token=([0-9a-f]
 const state = dir => JSON.parse(fs.readFileSync(path.join(dir, 'harness/serve.json'), 'utf8'));
 const status = async url => (await fetch(url)).status;
 
-// 이 저장소의 장부 명령으로 돈 서버 프로세스들(ps에 보이는 명령 줄). 맥의 임시 폴더는 링크라 실제 경로로 찾는다.
-const servers = dir => execFileSync('ps', ['-ax', '-o', 'command'], { encoding: 'utf8' }).split('\n').filter(line => line.includes(`${fs.realpathSync(dir)}/harness/backlog.mjs 서버`));
+function running(pid) {
+  try {
+    return process.kill(pid, 0);
+  } catch (error) {
+    if (error.code === 'ESRCH') return false;
+    throw error;
+  }
+}
 
 // 켜두기를 끝날 때까지 기다려 부르고, 링크를 읽어 돌려준다.
 function keep(t, dir, ...args) {
@@ -49,19 +55,22 @@ test('keep starts one detached server that answers after the command ends, and a
   assert.match(second.out, /이미 켜져 있다/);
   assert.equal(state(dir).pid, pid);
   assert.equal(fs.readFileSync(path.join(dir, 'harness/serve.log'), 'utf8').match(/질문 페이지:/g).length, 1);
-  assert.equal(servers(dir).length, 1);
+  assert.equal(running(pid), true);
   for (const url of [`http://127.0.0.1:${first.port}/`, `http://127.0.0.1:${first.port}/?token=${'0'.repeat(32)}`]) assert.equal(await status(url), 403, url);
 });
 
 test('stop closes the port, a second stop says it is already off, and keep or the foreground server come back with the same link', async t => {
   const dir = repo(t);
   const first = keep(t, dir);
+  const { pid } = state(dir);
   assert.match(ok(dir, '끄기'), /껐다/);
   await assert.rejects(fetch(first.url));
-  assert.deepEqual(servers(dir), []);
+  await gone(pid);
+  assert.equal(running(pid), false);
   assert.deepEqual(Object.keys(state(dir)), ['포트', '토큰'], 'stop keeps the port and token but drops the pid');
   assert.equal(ok(dir, '목록'), '작업이 없다', 'a stopped page is not revived');
-  assert.deepEqual(servers(dir), []);
+  assert.equal(running(pid), false);
+  assert.equal(state(dir).pid, undefined);
   assert.match(ok(dir, '끄기'), /이미 꺼져 있다/);
   const again = keep(t, dir);
   assert.equal(again.url, first.url);
@@ -90,21 +99,28 @@ test('keep and stop work on a port that fetch refuses (6000)', async t => {
   if (!(await freePort(6000))) return t.skip('another program holds port 6000');
   const dir = repo(t);
   assert.equal(keep(t, dir, '--포트', '6000').port, 6000);
+  const { pid } = state(dir);
+  assert.equal(running(pid), true);
   assert.match(ok(dir, '끄기'), /껐다/);
-  assert.deepEqual(servers(dir), []);
+  await gone(pid);
+  assert.equal(running(pid), false);
+  assert.equal(state(dir).pid, undefined);
 });
 
 test('a stored port that another program holds is refused with the port and the reason, and no server is left', async t => {
   const dir = repo(t);
   const { port } = keep(t, dir);
+  const { pid } = state(dir);
   ok(dir, '끄기');
+  await gone(pid);
   const holder = net.createServer();
   await new Promise(resolve => holder.listen(port, '127.0.0.1', resolve));
   t.after(() => holder.close());
   const taken = backlog(dir, '켜두기');
   assert.equal(taken.status, 1);
   assert.match(taken.stderr, new RegExp(`${port} 포트.*EADDRINUSE`));
-  assert.deepEqual(servers(dir), []);
+  assert.equal(state(dir).pid, undefined);
+  assert.match(fs.readFileSync(path.join(dir, 'harness/serve.log'), 'utf8'), /서버를 열지 못했다.*EADDRINUSE/);
 });
 
 test('a state file left from before a restart (dead pid, silent port) starts a new server with the same token', async t => {
@@ -129,11 +145,13 @@ test('a 200 from another server on the stored port is not taken as ours, so stop
   assert.equal(await status(url), 200);
   fs.writeFileSync(path.join(dir, 'harness/serve.json'), JSON.stringify({ 포트: port, 토큰: 'a'.repeat(32), pid: other.pid }));
   assert.match(ok(dir, '끄기'), /이미 꺼져 있다/);
+  assert.equal(state(dir).pid, undefined);
   assert.equal(await status(url), 200, 'the other program is still running');
   const taken = backlog(dir, '켜두기');
   assert.equal(taken.status, 1);
   assert.match(taken.stderr, new RegExp(`${port} 포트.*EADDRINUSE`));
-  assert.deepEqual(servers(dir), []);
+  assert.equal(state(dir).pid, undefined);
+  assert.equal(running(other.pid), true);
 });
 
 test('keep from a worktree runs the main folder\'s commands, so answers still work after the worktree is removed', async t => {
@@ -145,8 +163,13 @@ test('keep from a worktree runs the main folder\'s commands, so answers still wo
   const result = backlog(worktree, '켜두기');
   stopServerAtEnd(t, dir);
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(servers(dir).length, 1, 'the server runs the main folder\'s backlog.mjs');
+  assert.equal(fs.existsSync(path.join(worktree, 'harness/serve.json')), false);
+  assert.equal(fs.existsSync(path.join(dir, 'harness/serve.log')), true);
+  const { pid } = state(dir);
+  assert.equal(running(pid), true);
   execFileSync('git', ['worktree', 'remove', worktree], { cwd: dir });
+  assert.equal(running(state(dir).pid), true);
+  assert.equal(state(dir).pid, pid);
   const [, url, port, token] = result.stdout.match(LINK);
   assert.equal(await status(url), 200);
   const ledger = () => JSON.parse(fs.readFileSync(path.join(dir, 'harness/backlog.json'), 'utf8'));
@@ -171,6 +194,7 @@ test('a ledger command revives a killed kept page with the same link, and leaves
   const dir = repo(t);
   const first = keep(t, dir);
   const { pid } = state(dir);
+  assert.equal(running(pid), true);
   assert.equal(ok(dir, '목록'), '작업이 없다', 'a live page prints no page line');
   assert.equal(state(dir).pid, pid);
   process.kill(pid, 'SIGKILL');
@@ -181,21 +205,21 @@ test('a ledger command revives a killed kept page with the same link, and leaves
   assert.match(revived.stdout, /^질문 페이지를 다시 켰다$/m);
   assert.equal(revived.stdout.match(LINK)[1], first.url);
   assert.equal(await status(first.url), 200);
-  assert.equal(servers(dir).length, 1);
+  assert.equal(running(state(dir).pid), true);
 });
 
 test('a repo that never kept the page starts nothing and prints no page line', t => {
   const dir = repo(t);
   assert.doesNotMatch(ok(dir, '목록'), /질문 페이지/);
   assert.equal(fs.existsSync(path.join(dir, 'harness/serve.json')), false);
-  assert.deepEqual(servers(dir), []);
+  assert.equal(fs.existsSync(path.join(dir, 'harness/serve.log')), false);
 });
 
 test('stop on a state file with a dead pid says it is already off and drops the pid', t => {
   const dir = repo(t);
   fs.writeFileSync(path.join(dir, 'harness/serve.json'), JSON.stringify({ 포트: 1, 토큰: 'a'.repeat(32), pid: 999999 }));
   assert.match(ok(dir, '끄기'), /이미 꺼져 있다/);
-  assert.deepEqual(servers(dir), []);
+  assert.equal(fs.existsSync(path.join(dir, 'harness/serve.log')), false);
   assert.deepEqual(state(dir), { 포트: 1, 토큰: 'a'.repeat(32) });
 });
 
@@ -210,7 +234,8 @@ test('when the stored port is taken, a ledger command still runs and warns on st
   assert.equal(listed.status, 0, listed.stderr);
   assert.equal(listed.stdout.trim(), '작업이 없다');
   assert.match(listed.stderr, new RegExp(`질문 페이지를 다시 켜지 못했다.*${port} 포트.*EADDRINUSE`));
-  assert.deepEqual(servers(dir), []);
+  assert.equal(state(dir).pid, 999999);
+  assert.match(fs.readFileSync(path.join(dir, 'harness/serve.log'), 'utf8'), /서버를 열지 못했다.*EADDRINUSE/);
 });
 
 test('permit and confirm end with the page link while it is on, and record does not', t => {

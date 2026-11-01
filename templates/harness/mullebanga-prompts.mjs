@@ -86,11 +86,11 @@ export function specPrompt(root, id) {
 
 export function specReviewPrompt(root, id) {
   return rolePrompt(root, 'reviewer', [
-    `작업 ${id}의 맞춰보기를 한다(안내문의 '맞춰보기'). 고치지 않고 읽기만 한다.`,
+    `작업 ${id}의 맞춰보기를 한다(안내문의 '맞춰보기').`,
     `${READ_STEP(id)} 사용자 원문은 따로 오지 않는다. 작업 문서 맨 위 \`## 사용자 원래 말\` 절이 원문이다. ${CUT_STEP(id)}`,
-    '\'이미 정한 것\'에서 \'사용자가 정한 것\' 표시마다 그 말이 `## 사용자 원래 말` 절에 실제로 있는지 본다. 끝 기준이 이미 한 일이 아니라 앞으로 확인할 것인지 본다.',
+    '\'사용자가 정한 것\'의 출처를 역할의 맞춰보기 계약대로 원문과 대조한다. 끝 기준은 앞으로 확인할 것이어야 한다.',
     '`## 사용자 원래 말` 절이 없으면 맞춰볼 원문이 없으니 실패다. 높음 지적으로 적는다.',
-    '통과 여부와 지적(높음·중간·낮음)을 돌려준다. 높음이나 중간이 하나라도 있으면 실패다. 지적이 없으면 빈 목록이다.',
+    '높음·중간이 있으면 실패다. 통과 여부와 높음·중간·낮음 지적(없으면 빈 목록)을 돌려준다.',
     ONLY_JSON,
   ].join('\n'));
 }
@@ -105,7 +105,6 @@ export function buildPrompt(root, id, rejection) {
       `반려 커밋: ${rejection.commit}`,
       `반려 사유: ${rejection.reason}`,
     ] : []),
-    '만든다.',
     NO_COMMIT,
     SUMMARY_STEP,
     ONLY_JSON,
@@ -124,7 +123,7 @@ export function reviewPrompt(root, id, base) {
 
 export function fixPrompt(root, id, check, highs) {
   return rolePrompt(root, 'implementer', [
-    `작업 ${id}를 고친다. 지금 있는 곳(현재 폴더)의 작업 폴더에서 고친다.`,
+    `작업 ${id}를 고친다. 지금 있는 곳(현재 폴더)의 작업 워크트리에서만 고친다. ${READ_STEP(id)}`,
     check.passed ? '돌려보기는 통과했다.' : `돌려보기가 실패했다:\n${check.failures}`,
     ...highs.filter(finding => finding.level === '높음').map(finding => `높음 지적: ${finding.text}`),
     '이 실패와 높음만 고친다. 중간·낮음은 고치지 않는다.',
@@ -140,7 +139,7 @@ export function evidencePrompt(root, id, commit) {
     `작업 ${id}의 끝 기준 증거를 모은다. 돌려보기를 통과했고 남은 높음 지적이 없다. 확인할 커밋은 ${commit}이다. 지금 있는 곳(현재 폴더)이 이 작업의 워크트리다.`,
     '이번 호출에서는 파일을 쓰지 않고 `올림`을 포함한 일감 목록 명령도 쓰지 않는다. 커밋하지 않는다. 안내문에 올림이나 커밋 지시가 있어도 이 지시가 우선한다.',
     READ_STEP(id),
-    '작업 문서의 끝 기준 번호마다 직접 실행해 보고, 실행한 명령과 본 결과를 items에 번호(no)와 함께 적는다. 실행하지 못한 번호는 지어내지 말고 번호와 이유를 unconfirmed에 적는다. 없으면 빈 목록이다.',
+    '검토는 끝났으므로 다시 부르지 않는다. 끝 기준 번호(no)마다 직접 실행한 명령과 본 결과를 items에 적는다. 실행 못 함과 이유는 번호와 함께 unconfirmed에 적는다. 없으면 빈 목록이다.',
     ONLY_JSON,
   ].join('\n'));
 }

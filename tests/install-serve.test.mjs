@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { setTimeout as sleep } from 'node:timers/promises';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { tempDir, stopServerAtEnd } from './helpers.mjs';
@@ -33,14 +32,10 @@ function install(dir, ...args) {
 const excludeLines = dir => fs.readFileSync(path.join(dir, EXCLUDE), 'utf8').split('\n');
 const count = (lines, line) => lines.filter(each => each === line).length;
 
-// 이 저장소의 장부 명령으로 돈 서버 프로세스들. 맥의 임시 폴더는 링크라 실제 경로로 찾는다.
-const servers = real => execFileSync('ps', ['-ax', '-o', 'command'], { encoding: 'utf8' }).split('\n').filter(line => line.includes(`${real}/harness/backlog.mjs 서버`));
-
-let keptReal;
+let keptPid;
 
 test('a new install keeps the server state and log out of git, once, even while the server is on', t => {
   const dir = project(t);
-  keptReal = fs.realpathSync(dir);
   assert.match(install(dir), /\[고침\] \.git\/info\/exclude/);
   install(dir, '--apply');
   for (const line of SERVE_LINES) assert.equal(count(excludeLines(dir), line), 1, line);
@@ -51,13 +46,14 @@ test('a new install keeps the server state and log out of git, once, even while 
   stopServerAtEnd(t, dir);
   assert.equal(kept.status, 0, kept.stderr);
   assert.ok(fs.existsSync(path.join(dir, 'harness/serve.json')) && fs.existsSync(path.join(dir, 'harness/serve.log')));
+  keptPid = JSON.parse(fs.readFileSync(path.join(dir, 'harness/serve.json'), 'utf8')).pid;
+  assert.ok(process.kill(keptPid, 0));
   const status = execFileSync('git', ['status', '--short', '-uall'], { cwd: dir, encoding: 'utf8' });
   assert.doesNotMatch(status, /serve\.json|serve\.log/);
 });
 
-test('the server started above is gone after its test ends', async () => {
-  for (let tries = 0; tries < 20 && servers(keptReal).length; tries++) await sleep(100);
-  assert.deepEqual(servers(keptReal), []);
+test('the server started above is gone after its test ends', () => {
+  assert.throws(() => process.kill(keptPid, 0), { code: 'ESRCH' });
 });
 
 test('--apply --upgrade adds the server lines to an old exclude and keeps the ledger lines and the user\'s own line', t => {
@@ -67,4 +63,50 @@ test('--apply --upgrade adds the server lines to an old exclude and keeps the le
   assert.match(install(dir, '--apply', '--upgrade'), /\[고침\] \.git\/info\/exclude/);
   const lines = excludeLines(dir);
   for (const line of [...LEDGER_LINES, 'my-notes.txt', ...SERVE_LINES]) assert.equal(count(lines, line), 1, line);
+});
+
+const serveState = dir => JSON.parse(fs.readFileSync(path.join(dir, 'harness/serve.json'), 'utf8'));
+
+function keepServer(t, dir) {
+  install(dir, '--apply');
+  const kept = spawnSync(process.execPath, ['harness/backlog.mjs', '켜두기'], { cwd: dir, encoding: 'utf8' });
+  stopServerAtEnd(t, dir);
+  assert.equal(kept.status, 0, kept.stderr);
+  return serveState(dir);
+}
+
+test('--apply --upgrade restarts a running server with the same port and token', t => {
+  const dir = project(t);
+  const before = keepServer(t, dir);
+  assert.match(install(dir, '--apply', '--upgrade'), /\[다시 켬\] 질문 페이지 서버/);
+  stopServerAtEnd(t, dir);
+  const after = serveState(dir);
+  assert.notEqual(after.pid, before.pid);
+  assert.throws(() => process.kill(before.pid, 0), { code: 'ESRCH' });
+  assert.ok(process.kill(after.pid, 0));
+  assert.ok(before.포트 && before.토큰);
+  assert.equal(after.포트, before.포트);
+  assert.equal(after.토큰, before.토큰);
+});
+
+test('--apply --upgrade leaves a stopped server off', t => {
+  const dir = project(t);
+  keepServer(t, dir);
+  execFileSync(process.execPath, ['harness/backlog.mjs', '끄기'], { cwd: dir });
+  assert.doesNotMatch(install(dir, '--apply', '--upgrade'), /다시 켬/);
+  assert.equal(serveState(dir).pid, undefined);
+});
+
+test('--apply --upgrade does not start a server that was never kept on', t => {
+  const dir = project(t);
+  install(dir, '--apply');
+  install(dir, '--apply', '--upgrade');
+  assert.ok(!fs.existsSync(path.join(dir, 'harness/serve.json')));
+});
+
+test('the --upgrade preview lists the restart and leaves the server alone', t => {
+  const dir = project(t);
+  const before = keepServer(t, dir);
+  assert.match(install(dir, '--upgrade'), /\[다시 켬\] .*--apply면/);
+  assert.equal(serveState(dir).pid, before.pid);
 });

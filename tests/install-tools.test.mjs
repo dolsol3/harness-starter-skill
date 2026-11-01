@@ -6,22 +6,23 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { toolsConfig } from '../scripts/tools.mjs';
+import { writeFakeTool, gitDirs } from './helpers.mjs';
+import { launcher, onPath } from '../templates/harness/mullebanga-call.mjs';
 
 const installer = fileURLToPath(new URL('../scripts/install.mjs', import.meta.url));
 const templateText = fs.readFileSync(new URL('../templates/harness/config.json', import.meta.url), 'utf8');
 const template = JSON.parse(templateText);
-const skip = process.platform === 'win32' && 'Windows에는 실행 비트가 없어 가짜 도구를 만들 수 없다';
+const noPerm = process.platform === 'win32' && 'Windows에는 chmod로 폴더 읽기나 파일 실행을 막을 수 없다';
 const CONFIG_LINE = '[새로 만듦] harness/config.json';
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-tools-home-'));
 after(() => fs.rmSync(home, { recursive: true, force: true }));
 
 // 진짜 git만 심볼릭 링크한 폴더: PATH를 이 폴더와 가짜 도구 폴더로만 줘서 기계에 깔린 진짜 도구에 흔들리지 않게 한다.
-// Windows에는 which도 실행 비트도 없으므로 건너뛸 때는 준비하지 않는다.
-const gitDir = skip ? '' : fs.mkdtempSync(path.join(os.tmpdir(), 'harness-tools-git-'));
-if (!skip) {
+// Windows에는 심볼릭 링크 권한이 없을 수 있어 git이 든 폴더를 그대로 쓴다(그 폴더에 codex·agy·claude는 없다).
+const gitDir = process.platform === 'win32' ? gitDirs()[0] : fs.mkdtempSync(path.join(os.tmpdir(), 'harness-tools-git-'));
+if (process.platform !== 'win32') {
   after(() => fs.rmSync(gitDir, { recursive: true, force: true }));
-  const git = process.env.PATH.split(path.delimiter).map(dir => path.join(dir, 'git')).find(file => fs.existsSync(file));
-  fs.symlinkSync(git, path.join(gitDir, 'git'));
+  fs.symlinkSync(path.join(gitDirs()[0], 'git'), path.join(gitDir, 'git'));
 }
 
 function project(t) {
@@ -31,13 +32,12 @@ function project(t) {
   return dir;
 }
 
-// 빈 셸 스크립트에 chmod 755한 가짜 실행 파일이 든 폴더를 PATH로 만든다.
+// 아무것도 안 하는 가짜 도구(맥은 chmod 755 파일, Windows는 .cmd 쪽지+.js)가 든 폴더를 PATH로 만든다.
 function pathWith(t, ...names) {
   const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-tools-bin-'));
   t.after(() => fs.rmSync(bin, { recursive: true, force: true }));
   for (const name of names) {
-    fs.writeFileSync(path.join(bin, name), '#!/bin/sh\n');
-    fs.chmodSync(path.join(bin, name), 0o755);
+    writeFakeTool(bin, name, '#!/bin/sh\n');
   }
   return [bin, gitDir].join(path.delimiter);
 }
@@ -65,7 +65,7 @@ function assertNoTools(dir) {
 
 const STAGE_TWO = { 동시상한: { claude: 3, codex: 1, gemini: 1 }, 기본맡길곳: 'claude' };
 
-test('preview tells what the 일감목록 would be and writes nothing', { skip }, t => {
+test('preview tells what the 일감목록 would be and writes nothing', t => {
   const dir = project(t);
   const out = install(dir, pathWith(t, 'codex', 'agy'), '--main=claude');
   const line = lineOf(out, CONFIG_LINE);
@@ -78,14 +78,14 @@ test('preview tells what the 일감목록 would be and writes nothing', { skip }
   assert.equal(fs.existsSync(path.join(dir, 'harness/config.json')), false);
 });
 
-test('apply writes the 일감목록 and leaves the rest of the template alone', { skip }, t => {
+test('apply writes the 일감목록 and leaves the rest of the template alone', t => {
   const dir = project(t);
   install(dir, pathWith(t, 'codex', 'agy'), '--main=claude', '--apply');
   assert.deepEqual(configOf(dir).일감목록, STAGE_TWO);
   assertTemplateExceptTools(dir);
 });
 
-test('the main tool leaves the partners; any main name is taken as it is', { skip }, t => {
+test('the main tool leaves the partners; any main name is taken as it is', t => {
   const codexMain = project(t);
   install(codexMain, pathWith(t, 'codex', 'agy'), '--main=codex', '--apply');
   assert.deepEqual(configOf(codexMain).일감목록, { 동시상한: { codex: 3, gemini: 1 }, 기본맡길곳: 'codex' });
@@ -94,13 +94,13 @@ test('the main tool leaves the partners; any main name is taken as it is', { ski
   assert.deepEqual(configOf(kimiMain).일감목록, { 동시상한: { kimi: 3, claude: 1, codex: 1 }, 기본맡길곳: 'kimi' });
 });
 
-test('a Codex main with only claude installed lists claude as its partner', { skip }, t => {
+test('a Codex main with only claude installed lists claude as its partner', t => {
   const dir = project(t);
   install(dir, pathWith(t, 'claude'), '--main=codex', '--apply');
   assert.deepEqual(configOf(dir).일감목록, { 동시상한: { codex: 3, claude: 1 }, 기본맡길곳: 'codex' });
 });
 
-test('a main name with $ replacement patterns is written as it is', { skip }, t => {
+test('a main name with $ replacement patterns is written as it is', t => {
   for (const main of ['$&', '$$', "$'", '$`']) {
     const dir = project(t);
     install(dir, pathWith(t, 'codex'), `--main=${main}`, '--apply');
@@ -108,7 +108,7 @@ test('a main name with $ replacement patterns is written as it is', { skip }, t 
   }
 });
 
-test('nothing changes without a main, without partners, without backlog, or with an empty --main=', { skip }, t => {
+test('nothing changes without a main, without partners, without backlog, or with an empty --main=', t => {
   const cases = [
     ['no tools installed', pathWith(t), ['--main=claude']],
     ['no --main', pathWith(t, 'codex', 'agy'), []],
@@ -124,7 +124,7 @@ test('nothing changes without a main, without partners, without backlog, or with
   }
 });
 
-test('an existing config.json is never rewritten', { skip }, t => {
+test('an existing config.json is never rewritten', t => {
   const dir = project(t);
   const tools = pathWith(t, 'codex', 'agy');
   install(dir, tools, '--apply');
@@ -138,7 +138,7 @@ test('an existing config.json is never rewritten', { skip }, t => {
   assert.equal(fs.readFileSync(file, 'utf8'), edited);
 });
 
-test('--upgrade writes the 일감목록 only when it creates config.json', { skip }, t => {
+test('--upgrade writes the 일감목록 only when it creates config.json', t => {
   const tools = pathWith(t, 'codex', 'agy');
   const fresh = project(t);
   install(fresh, tools, '--upgrade', '--main=claude', '--apply');
@@ -151,7 +151,7 @@ test('--upgrade writes the 일감목록 only when it creates config.json', { ski
   assert.equal('일감목록' in configOf(old), false);
 });
 
-test('the installed 장부 command reads the written 일감목록', { skip }, t => {
+test('the installed 장부 command reads the written 일감목록', t => {
   const dir = project(t);
   install(dir, pathWith(t, 'codex', 'agy'), '--main=claude', '--apply');
   const backlog = (...args) => spawnSync(process.execPath, ['harness/backlog.mjs', ...args], { cwd: dir, encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } });
@@ -169,7 +169,7 @@ test('the installed 장부 command reads the written 일감목록', { skip }, t 
   assert.match(refused.stderr, /kimi/, '선언하지 않은 도구는 받지 않는다');
 });
 
-test('a PATH entry that cannot be read is skipped, and the install still ends with 0', { skip: skip || (process.getuid?.() === 0 && 'root는 권한 없는 폴더도 읽는다') }, t => {
+test('a PATH entry that cannot be read is skipped, and the install still ends with 0', { skip: noPerm || (process.getuid?.() === 0 && 'root는 권한 없는 폴더도 읽는다') }, t => {
   const broken = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-tools-broken-'));
   t.after(() => {
     fs.chmodSync(path.join(broken, 'locked'), 0o755);
@@ -186,14 +186,14 @@ test('a PATH entry that cannot be read is skipped, and the install still ends wi
   }
 });
 
-test('a PATH entry with a 300-character folder name is skipped, and the tool after it is found', { skip }, t => {
+test('a PATH entry with a 300-character folder name is skipped, and the tool after it is found', t => {
   const tools = [path.join(os.tmpdir(), 'x'.repeat(300)), pathWith(t, 'codex')].join(path.delimiter);
   const dir = project(t);
   install(dir, tools, '--main=claude', '--apply');
   assert.deepEqual(configOf(dir).일감목록, { 동시상한: { claude: 3, codex: 1 }, 기본맡길곳: 'claude' });
 });
 
-test('an empty PATH entry is the current folder, as the shell sees it', { skip }, t => {
+test('an empty PATH entry is the current folder, as the shell sees it', t => {
   const dir = project(t);
   const [bin, git] = pathWith(t, 'codex').split(path.delimiter);
   const env = { ...process.env, HOME: home, USERPROFILE: home, PATH: [git, ''].join(path.delimiter) };
@@ -202,7 +202,7 @@ test('an empty PATH entry is the current folder, as the shell sees it', { skip }
   assert.deepEqual(configOf(dir).일감목록, { 동시상한: { claude: 3, codex: 1 }, 기본맡길곳: 'claude' });
 });
 
-test('a file the current user cannot run is not a tool', { skip: skip || (process.getuid?.() === 0 && 'root는 실행 비트가 하나라도 있으면 실행한다') }, t => {
+test('a file the current user cannot run is not a tool', { skip: noPerm || (process.getuid?.() === 0 && 'root는 실행 비트가 하나라도 있으면 실행한다') }, t => {
   const tools = pathWith(t, 'codex');
   const codex = path.join(tools.split(path.delimiter)[0], 'codex');
   for (const mode of [0o644, 0o001]) {
@@ -213,7 +213,7 @@ test('a file the current user cannot run is not a tool', { skip: skip || (proces
   }
 });
 
-test('a CRLF config.json template gets the 일감목록 with CRLF line ends', { skip }, t => {
+test('a CRLF config.json template gets the 일감목록 with CRLF line ends', t => {
   const before = process.env.PATH;
   process.env.PATH = pathWith(t, 'codex');
   t.after(() => { process.env.PATH = before; });
@@ -225,7 +225,7 @@ test('a CRLF config.json template gets the 일감목록 with CRLF line ends', { 
 
 const NO_HOOK = '--without=antigravity-hook';
 
-test('without the antigravity-hook, agy is not written as gemini, in the preview, the apply, and the --upgrade that creates config.json', { skip }, t => {
+test('without the antigravity-hook, agy is not written as gemini, in the preview, the apply, and the --upgrade that creates config.json', t => {
   const tools = pathWith(t, 'codex', 'agy');
   const preview = install(project(t), tools, '--main=claude', NO_HOOK);
   assert.match(lineOf(preview, CONFIG_LINE), /동시상한 claude 3·codex 1,/);
@@ -238,10 +238,50 @@ test('without the antigravity-hook, agy is not written as gemini, in the preview
   }
 });
 
-test('without the antigravity-hook and without another partner, no 일감목록 is written', { skip }, t => {
+test('without the antigravity-hook and without another partner, no 일감목록 is written', t => {
   for (const main of ['claude', 'codex']) {
     const dir = project(t);
     install(dir, pathWith(t, 'agy'), `--main=${main}`, NO_HOOK, '--apply');
     assertNoTools(dir);
   }
+});
+
+// Windows에서 도는 시험: npm 모양 .cmd 쪽지와 빈 .exe로 설치기 도구 찾기를 본다(W-19).
+const onlyWindows = process.platform === 'win32' ? false : 'Windows에서만 도는 시험(.cmd·.exe)';
+const npmCmd = (dir, name) => {
+  fs.writeFileSync(path.join(dir, `${name}.cmd`), `@ECHO off\r\n"%_prog%"  "%dp0%\\node_modules\\${name}\\bin\\${name}.js" %*\r\n`);
+  fs.mkdirSync(path.join(dir, 'node_modules', name, 'bin'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'node_modules', name, 'bin', `${name}.js`), '');
+};
+const binDir = t => {
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-tools-win-'));
+  t.after(() => fs.rmSync(bin, { recursive: true, force: true }));
+  return bin;
+};
+const withPath = (t, ...dirs) => {
+  const before = process.env.PATH;
+  process.env.PATH = dirs.join(path.delimiter);
+  t.after(() => { process.env.PATH = before; });
+};
+const limitsOf = () => JSON.parse(toolsConfig(templateText, 'claude').content).일감목록;
+
+test('npm .cmd and .exe tools are found; a .cmd without its js is not', { skip: onlyWindows }, t => {
+  const bin = binDir(t);
+  npmCmd(bin, 'codex');
+  fs.writeFileSync(path.join(bin, 'agy.exe'), '');
+  withPath(t, bin);
+  assert.deepEqual(limitsOf(), { 동시상한: { claude: 3, codex: 1, gemini: 1 }, 기본맡길곳: 'claude' });
+  fs.rmSync(path.join(bin, 'node_modules'), { recursive: true });
+  assert.deepEqual(limitsOf().동시상한, { claude: 3, gemini: 1 });
+});
+
+test('a folder named codex.cmd is not a tool and the real one later on PATH is found; an empty search path finds nothing', { skip: onlyWindows }, t => {
+  const bad = binDir(t);
+  const good = binDir(t);
+  fs.mkdirSync(path.join(bad, 'codex.cmd'));
+  npmCmd(good, 'codex');
+  assert.equal(onPath('codex', bad), false);
+  withPath(t, bad, good);
+  assert.deepEqual(limitsOf().동시상한, { claude: 3, codex: 1 });
+  assert.equal(launcher('x', ''), undefined);
 });

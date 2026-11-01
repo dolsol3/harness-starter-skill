@@ -11,7 +11,7 @@ Claude Code, Codex, Antigravity, OpenClaw, WorkBuddy AI 어디서 불러도 설�
 
 | 장치 | 설치되는 파일 | 하는 일 | 적용되는 도구 |
 |---|---|---|---|
-| 간결함 원칙 | `AGENTS.md`의 표시 구역, `CLAUDE.md`(`@AGENTS.md`) | AI가 매번 읽는 짧은 원칙(요청) | 모두 |
+| 간결함 원칙 | `AGENTS.md`의 표시 구역, `CLAUDE.md`(`@AGENTS.md`), `harness/main.md` | 공통 원칙·금지선과 메인만 읽는 운영 절차(요청) | 모두 |
 | git 훅 | `.git/hooks/pre-commit`, `harness/` | 커밋 전에 검사해 막음. 4단계에서 고르면 전체 린트·타입 검사 줄도(선택) | 모두(git으로 커밋하면) |
 | 고친 직후 알림 | `.claude/settings.json`, `.codebuddy/settings.json`, `.codex/hooks.json`, `.agents/hooks.json`, `harness/` | 파일을 고친 직후 검사해 AI에게 알림. 종류에 `afterEdit`을 적으면 그 파일에 린트·포맷 명령도 돌림 | Claude Code, WorkBuddy, Codex, Antigravity |
 | 간결함 리뷰 | `.agents/skills/lean-review/`, `.claude/skills/lean-review/`, `.codebuddy/skills/lean-review/` | 끝내기 전에 지울 것을 찾는 절차 | 모두 |
@@ -21,7 +21,7 @@ Claude Code, Codex, Antigravity, OpenClaw, WorkBuddy AI 어디서 불러도 설�
 | 제미나이 역할 | `.agents/agents/readonly.md`, `.agents/agents/research.md`, `.agents/agents/breaker.md` (`antigravity-hook` 장치) | 쓰기 도구를 뺀 검토 역할(`agy --agent readonly`)과 웹 검색·주소 읽기 도구를 더한 조사용 역할(`agy --agent research`), 명령 도구를 더한 깨뜨려 보기 역할(`agy --agent breaker`, `sandbox-exec` 안에서만, 진짜 홈 `agentapi` 한 파일 쓰기를 열고 끝난 뒤 확인) | Antigravity |
 | 에이전트 정의 | `.claude/agents/planner.md`, `implementer.md`, `researcher.md`, `reviewer.md`(워크버디를 쓰면 `.codebuddy/agents/`에도 같은 넷) (7단계에서 사용자가 승인할 때만) | 기획 담당(작업 `쪼개기`·`할 일 적기`·`한 일 적기`), 만들기 담당, 조사 담당(본체 `sonnet medium` + 보조 `gemini-4-argon-medium` 병렬 분담 및 본체 원문 검증), 살피기 담당(읽기 전용)을 이 프로젝트에 맞게 구성. 맥락을 공유하지 않는 기준으로 나눔 | Claude Code는 자동으로 읽고, WorkBuddy는 앱 내장 `Agent` 도구가 읽고, Codex·Antigravity는 공용 물레방아가 글로 읽음 |
 | 물레방아 | `.claude/workflows/mullebanga.js` (7단계에서 사용자가 에이전트 정의와 함께 승인할 때만) | 메인이 `## 사용자 원래 말` 절을 적고 시작한 작업을 `고르기` → `할 일 적기` → `맞춰보기` → `만들기` → `돌려보기` → `번갈아 보기` → `고치기`(최대 3번) → `올림`까지 돌림. `/물레방아`로 부름 | Claude Code |
-| 공용 물레방아 | `harness/mullebanga.mjs`와 부품 다섯(`mullebanga-call.mjs`, `-git.mjs`, `-prompts.mjs`, `-review.mjs`, `-steps.mjs`). 일감 목록을 깔 때 같이 깔림 | 어느 도구에서든 `node harness/mullebanga.mjs --도구 <부른 도구>`로 부르면 맡길곳이 그 도구인 진행중 작업을 같은 순서로 `올림`까지 돌림. 담당들의 지시문 앞에 `.claude/agents/`의 기획·만들기·살피기 담당 안내문을 글로 붙여 읽음 | 모두(터미널에서) |
+| 공용 물레방아 | `harness/mullebanga.mjs`와 부품 다섯(`mullebanga-call.mjs`, `-git.mjs`, `-prompts.mjs`, `-review.mjs`, `-steps.mjs`). 일감 목록을 깔 때 같이 깔림 | 어느 도구에서든 `node harness/mullebanga.mjs --도구 <부른 도구>`로 부르면 맡길곳이 그 도구인 진행중 작업을 같은 순서로 `올림`까지 돌림. 짧아진 역할 본문 전체와 해당 단계 지시를 전달 | 모두(터미널에서) |
 | 경로별 규칙 | `.claude/rules/<이름>.md`, `AGENTS.md`의 `## 이 프로젝트 규칙` 한 줄 (6단계에서 사용자가 승인할 때만) | 판단이 필요한 규칙을 그 경로의 파일을 다룰 때만 읽게 함(요청) | Claude Code는 자동, Codex·Antigravity는 `AGENTS.md` 한 줄을 읽고 따름 |
 | 공식 문서 길잡이 | `docs/official-docs/<기술>.md` (6단계에서 사용자가 승인할 때만) | 기술마다 주제 → 공식 문서 주소를 적어 두고 원칙 한 줄이 네 경우에 맞는 줄만 열게 함(요청) | 모두 |
 
@@ -49,7 +49,7 @@ Claude Code, Codex, Antigravity, OpenClaw, WorkBuddy AI 어디서 불러도 설�
 `files`는 저장소 맨 위 기준 경로 패턴이고, 처음 맞는 종류가 적용된다. `maxFileLines`·`maxLineLength`를 빼면(`null`이 아니라 키를 뺀다) 그 한도는 없다.
 `.`으로 시작하는 폴더·파일(`.github`, `.claude`)은 `**`에 맞지 않는다. `.github/**`처럼 따로 적는다.
 `afterEdit`(선택)은 AI 도구가 그 종류의 파일을 고친 직후(`check.mjs --hook`) 돌리는 명령이다. 문자열 배열로 적고 셸을 거치지 않는다(`&&`·`|`·`$` 같은 셸 문법은 안 된다).
-`{file}`은 저장소 맨 위 기준 경로가 되고 명령은 저장소 맨 위에서 돈다. 실패하면 종료 코드 2로 명령과 출력 앞 40줄을 AI에게 알린다.
+`{file}`은 저장소 맨 위 기준 경로가 되고 명령은 저장소 맨 위에서 돈다. 실패하면 종료 코드 2로 명령과 출력 앞 40줄을 AI에게 알린다. Windows에서 `npx`·`npm`처럼 `.cmd`로만 있는 도구는 이름만 적으면 못 찾고 `.cmd`를 적어도 실행하지 못하므로 `["node", "<도구의 진입 .js>", "{file}"]`로 적는다(못 돌리면 이 알림에 `실행하지 못했다`가 나온다).
 시간 제한은 `afterEditSeconds`(기본 30초)이고 넘으면 끊는다. 커밋 때(`--staged`)와 파일을 지정한 검사에서는 돌지 않고, `ignore`에 든 파일에도 돌지 않는다.
 `지키는파일`(영문 별칭 `protect`, 선택, `kinds` 밖 맨 위 칸)은 막는 훅이 지키는 파일의 글롭 목록이다. 없으면 기본(`.env`, `.env.*`, 잠금 파일 13종, `.git`)을 쓰고, 적으면 기본 목록을 바꾼다(더하지 않는다).
 글롭은 경로의 이어진 부분 경로마다 맞춰 본다. `"secret.txt"`는 `a/secret.txt`도, `.git`은 그 아래 전부도 막는다. `.env.example`도 기본으로 막힌다(`.env.*`에 맞는다).
@@ -94,6 +94,7 @@ Claude Code, Codex, Antigravity, OpenClaw, WorkBuddy AI 어디서 불러도 설�
      공식 문서 길잡이를 만들지(기술마다 모은 줄을 보인다). 한 번에 세 가지까지만 묻는다.
    - 고친 직후 명령(`afterEdit`): 종류마다 고친 파일 하나에 돌릴 린트·포맷 확인 명령을 묻는다. 내려받지 않는 모양을 권한다
      (노드는 `npm exec --no -- eslint {file}`·`npx --no -- prettier --check {file}`, 그 밖은 프로젝트에 설치된 실행 파일을 직접). 예시는 모양일 뿐이고 실제 명령은 2단계에서 찾은 것으로 적는다.
+    Windows면 `npm`·`npx`가 `.cmd`라 이 모양이 안 돌므로 `["node", "<진입 .js>", "{file}"]`로 적는다.
      정하기 전에 그 종류의 파일 몇 개에 한 번 돌려 결과를 보인다. 이 명령은 새 줄만이 아니라 파일 전체를 보므로 옛 파일을 고칠 때마다 옛 위반도 알린다. 옛 위반이 많으면 켤지 묻는다.
    - 커밋 때 전체 검사(추천): 프로젝트 전체 린트·타입 검사 명령(예: `npm run lint`, `npm exec --no -- tsc --noEmit`)을 pre-commit에 한 줄 더할지 묻는다.
      먼저 한 번 돌려 결과를 보인다. 지금 실패하면 고칠 때까지 모든 커밋이 막히므로 켤지 묻는다. 커밋이 느려질 수 있다고도 알린다.
@@ -108,7 +109,8 @@ Claude Code, Codex, Antigravity, OpenClaw, WorkBuddy AI 어디서 불러도 설�
    사용자가 다른 도구를 같이 쓰기 원치 않으면 `--main`을 빼고 돌린다.
    설치기는 `--main`이 있을 때만, `harness/config.json`을 새로 만들 때만 이 컴퓨터에서 `claude`·`codex`·`agy`를 찾아 `일감목록`을 적는다. 사용자에게 도구를 묻지 않는다.
    메인이 아닌 깔린 도구가 없거나 `--without=backlog`면 적지 않는다. 적을 때는 미리보기의 `[새로 만듦] harness/config.json` 줄에 무엇을 적을지 나온다.
-   옛 설치면 `--upgrade`를 붙인다. 옛 검사기와 설치된 일감 목록 명령 파일(`backlog`·`ledger`·`questions`·`page`·`patch`·`serve`·`guard`·`stop`), 제미나이 역할 파일(`.agents/agents/readonly.md`·`research.md`·`breaker.md`)을 새것으로 바꾸고,
+   `instructions`는 backlog 선택과 관계없이 짧은 공통 블록과 메인 전용 `harness/main.md`를 함께 설치한다. 원칙만 설치해도 메인 포인터 대상이 생기며, `--without=instructions`면 세 지침 파일을 바꾸지 않는다. 관리 구역과 충돌 보존은 아래 재실행 설명을 따른다.
+   옛 설치면 `--upgrade`를 붙인다. 옛 검사기와 설치된 일감 목록 명령 파일(`backlog`·`ledger`·`questions`·`page`·`patch`·`serve`·`guard`·`stop`), 제미나이 역할 파일(`.agents/agents/readonly.md`·`research.md`·`breaker.md`), 이미 있는 역할·물레방아 사본(`.claude/agents/`는 `## 이 프로젝트` 줄부터 끝까지를 지키고 그 위만, `.claude/workflows/mullebanga.js`는 통째로)을 새것으로 바꾸고,
    옛 `config.json`에서 옛 한도만 빼며, 검사기 줄이 든 pre-commit에 막는 훅 줄을 더하고, 깐 버전 `harness/VERSION`을 바꾼다. 사용자가 더한 규칙은 옮겨 적는다.
    업그레이드하면 커밋 파일 수 상한 15가 설정 없이도 켜진다고 사용자에게 알린다(줄 수 상한은 설정에 없으면 꺼진 그대로다).
    일감 목록을 깐 설치면, 업그레이드하면 막는 훅이 설정 없이도 `.env`·`.env.*`(`.env.example` 포함)·잠금 파일·`.git` 아래 편집을 거절한다고도 알린다(읽기는 된다).
@@ -170,8 +172,9 @@ Claude Code, Codex, Antigravity, OpenClaw, WorkBuddy AI 어디서 불러도 설�
    - 에이전트를 만들 때 메인이 Claude Code이면 `templates/workflows/mullebanga.js`를 대상의 `.claude/workflows/mullebanga.js`로 그대로 복사한다(물레방아). 같은 이름의 파일이 있으면 건너뛴다.
      에이전트를 만들지 않기로 했으면 물레방아도 깔지 않는다(만들기 담당·살피기 담당 역할 없이는 돌지 않는다).
    - 맥락을 달리해야 하는 일이 이 프로젝트에 더 있으면(예: 시험을 할 일 적기만 보고 따로 쓰는 시험 담당, 보안 검토) 선택으로 제안한다. 기본은 넷이다.
-   - Codex·Antigravity 자체의 역할 파일 형식(`.codex/`, `.agents/agents/`의 새 형식)은 만들지 않는다. `.claude/agents/`는 Claude Code 형식이지만 공용 물레방아(`harness/mullebanga.mjs`)가 기획·만들기·살피기 담당 본문을 글로 읽어 지시문 앞에 붙이므로, 메인이 Codex·Antigravity여도 만든다.
+   - Codex·Antigravity 자체의 역할 파일 형식(`.codex/`, `.agents/agents/`의 새 형식)은 만들지 않는다. `.claude/agents/`는 Claude Code 형식이지만 공용 물레방아(`harness/mullebanga.mjs`)가 기획·만들기·살피기 담당의 짧아진 역할 본문 전체와 해당 단계 지시를 전달하므로, 메인이 Codex·Antigravity여도 만든다.
      워크버디(WorkBuddy AI)의 `.codebuddy/agents/`는 Claude Code와 같은 머리말 형식이라 같은 파일을 복사한다(앱이 로컬에 없는 클로드 모델 이름을 선택된 모델로 바꿔 돌린다).
+     서브는 공통 금지선과 자기 역할·단계·작업 문서를 따른다. `harness/main.md`는 메인만 읽고 서브에게 운영 문서 전체를 복사해 넘기지 않는다.
      조사 담당(`researcher.md`)은 공용 물레방아가 읽지 않지만 메인이 부를 때 쓰므로 그대로 묻는다. 기획·만들기·살피기 안내문을 안 만들면 공용 물레방아가 시작에서 `역할 안내문 파일이 없다`로 멈춘다.
      메인이 Claude Code·워크버디가 아니면 아래 다시 시작 안내는 건너뛰고, 대신 터미널에서 `node harness/mullebanga.mjs --도구 <부른 도구>`로 부른다고 알린다(쓰는 법은 `guide/usage.md`의 '공용 물레방아'). 워크버디는 공용 물레방아를 부르지 않고 앱 안에서 `.codebuddy/agents/` 서브에이전트로 단계를 돌린다.
      메인이 Claude Code일 때 역할 파일을 새로 만들었으면 Claude Code를 다시 시작하게 안내하고, 다시 시작한 뒤 에이전트가 목록에 보이는지 확인한다(세션 중 만든 역할은 물레방아가 `agentType`으로 찾지 못했다). 다시 시작하지 않을 때 워크플로만 새로 읽으려면 `/reload-skills`를 쓴다. 부르는 법은 `/물레방아`다.
@@ -183,7 +186,7 @@ Claude Code, Codex, Antigravity, OpenClaw, WorkBuddy AI 어디서 불러도 설�
    - 막는 훅(일감 목록을 설치했을 때): `echo '{"cwd":"<대상>","tool_name":"Edit","tool_input":{"file_path":"<대상>/<코드 종류 경로의 파일>"}}' | node harness/guard.mjs --hook`이
      종료 코드 2와 "진행중인 작업이 없다"로 끝나야 한다. 시험 명령 글에 `backlog.json`이나 `--no-verify`를 넣지 않는다(훅이 그 명령 자체를 거절한다).
      Codex 훅을 설치했으면 같은 파일로 `{"cwd":"<대상>","tool_name":"apply_patch","tool_input":{"command":"*** Begin Patch\n*** Add File: <코드 종류 경로의 파일>\n+x\n*** End Patch"}}`도 넣어 본다.
-   - 고친 직후 명령(샘플의 종류에 `afterEdit`을 적었을 때): 위 도구 훅 시험의 표준오류에 "찾지 못했다"·"시간 제한을 넘었다"가 없어야 한다. 있으면 명령을 고치거나 도구를 설치한다.
+   - 고친 직후 명령(샘플의 종류에 `afterEdit`을 적었을 때): 위 도구 훅 시험의 표준오류에 "찾지 못했다"·"실행하지 못했다"·"시간 제한을 넘었다"가 없어야 한다. 있으면 명령을 고치거나 도구를 설치한다.
    - 지키는 파일(일감 목록을 설치했을 때): `echo '{"cwd":"<대상>","tool_name":"Write","tool_input":{"file_path":"<대상>/.env"}}' | node harness/guard.mjs --hook`이
      종료 코드 2와 "지키는 파일"로 끝나야 한다. 같은 입력의 `tool_name`을 `Read`로 바꾸면 0이어야 한다.
      `{"cwd":"<대상>","tool_name":"Edit","tool_input":{"file_path":"<대상>/.git/hooks/pre-commit"}}`도 종료 코드 2여야 한다.
@@ -205,7 +208,7 @@ Claude Code, Codex, Antigravity, OpenClaw, WorkBuddy AI 어디서 불러도 설�
    - 도구가 훅을 실제로 부르는지는 에이전트를 다시 시작해 봐야 안다고 안내한다.
 9. **마무리.**
    - `[건너뜀]`이 있으면 사용자가 할 일을 알려 준다(예: husky의 pre-commit에 한 줄 더하기).
-   - 일감 목록을 설치했으면 사용자에게 역할을 한 번 알린다: 일감 목록 명령(`추가`·`시작`(`--고칠곳`, `--먼저할일`, `--맡길곳`, `--확인방법`)·`바로할일`(`준비`)·`올림`·`다시하기`(`반려`)·`완료`)은 AI가 쓰고 사람이 치지 않는다. 사람이 하는 일은 질문 페이지의 `답`뿐이다. 확인은 3일 안에 답하지 않으면 추천대로 확정된다.
+   - 일감 목록을 설치했으면 사용자에게 역할을 한 번 알린다: 일감 목록은 AI가 역할별 권한에 따라 쓰며 메인 절차는 `harness/main.md`를 따른다. 사람이 하는 일은 질문 페이지의 `답`뿐이다. 확인은 3일 안에 답하지 않으면 추천대로 확정된다.
    - 일감 목록을 설치했고 설치기가 `일감목록`을 적었으면 사용자에게 몇 줄로 알린다.
      - 켠 것: 도구와 동시 숫자, `기본맡길곳`.
      - 숫자는 이 저장소에서 사람이 쓰는 값이지 실험으로 정한 값이 아니다.
@@ -218,8 +221,9 @@ Claude Code, Codex, Antigravity, OpenClaw, WorkBuddy AI 어디서 불러도 설�
    - Codex 훅은 프로젝트의 `.codex/` 폴더를 신뢰해야 켜진다. 처음 Codex를 열 때 신뢰하라고 알려 준다.
    - 설치한 파일을 커밋할지 묻는다. `.git/hooks`는 저장소에 올라가지 않으므로 팀원은 각자 설치한다.
 
-같은 명령을 다시 돌리면 원칙 구역만 새 원칙으로 바뀌고, 구역 밖은 그대로다.
-이미 있는 `harness/` 파일과 lean-review는 내용이 다르면 건너뛴다. 검사기와 일감 목록 명령 파일, 제미나이 역할 파일, 깐 버전 `harness/VERSION`을 새 버전으로 바꾸려면 `--upgrade`를 쓴다.
+같은 명령을 다시 돌리면 `AGENTS.md`와 `harness/main.md`의 관리 구역만 갱신하고 구역 밖 사용자 내용은 보존한다. `harness/main.md`에 관리 구역이 없거나 불완전하면 main·AGENTS·CLAUDE 세 파일을 함께 보존하고 건너뛴 이유를 알린다.
+`CLAUDE.md`가 없으면 `@AGENTS.md`로 만들고, 이미 있는데 import가 없으면 공통 블록을 넣는다. import와 옛 관리 구역이 함께 있으면 중복 구역을 제거한다.
+이미 있는 `harness/` 파일과 lean-review는 내용이 다르면 건너뛴다. 검사기와 일감 목록 명령 파일, 제미나이 역할 파일, 이미 있는 역할·물레방아 사본, 깐 버전 `harness/VERSION`을 새 버전으로 바꾸려면 `--upgrade`를 쓴다.
 업그레이드는 공식 문서 길잡이를 만들지 않는다. 이미 깐 프로젝트에서 길잡이만 만들어 달라고 하면 2단계의 이미 있는 공식 문서 목록, 3단계, 4단계의 주제 모으기, 6단계의 길잡이 쓰기만 한다.
 
 ## 업그레이드
@@ -237,7 +241,7 @@ Claude Code, Codex, Antigravity, OpenClaw, WorkBuddy AI 어디서 불러도 설�
 5. 승인받은 것만 `node <이 스킬 폴더>/scripts/upgrade.mjs --예 [--프로젝트 <경로> ...]`로 바꾼다. `--예`는 받지 않고 묻지 않으며, 전역 다섯 곳이 다르면 늘 바꾸고 프로젝트는 `--프로젝트`로 고른 곳만 올린다(안 고르면 하나도 안 올린다).
    그래서 전역을 거절받았으면 `--예`를 돌리지 않는다. 그때 프로젝트는 그 프로젝트에서 `## 순서` 5·6단계의 `install.mjs --upgrade`로 올린다.
 6. 명부에 없다는 프로젝트(명부가 생기기 전에 깐 옛 설치)는 사용자 승인 뒤 `upgrade.mjs --등록 <경로>`로 적고(적기만 한다) 다시 미리보기한다.
-7. 끝나면 역할·물레방아 사본(`.claude/agents/`, `.claude/workflows/mullebanga.js`)은 바뀌지 않았다고 알린다(설치기가 만들지 않는 파일이다). 새 템플릿을 쓰려면 사본을 템플릿과 비교해 손으로 맞춘다.
+7. 이미 있는 역할·물레방아 사본(`.claude/agents/`, `.claude/workflows/mullebanga.js`)도 `[고침]`으로 보이고 승인하면 새 템플릿으로 바뀐다고 알린다(역할 파일은 `## 이 프로젝트` 줄부터 끝까지를 지키고, 없는 사본은 만들지 않고, 그 줄이 없는 역할 파일은 `[건너뜀]`).
 
 ## 지킬 것
 
@@ -289,5 +293,5 @@ Claude Code, Codex, Antigravity, OpenClaw, WorkBuddy AI 어디서 불러도 설�
 - 물레방아: 클로드판(`.claude/workflows/mullebanga.js`)은 Claude Code에서만 돌고, 다른 도구는 공용 물레방아(`node harness/mullebanga.mjs`)를 쓴다. 공용판의 한계는 `guide/limits.md`의 '공용 물레방아의 한계'에 있다. 둘 다 스스로 돌지 않는다. 클로드판은 사용자가 `/물레방아`로 부르고, 공용판은 `node harness/mullebanga.mjs --도구 <도구>`로 부른다. 사용자가 맡기면 메인이 부른다. 한글 이름으로 불리는 것은 문서 보장이 없고 실제로 등록되는 것만 봤다. `번갈아 보기` 바깥 검토는 기본 `gemini`(`gemini-4-argon-medium`)이고, 제미나이 토큰·한도 부족이나 실행 실패 시 `codex`(`gpt-6.1-sol` `medium`)로 자동 폴백하되 폴백 도구도 `일감목록.동시상한`에 있어야 `올림 --검토`가 통과한다. 워크플로 워크트리에서 고친 직후 알림(PostToolUse)이 도는지는 시험하지 않았다. 자세한 것은 `guide/limits.md`.
 - 경로별 규칙: Codex는 경로 조건 규칙이 없어 `AGENTS.md` 한 줄을 보고 따르는 글 부탁이고, Antigravity가 `.claude/rules`를 읽는지는 문서에 없으며, 워크트리에서 일하는 서브에이전트에게는 자동으로 읽히지 않을 수 있다(시험 안 함). OpenClaw는 확인하지 않았다. 자세한 것은 `guide/limits.md`.
 - 공식 문서 길잡이: 원칙 한 줄로 여는 요청일 뿐이라 AI가 열지 않을 수 있고, 주소가 바뀌거나 없어져도 알리지 않는다. 자세한 것은 `guide/limits.md`.
-- 업그레이드·새 버전 알림: zip으로 받은 폴더에서는 받지 못하고, 역할·물레방아 사본은 바꾸지 않고, 알림은 스킬을 부를 때만 뜨고, 전역 다섯 곳은 정해진 경로뿐이다. 자세한 것은 `guide/limits.md`.
+- 업그레이드·새 버전 알림: zip으로 받은 폴더에서는 받지 못하고, 알림은 스킬을 부를 때만 뜨고, 전역 다섯 곳은 정해진 경로뿐이다. 자세한 것은 `guide/limits.md`.
 - 검사는 크기와 몇 가지 패턴만 본다. 설계가 좋은지는 `lean-review`와 사람이 판단한다.

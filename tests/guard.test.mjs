@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { linkDir } from './helpers.mjs';
 
 const templates = fileURLToPath(new URL('../templates/harness/', import.meta.url));
 const KINDS = { code: { files: ['src/**'], maxFileLines: 300, patterns: true }, docs: { files: ['**/*.md'] } };
@@ -60,7 +61,7 @@ test('the ledger file cannot be read or edited directly; commands are pointed to
 test('the ledger is found through a symlinked path and from a worktree', t => {
   const { dir, git } = repo(t);
   const link = path.join(path.dirname(dir), `${path.basename(dir)}-link`);
-  fs.symlinkSync(dir, link);
+  linkDir(dir, link);
   t.after(() => fs.rmSync(link));
   blocked(hook(dir, 'Read', { file_path: path.join(link, 'harness/backlog.json') }), /직접 다루지 않는다/);
   const tree = path.join(dir, 'wt');
@@ -158,7 +159,7 @@ test('a commit with code needs a 진행중 task; docs only does not', t => {
   assert.equal(run(dir, 'guard.mjs', '--staged').status, 0);
 });
 
-test('another spelling of the same file (case, Unicode form) is still that file', t => {
+test('another spelling of the same file (case) is still that file', t => {
   const { dir } = repo(t);
   if (!fs.existsSync(path.join(dir, 'HARNESS/CONFIG.JSON'))) return t.skip('case-sensitive file system');
   startTask(dir);
@@ -167,7 +168,9 @@ test('another spelling of the same file (case, Unicode form) is still that file'
   blocked(hook(dir, 'Read', { file_path: path.join(dir, 'HARNESS/Backlog.JSON') }), /직접 다루지 않는다/);
   fs.rmSync(path.join(dir, 'harness/backlog.json'));
   blocked(hook(dir, 'Write', { file_path: path.join(dir, 'Src/new.js') }), /진행중인 작업이 없다/);
+});
 
+test('the same file in a Unicode-normalized spelling is still that file', { skip: process.platform === 'win32' && 'Windows의 Node가 한글 이름 폴더를 재귀 복사·삭제하다 프로세스가 죽고, NTFS는 NFC·NFD를 다른 이름으로 보아 확인할 것이 없다' }, t => {
   const korean = repo(t, KINDS, '프로젝트'.normalize('NFD'));
   const composed = path.join(korean.dir.normalize('NFC'), 'src/a.js');
   const input = (cwd, file_path) => hook(korean.dir, 'Write', { file_path }, cwd);

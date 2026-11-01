@@ -28,6 +28,7 @@ export function readConfig(root) {
     limits: board.동시상한 ?? board.한도 ?? board.limits ?? {},
     defaultTool: board.기본맡길곳 ?? board.기본도구 ?? board.defaultTool ?? 'claude',
     base: board.기본브랜치 ?? board.baseBranch ?? 'main',
+    python: board.파이썬 ?? board.python,
   };
 }
 
@@ -53,7 +54,7 @@ export function fits(schema, value) {
 
 // 일감 목록 명령은 메인 폴더에서 돌린다.
 export function backlog(root, ...args) {
-  const done = spawnSync(process.execPath, [path.join(root, 'harness', 'backlog.mjs'), ...args], { cwd: root, encoding: 'utf8' });
+  const done = spawnSync(process.execPath, [path.join(root, 'harness', 'backlog.mjs'), ...args], { cwd: root, encoding: 'utf8', windowsHide: true });
   if (done.error) throw done.error;
   return { ok: done.status === 0, out: done.stdout.trim(), err: done.stderr.trim() };
 }
@@ -91,13 +92,15 @@ const docFile = (root, id) => path.join(root, 'docs', 'tasks', `${id}.md`);
 const CRITERIA = '## 끝 기준';
 // 끝 기준 절 제목 줄은 정확히 `## 끝 기준`이다(`## 끝 기준 아님`은 아니다).
 const CRITERIA_LINE = /^## 끝 기준[ \t]*$/m;
+// 맨 위 절을 다시 쓰지 않았는지만 본다. 본문에서 그 절을 가리키는 말은 막지 않는다.
+const USER_WORDS_LINE = /^## 사용자 원래 말[ \t]*$/m;
 
 // 썼음이면 specText를 문서 끝에 붙인다. 맨 위 절은 건드리지 않는다. 건너뜀이면 파일을 안 바꾼다. 어느 쪽이든 끝 기준이 있어야 한다.
 export function recordSpec(root, id, spec) {
   const file = docFile(root, id);
   if (!fs.existsSync(file)) halt(`할 일 적기 단계에서 멈춤: ${file}이 없다`);
   if (spec.outcome === '썼음') {
-    if (!CRITERIA_LINE.test(spec.specText) || spec.specText.includes('## 사용자 원래 말')) {
+    if (!CRITERIA_LINE.test(spec.specText) || USER_WORDS_LINE.test(spec.specText)) {
       halt('할 일 적기 단계에서 멈춤: specText에 `## 끝 기준`이 없거나 `## 사용자 원래 말`이 들어 있다. 문서는 바꾸지 않았다');
     }
     const text = fs.readFileSync(file, 'utf8');

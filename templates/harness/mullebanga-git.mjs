@@ -4,12 +4,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import { killTree, SPAWN_GROUP } from './mullebanga-call.mjs';
 
 const OUTPUT_TAIL = 4000;
 const CHANGED_FILES = '바뀐 파일들';
 
 function git(cwd, ...args) {
-  const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
   if (result.error) throw result.error;
   return { ok: result.status === 0, out: result.stdout.trim(), err: result.stderr.trim() };
 }
@@ -76,10 +77,19 @@ function changedFiles(worktree, base) {
   return { files: [...tracked, ...read('ls-files', '-z', '--others', '--exclude-standard')], deleted };
 }
 
+// 확인 명령은 POSIX 셸로 돈다. Windows의 PowerShell·cmd에는 `sh`가 없고 Git for Windows의 `usr\bin`에만 있다.
+// git이 `Git\cmd`·`mingw64\bin` 어디서 잡혀도 같은 Git 루트가 나오도록 `git --exec-path`(<루트>/mingw64/libexec/git-core)에서 루트를 구한다(2026-10-28 확인).
+function shellCommand() {
+  if (process.platform !== 'win32') return 'sh';
+  const execPath = spawnSync('git', ['--exec-path'], { encoding: 'utf8', windowsHide: true }).stdout?.trim();
+  const sh = execPath && path.join(path.resolve(execPath, '..', '..', '..'), 'usr', 'bin', 'sh.exe');
+  return sh && fs.existsSync(sh) ? sh : 'sh';
+}
+
 // 시간 제한을 넘기면 자식과 손자까지 프로세스 그룹째 끝낸다.
 function runShell(command, cwd, seconds) {
   return new Promise(resolve => {
-    const child = spawn('sh', ['-c', command], { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(shellCommand(), ['-c', command], { cwd, ...SPAWN_GROUP, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
     let timedOut = false;
     // 청크를 글자로 바꿀 때 한글 한 글자의 바이트가 청크 경계에서 쪼개지면 깨지므로 디코더에 맡긴다.
@@ -87,7 +97,9 @@ function runShell(command, cwd, seconds) {
     child.stderr.setEncoding('utf8').on('data', chunk => { output += chunk; });
     const timer = setTimeout(() => {
       timedOut = true;
-      process.kill(-child.pid, 'SIGKILL');
+      const failure = killTree(child, 'SIGKILL');
+      // 끄지 못한 자식은 close가 오지 않을 수 있어, 기다리지 않고 남은 pid를 드러내며 바로 돌아온다.
+      if (failure) resolve({ exitCode: null, output: `${output}\n시간 초과: ${seconds}초 안에 끝나지 않았고 끄기에 실패해 pid ${child.pid}와 자손이 남았을 수 있다 (${failure})` });
     }, seconds * 1000);
     child.on('error', error => {
       clearTimeout(timer);
@@ -104,8 +116,15 @@ function runShell(command, cwd, seconds) {
 // 작은따옴표 안에서는 셸이 아무것도 풀지 않으므로 백틱·$()·큰따옴표가 든 파일명도 글자 그대로 넘어간다.
 const quote = file => `'${file.replaceAll("'", "'\\''")}'`;
 
-export async function runChecks(worktree, commands, { seconds = 300, base = 'HEAD' } = {}) {
+// 검사 명령이 `python -m pytest`처럼 인터프리터 이름으로 시작하면 일감목록.파이썬으로 바꾼다.
+// Windows의 PATH에 있는 python이 프로젝트가 쓰는 인터프리터가 아닐 수 있다(pytest가 없는 파이썬이 잡혀 No module named pytest가 났다, 2026-10-28).
+const PYTHON = /^(python3?)(?=\s|$)/;
+const withPython = (command, python) => (python ? command.replace(PYTHON, quote(python)) : command);
+
+// 두 워크트리를 같이 돌리면 전체 pytest가 300초를 넘겨 멀쩡한 검사가 시간 초과로 실패했다.
+export async function runChecks(worktree, commands, { seconds = 900, base = 'HEAD', python } = {}) {
   if (commands.length === 0) return { ok: false, reason: '돌릴 확인 명령이 없다' };
+  if (python && !fs.existsSync(python)) return { ok: false, reason: `일감목록.파이썬이 가리키는 파일이 없다: ${python}` };
   for (const template of commands) {
     let command = template;
     if (template.includes(CHANGED_FILES)) {
@@ -113,7 +132,7 @@ export async function runChecks(worktree, commands, { seconds = 300, base = 'HEA
       if (files.length + deleted.length === 0) return { ok: false, command: template, reason: `${CHANGED_FILES}이 하나도 없어 검사할 것이 없다` };
       command = template.replaceAll(CHANGED_FILES, files.map(quote).join(' '));
     }
-    const result = await runShell(command, worktree, seconds);
+    const result = await runShell(withPython(command, python), worktree, seconds);
     if (result.exitCode !== 0) {
       return { ok: false, command: template, exitCode: result.exitCode, output: result.output.trim().slice(-OUTPUT_TAIL) };
     }
@@ -126,8 +145,10 @@ function listWorktrees(repo) {
   const blocks = git(repo, 'worktree', 'list', '--porcelain').out.split('\n\n');
   return blocks.map(block => {
     const lines = block.split('\n');
+    // git은 Windows에서도 '/'로 적어 준다. 새로 여는 자리(path.join)와 같은 모양으로 맞춘다.
     const field = key => lines.find(line => line.startsWith(`${key} `))?.slice(key.length + 1);
-    return { path: field('worktree'), branch: field('branch')?.replace('refs/heads/', ''), prunable: lines.some(line => line.startsWith('prunable')) };
+    const worktree = field('worktree');
+    return { path: worktree && path.normalize(worktree), branch: field('branch')?.replace('refs/heads/', ''), prunable: lines.some(line => line.startsWith('prunable')) };
   });
 }
 
