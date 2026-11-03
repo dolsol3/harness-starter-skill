@@ -57,6 +57,22 @@ test('callTool(Windows): 끄기에 실패해도 시간 안에 돌아오고 남�
   assert.ok(elapsed < 1500, `${elapsed}ms`);
 });
 
+test('runChecks: seconds를 주지 않으면 900초에서 끊는다(가짜 시계라 기다리지 않는다)', async t => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'harness-kill-')));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let done = false;
+  // 셸은 첫 await 전에 떠서 가짜 setTimeout이 시간 제한을 잡는다. 시계를 900초로 넘기면 진짜 프로세스도 끈다.
+  const running = runChecks(dir, ['node -e "setInterval(() => {}, 1000)"']).then(result => { done = true; return result; });
+  t.mock.timers.tick(899_999);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(done, false);
+  t.mock.timers.tick(1);
+  const result = await running;
+  assert.equal(result.exitCode, null);
+  assert.match(result.output, /시간 초과: 900초/);
+});
+
 test('runChecks(Windows): 끄기에 실패해도 시간 안에 돌아오고 남은 pid와 끄기 실패를 드러낸다', windowsOnly, async t => {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'harness-kill-')));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

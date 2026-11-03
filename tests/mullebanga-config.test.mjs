@@ -230,7 +230,7 @@ test('otherReviewPrompt has the other tool break the clone: cut origin first, te
   const { calls } = await run({ args: ['T-1'] });
   const { prompt } = calls.find(call => call.label.startsWith('다른 도구 검토'));
   assert.doesNotMatch(prompt, /s read.only/);
-  const order = ['git clone --no-hardlinks . <임시>/copy', 'git checkout --detach c0', 'git remote remove origin', 'mkdir <임시>/home', 'R=${CODEX_HOME:-$HOME/.codex}; cd <임시>/copy && HOME=<임시>/home CODEX_HOME="$R" codex exec'].map(text => prompt.indexOf(text));
+  const order = ['git clone --no-hardlinks . <임시>/copy', 'git checkout --detach c0', 'git remote remove origin', 'mkdir <임시>/home', 'R=${CODEX_HOME:-$HOME/.codex}; cd <임시>/copy && HOME=<임시>/home USERPROFILE=<임시>/home CODEX_HOME="$R" codex exec'].map(text => prompt.indexOf(text));
   assert.ok(order.every((at, index) => at >= 0 && (index === 0 || at > order[index - 1])), order.join());
   assert.ok(prompt.indexOf('pkill -P $(cat <임시>/pid)') < prompt.indexOf('kill $(cat <임시>/pid)`로 부모'), '자식을 먼저 멈춘다');
   assert.match(prompt, /깨뜨릴 입력·환경·순서를 직접 찾아 명령으로 재현한다/);

@@ -111,7 +111,7 @@ test('git이 실패하면 던지지 않고 검토 못 함으로 돌려준다', a
   assert.deepEqual(fs.readdirSync(s.tmpRoot), []);
 });
 
-test('codex 호출: 샌드박스·모델·깊이·복사본, HOME은 임시 홈, CODEX_HOME은 진짜 홈, 지시문에 작업 문서와 diff', async t => {
+test('codex 호출: 샌드박스·모델·깊이·복사본, HOME·USERPROFILE은 임시 홈, CODEX_HOME은 진짜 홈, 지시문에 작업 문서와 diff', async t => {
   const s = setup(t);
   const res = await s.review({ FAKE_WRITE: 'ignored.txt' });
   const seen = observed(res);
@@ -120,8 +120,8 @@ test('codex 호출: 샌드박스·모델·깊이·복사본, HOME은 임시 홈,
   assert.equal(valueAfter(seen.args, '-m'), 'gpt-6.1-sol');
   assert.equal(valueAfter(seen.args, '-c'), 'model_reasoning_effort="medium"');
   assert.equal(valueAfter(seen.args, '-C'), seen.cwd);
-  assert.equal(seen.env.HOME, path.join(path.dirname(seen.cwd), 'home'));
-  assert.equal(seen.env.CODEX_HOME, path.join(s.home, '.codex'));
+  const tmpHome = path.join(path.dirname(seen.cwd), 'home');
+  assert.deepEqual([seen.env.HOME, seen.env.USERPROFILE, seen.env.CODEX_HOME], [tmpHome, tmpHome, path.join(s.home, '.codex')]);
   assert.ok(seen.prompt.includes('## 작업 문서 전문') && seen.prompt.includes('1. 된다'));
   assert.ok(seen.prompt.includes('HOME과 USERPROFILE을 ' + seen.env.HOME));
   assert.equal(res.findings.length, 1);

@@ -121,7 +121,8 @@ const quote = file => `'${file.replaceAll("'", "'\\''")}'`;
 const PYTHON = /^(python3?)(?=\s|$)/;
 const withPython = (command, python) => (python ? command.replace(PYTHON, quote(python)) : command);
 
-export async function runChecks(worktree, commands, { seconds = 300, base = 'HEAD', python } = {}) {
+// 두 워크트리를 같이 돌리면 전체 pytest가 300초를 넘겨 멀쩡한 검사가 시간 초과로 실패했다.
+export async function runChecks(worktree, commands, { seconds = 900, base = 'HEAD', python } = {}) {
   if (commands.length === 0) return { ok: false, reason: '돌릴 확인 명령이 없다' };
   if (python && !fs.existsSync(python)) return { ok: false, reason: `일감목록.파이썬이 가리키는 파일이 없다: ${python}` };
   for (const template of commands) {

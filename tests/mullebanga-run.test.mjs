@@ -80,6 +80,15 @@ test('할 일 적기: 끝 기준이 없거나 사용자 원래 말이 든 specTe
   assert.ok(!fs.existsSync(path.join(s.dir, '.claude/worktrees/T-1')));
 });
 
+test('할 일 적기: 본문에서 사용자 원래 말 절을 가리키기만 한 specText는 문서 끝에 붙고 멈추지 않는다', async t => {
+  const s = setup(t, { bareSpec: true });
+  const specText = '## 왜 하나\n`docs/tasks/T-18.md` `## 사용자 원래 말` 절 참고\n\n## 끝 기준\n\n1. 된다\n';
+  s.scenario({ 'T-1': { spec: [{ payload: { outcome: '썼음', specText } }] } });
+  const [task] = (await s.run(['--도구', 'codex', 'T-1'])).json;
+  assert.equal(task.raised, true);
+  assert.ok(read(s.dir, 'docs/tasks/T-1.md').endsWith(specText));
+});
+
 test('할 일 적기: 건너뜀인데 끝 기준이 문서에 없으면 멈춘다', async t => {
   const s = setup(t, { bareSpec: true });
   const [task] = (await s.run(['--도구', 'codex', 'T-1'])).json;

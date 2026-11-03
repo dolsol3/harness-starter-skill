@@ -158,10 +158,10 @@ function attemptGemini(ctx) {
   return breakGemini(ctx, agentapi, backup);
 }
 
-// codex 로그인은 진짜 홈에 있어 HOME만 임시로 바꾸고 CODEX_HOME은 진짜 홈 쪽을 가리킨다.
+// codex 로그인은 진짜 홈에 있어 HOME·USERPROFILE(Windows 홈)을 임시로 바꾸고 CODEX_HOME은 진짜 홈 쪽을 가리킨다.
 const attemptCodex = ctx => callChecked(ctx, {
   tool: 'codex', write: true, prompt: breakPrompt(ctx), ...toolOptions(ctx.settings, 'codex'), timeoutMs: ctx.timeouts.breaking,
-  env: { ...ctx.env, HOME: ctx.home, CODEX_HOME: ctx.env.CODEX_HOME ?? path.join(ctx.realHome, '.codex') },
+  env: { ...ctx.env, HOME: ctx.home, USERPROFILE: ctx.home, CODEX_HOME: ctx.env.CODEX_HOME ?? path.join(ctx.realHome, '.codex') },
 });
 
 // 샌드박스가 allowUnsandboxedCommands:false로 켜져 있어 모든 Bash가 샌드박스 안이다.
