@@ -28,8 +28,7 @@ const patterns = config.patterns.map(p => ({ regex: new RegExp(p.regex, 'gm'), m
 // git 명령을 저장소 맨 위에서 실행해 출력을 돌려준다. 실패하면(저장소가 아님, 처음 보는 파일 등) null.
 function git(args, cwd = root) {
   try {
-    const options = { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] };
-    return execFileSync('git', ['-c', 'core.quotePath=false', ...args], options);
+    return execFileSync('git', ['-c', 'core.quotePath=false', ...args], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
   } catch {
     return null;
   }
@@ -165,13 +164,15 @@ function runAfterEdit(file) {
   const [program, ...rest] = kind.afterEdit.map(arg => arg.replaceAll('{file}', file));
   const seconds = kind.afterEditSeconds ?? 30;
   // SIGTERM을 무시하는 명령도 시간 제한에서 끊기게 SIGKILL로 끝낸다.
-  const result = spawnSync(program, rest, { cwd: root, encoding: 'utf8', timeout: seconds * 1000, killSignal: 'SIGKILL' });
+  const result = spawnSync(program, rest, { cwd: root, encoding: 'utf8', windowsHide: true, timeout: seconds * 1000, killSignal: 'SIGKILL' });
   const shown = [program, ...rest].join(' ');
   if (result.error?.code === 'ENOENT') {
     return `${file}: 명령 '${program}'을 찾지 못했다. harness/config.json의 afterEdit을 고치거나 도구를 설치한다`;
   }
   if (result.error?.code === 'ETIMEDOUT') return `${file}: ${seconds}초 시간 제한을 넘었다: ${shown}`;
-  if (result.error) throw result.error;
+  if (result.error) {
+    return `${file}: 명령 '${program}'을 실행하지 못했다(${result.error.code}). Windows에서 .cmd로만 있는 도구는 ["node", "<도구의 진입 .js>", "{file}"]로 적는다`;
+  }
   if (result.status === 0) return null;
   const output = (result.stdout + result.stderr).trimEnd().split('\n');
   const cut = output.length > 40 ? [`(출력 ${output.length}줄 중 앞 40줄만 보였다)`] : [];

@@ -13,7 +13,7 @@ const 종류 = ['기능', '수정'];
 const 채울수있는칸 = ['영역', '확인방법', '원인', '방향'];
 
 function git(args) {
-  return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  return execFileSync('git', args, { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
 
 // git이 성공하면 true, 종료 코드가 0이 아니면 false. git을 못 돌리는 경우는 그대로 오류로 올린다.

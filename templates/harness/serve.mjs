@@ -63,7 +63,7 @@ async function answer(req, res, root, token) {
   }
   // 값은 --이름=값 꼴로 넘기고 위치 인자는 -- 뒤에 둔다. 글이 -로 시작해도 옵션으로 읽히지 않게 하려는 것이다.
   const args = [backlogOf(root), '답', ...(직접 ? [`--직접=${직접}`] : []), `--만든시각=${만든시각}`, '--', 번호, ...(선택 ? [선택] : [])];
-  return execFile(process.execPath, args, { encoding: 'utf8' }, (error, stdout, stderr) => {
+  return execFile(process.execPath, args, { encoding: 'utf8', windowsHide: true }, (error, stdout, stderr) => {
     if (error) return reply(res, 409, stderr.replace(/^backlog: /, '').trim() || error.message);
     return reply(res, 200, `기록했습니다. ${번호}의 답: ${선택 || 직접}`);
   });
@@ -83,10 +83,22 @@ const stateFile = root => path.join(root, 'harness/serve.json');
 const readState = root => (fs.existsSync(stateFile(root)) ? JSON.parse(fs.readFileSync(stateFile(root), 'utf8')) : {});
 const link = state => `질문 페이지: http://127.0.0.1:${state.포트}/?token=${state.토큰}`;
 
+// 윈도우는 다른 프로세스가 대상 파일을 열어 둔 순간 바꿔 끼우기를 EPERM으로 거절한다. 켜두기가 이 파일을 100ms마다 읽으므로 그 틈이 지나길 잠깐 기다렸다 다시 한다.
+function renameWhenFree(from, to) {
+  for (let tries = 1; ; tries++) {
+    try {
+      return fs.renameSync(from, to);
+    } catch (error) {
+      if (error.code !== 'EPERM' || tries === 50) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+    }
+  }
+}
+
 // 켜두기가 기다리는 동안 이 파일을 되풀이해 읽으므로 반쯤 쓴 파일이 읽히지 않게 다른 이름으로 쓰고 바꿔 끼운다.
 function writeState(root, state) {
   fs.writeFileSync(`${stateFile(root)}.tmp`, `${JSON.stringify(state, null, 2)}\n`);
-  fs.renameSync(`${stateFile(root)}.tmp`, stateFile(root));
+  renameWhenFree(`${stateFile(root)}.tmp`, stateFile(root));
 }
 
 function portOf(state, portText) {
@@ -144,7 +156,7 @@ export async function keep(root, portText) {
   // 출력을 파이프로 물려주면 부른 쪽이 서버가 끝날 때까지 기다리므로 로그 파일에 바로 쓰게 한다.
   const log = path.join(root, 'harness/serve.log');
   const out = fs.openSync(log, 'a');
-  const child = spawn(process.execPath, [backlogOf(root), '서버', `--포트=${port}`], { cwd: root, detached: true, stdio: ['ignore', out, out] });
+  const child = spawn(process.execPath, [backlogOf(root), '서버', `--포트=${port}`], { cwd: root, detached: true, windowsHide: true, stdio: ['ignore', out, out] });
   fs.closeSync(out);
   child.unref();
   const started = await waitFor(async () => {

@@ -150,6 +150,15 @@ test('runChecks: 통과하면 ok, 처음 실패에서 멈추고 명령·종료 �
   assert.ok(!fs.existsSync(path.join(dir, 'third.txt')));
 });
 
+test('runChecks: Windows에서 git이 mingw64\\bin에서 먼저 잡혀도 sh를 찾아 확인 명령을 돌린다', { skip: process.platform !== 'win32' && 'Windows에서만 sh를 Git 폴더에서 찾는다' }, async t => {
+  const { dir } = repo(t);
+  const gitRoot = path.resolve(execFileSync('git', ['--exec-path'], { encoding: 'utf8' }).trim(), '..', '..', '..');
+  const saved = process.env.PATH;
+  t.after(() => { process.env.PATH = saved; });
+  process.env.PATH = [path.join(gitRoot, 'mingw64', 'bin'), path.dirname(process.execPath), path.join(process.env.SystemRoot, 'System32')].join(path.delimiter);
+  assert.deepEqual(await runChecks(dir, ['echo hi']), { ok: true });
+});
+
 test('runChecks: 출력은 뒤쪽 4000자만, 빈 명령 목록은 실패', async t => {
   const { dir } = repo(t);
   const result = await runChecks(dir, [`node -e "process.stdout.write('a'.repeat(5000)+'END'); process.exit(1)"`]);
@@ -158,6 +167,15 @@ test('runChecks: 출력은 뒤쪽 4000자만, 빈 명령 목록은 실패', asyn
   const empty = await runChecks(dir, []);
   assert.equal(empty.ok, false);
   assert.ok(empty.reason);
+});
+
+test('runChecks: 일감목록.파이썬이 있으면 python으로 시작하는 검사 명령을 그 인터프리터로 돌린다', async t => {
+  const { dir } = repo(t);
+  const python = process.execPath.replaceAll(path.sep, '/');
+  const ran = await runChecks(dir, [`python -e "console.log('PYTHON-SET'); process.exit(1)"`], { python });
+  assert.match(ran.output, /PYTHON-SET/);
+  const missing = await runChecks(dir, ['python -V'], { python: path.join(dir, 'nope') });
+  assert.match(missing.reason, /일감목록\.파이썬/);
 });
 
 test('runChecks: 바뀐 파일들이 파일마다 한 인자로 들어가고, 바뀐 것이 없으면 실패한다', async t => {
@@ -222,7 +240,7 @@ test('runChecks: 시간 제한을 넘으면 손자 프로세스까지 끝내고 
     setInterval(() => {}, 1000);
   `);
   const started = Date.now();
-  const result = await runChecks(dir, [`node ${script}`], { seconds: 1 });
+  const result = await runChecks(dir, [`node "${script.replaceAll(path.sep, "/")}"`], { seconds: 1 });
   assert.ok(Date.now() - started < 3500);
   assert.equal(result.ok, false);
   assert.equal(result.exitCode, null);

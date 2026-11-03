@@ -104,8 +104,9 @@ T-7 먼저할일 작업 T-3이(가) 완료되지 않았다
 
 **사람이 적는 경우.** 이미 깐 프로젝트이거나 숫자를 바꾸고 싶으면 `harness/config.json`에 직접 적는다(AI는 `kinds`가 찬 뒤 이 파일을 못 고친다). 숫자는 근거 없는 예시이고 사용자가 고른다(번갈아 보기는 `동시상한`에 있는 도구만 고르므로 검토 도구 `gemini`나 폴백 도구 `codex`를 쓰려면 그 이름도 함께 적는다).
 ```json
-"일감목록": { "동시상한": { "claude": 3, "codex": 1, "gemini": 1 }, "기본맡길곳": "claude" }
+"일감목록": { "동시상한": { "claude": 3, "codex": 1, "gemini": 1 }, "기본맡길곳": "claude", "파이썬": "C:/Python312/python.exe" }
 ```
+`파이썬`(영문 별칭 `python`)은 검사 명령이 `python -m pytest`처럼 인터프리터 이름으로 시작할 때 그 이름을 대신할 실행 파일이다(없으면 명령을 그대로 둔다). Windows의 PATH에 있는 `python`이 프로젝트가 쓰는 인터프리터가 아니면(`No module named pytest`) 여기에 그 인터프리터를 적는다. 가리키는 파일이 없으면 확인 명령을 돌리지 않고 이유를 남긴다.
 설정 명령어는 없다. 파일을 고치면 된다. 단계별 모델과 번갈아 보기 검토·폴백 도구는 `단계모델`을 고치며, 아래 '단계별 기본 모델과 설정 바꾸기' 절에 있다.
 
 - `시작 T-3 --맡길곳 codex`(옛 `--배정`): 만들기를 맡을 도구를 적는다(안 쓰면 `기본맡길곳`·`defaultTool`). 그 도구의 `진행중` 작업이 상한에 차 있으면 거절하고, `올림`이 된 작업은 세지 않는다.
@@ -132,7 +133,8 @@ T-7 먼저할일 작업 T-3이(가) 완료되지 않았다
   `codex exec`에는 시간 제한 옵션이 없고 맥에 `timeout` 명령도 없어 부르는 쪽이 위 반복으로 기다리다 중단한다.
   Claude를 부를 때(메인이 Codex·제미나이·그 밖의 도구여서 작성 도구가 `claude`가 아니고 `동시상한`에 `claude`가 있어 고른 경우, 손으로 넘기는 흐름): 복사본·`origin` 끊기·`<임시>/prompt.txt`·`<임시>/result.txt`·`done`·`pid`는 Codex와 같고, `HOME`·`CLAUDE_CONFIG_DIR`은 바꾸지 않는다. Claude 로그인은 맥 키체인에 있어 임시 `HOME`이나 임시 설정 폴더면 깨끗한 환경에서 `Not logged in`(종료 1)이 되기 때문이다(2026-10-23 사용자 결정: 진짜 홈에서 Claude 자기 기록만 허용).
   먼저 `<임시>/s.json`에 `{"sandbox":{"enabled":true,"failIfUnavailable":true,"autoAllowBashIfSandboxed":true,"allowUnsandboxedCommands":false}}`를 쓴다. 명령은 이 샌드박스(맥 Seatbelt)가 쓰기를 작업 폴더 안으로 묶고(공식 문서는 사용자 임시 폴더도 연다고 하지만 2026-10-23 실험에서 `~/…`·`<임시>` 안 복사본 밖 파일·`/tmp/…` 쓰기는 모두 Operation not permitted였다)(`--allowedTools Bash`는 `;`·`&&`로 묶은 명령이 승인 단계에서 거절돼 깨뜨려 보기가 안 되는 것을 막는 대신, 명령의 쓰기 범위는 샌드박스에 맡긴다), 파일 도구는 `--permission-mode acceptEdits --permission-prompts none`이 작업 폴더 밖 쓰기를 묻지 않고 거부한다. 샌드박스를 쓸 수 없는 환경이면 `failIfUnavailable`이 호출을 실패시켜 안전장치 없이 돌지 않는다.
-  `( cd <임시>/copy && claude -p --model <모델> --effort <깊이> --output-format json --no-session-persistence --permission-mode acceptEdits --permission-prompts none --allowedTools Bash --settings <임시>/s.json < <임시>/prompt.txt > <임시>/result.txt 2> <임시>/claude.log; echo $? > <임시>/done ) > /dev/null 2>&1 & echo $! > <임시>/pid`.
+  `( cd <임시>/copy && claude -p --model <모델> --effort <깊이> --output-format json --no-session-persistence --permission-mode acceptEdits [--permission-prompts none] --allowedTools Bash --settings <임시>/s.json < <임시>/prompt.txt > <임시>/result.txt 2> <임시>/claude.log; echo $? > <임시>/done ) > /dev/null 2>&1 & echo $! > <임시>/pid`.
+  `--permission-prompts`는 판마다 있고 없고가 다르다(2.1.31에는 없어 `unknown option`으로 즉시 실패했다). 물레방아는 처음 부를 때 `claude --help`를 읽어 없으면 이 인자를 빼고 부른다(아래 'Windows에서 쓰기'). 손으로 부를 때도 그 판의 `--help`에 없으면 뺀다.
   `<모델>`·`<깊이>`는 `단계모델.번갈아보기`의 `모델`(기본 `opus`)·`깊이`(기본 `medium`)다. `바깥모델`(기본 `gemini-4-argon-medium`)은 검토도구 몫이고 `폴백모델`(기본 `gpt-6.1-sol`)은 폴백도구 몫이다.
   실패 판정: `done`이 0이 아니거나, `result.txt` JSON의 `is_error`가 true이거나, `result`가 비면 실행 실패다. 실패일 때만 `result`에 `hit your .* limit`(예: `You've hit your session limit`)이 있는지 보아 있으면 한도 부족이다(정상 결과가 그 문구를 인용만 해도 한도 부족이 아니다). `claude`는 마지막 후보라 폴백이 없고 둘 다 다른 도구 검토 실패로 본다.
   기다리기와 멈추기는 Codex와 같다(`claude -p`에도 시간 제한 옵션이 없다). 단순한 작업도 벽시계 4분 넘게 걸린 적이 있어 기다림을 넉넉히 잡는다.
@@ -179,7 +181,7 @@ node harness/mullebanga.mjs --도구 codex|gemini|claude [--시간제한 초] [T
 - 담당들의 지시문 앞에는 `.claude/agents/`의 `planner`·`reviewer`·`implementer` 본문이 붙는다. 이 세 파일이 없으면 시작에서 `역할 안내문 파일이 없다`로 멈춘다(스킬 7단계가 메인 도구와 상관없이 만든다. 조사 담당 `researcher.md`는 읽지 않는다).
 - 표준 출력에는 작업마다 한 칸인 JSON 배열이 나온다. 칸은 `id`, `worktree`, `branches`, `commit`, `fixes`, `raised`, `raiseOutput`, `checkPassed`, `checkFailures`, `highs`, `others`, `resumed`, `spec`, `specReview`이고, 멈춘 작업은 여기에 `stopped: true`와 `reason`이 더해진다. 진행 줄은 표준 오류에 나오고 `harness/` 안에 상태 파일은 만들지 않는다.
 - Codex 기본 샌드박스 세션 안에서는 자식 `codex exec`가 `Operation not permitted`로 실패한다. 사람 터미널이나 전체 접근 세션에서 부른다. 제미나이를 쓰기 단계(만들기·고치기)에 쓰려면 그 기계에서 `agy`의 권한 모드가 이미 "묻지 않고 진행"(always-proceed)이어야 한다. 이 스킬은 그 설정을 바꾸지 않고 `--dangerously-skip-permissions`도 쓰지 않는다.
-- 이미 깐 프로젝트는 `install.mjs --upgrade`로 이 여섯 파일을 새것으로 받는다(클로드판 사본 `.claude/workflows/`는 `--upgrade`가 바꾸지 않는다).
+- 이미 깐 프로젝트는 `install.mjs --upgrade`로 이 여섯 파일을 새것으로 받는다(이미 있는 클로드판 사본 `.claude/workflows/mullebanga.js`와 `.claude/agents/`의 역할 파일도 `--upgrade`가 맞춘다).
 
 멈췄을 때 `reason`의 앞말로 보고 사람이 할 일이다. 멈춘 작업은 도구를 되풀이해 부르지 않고 `reason`을 남기고 끝난다.
 
@@ -217,6 +219,9 @@ node harness/mullebanga.mjs --도구 codex|gemini|claude [--시간제한 초] [T
 공용 물레방아는 단계마다 다른 도구를 쓰게 하는 칸 `도구`(영문 별칭 `tool`)를 읽는다. 해당하는 단계는 `할일적기`·`맞춰보기`·`만들기`·`번갈아보기`(살피기 담당 쪽만)·`고치기`·`올림`(증거 모으기) 여섯이고, 없으면 `--도구` 값을 쓴다. 바깥 검토 도구는 계속 `검토도구`·`폴백도구`가 정한다.
 `도구`가 `claude`이면 `모델`·`깊이` 설정값을 넘기고 없으면 위 기본값을 넘긴다. `codex`·`gemini`이면 그 단계 항목에 `도구`가 적힌 단계에서만 `모델`·`깊이`를 넘기고, 안 적혔으면 아무것도 넘기지 않아 그 도구의 기본값을 쓴다(클로드 모델 이름을 다른 도구에 넘기면 거절되기 때문이다). 한 단계만 바꾸는 예: `"만들기": { "도구": "gemini", "모델": "gemini-4-argon-medium" }`.
 단계 도구를 바꿔 실제 작성 도구가 일감 목록의 맡길곳과 달라지면, 바깥 검토 도구가 맡길곳과 같아져 `올림`이 거절될 수 있다. 그러면 `올림 단계에서 멈춤`으로 끝난다.
+
+Windows에서 `codex`는 npm이 `codex.cmd`만 놓아 셸로 부를 수 없다. 그래서 물레방아는 `.exe`가 없고 `.cmd`만 있으면 그 쪽지 안의 `.js` 진입파일을 꺼내 `node`로 직접 부른다(npm이 만든 모양일 때만, 지시문의 따옴표·줄바꿈이 그대로 간다). `agy`·`claude`는 `.exe`가 있어 그대로 불린다. 바깥 검토 도구는 고르기 전에 PATH에서 이렇게 부를 수 있는지 보고, 없으면 다음 후보로 넘어간다. 쓸 수 있는지는 `where.exe codex`로 찾아 `.exe`나 npm 모양 `.cmd`가 있는지로 확인한다.
+`바깥모델`·`폴백모델`과 단계별 `모델` 이름은 설치한 사람이 자기 도구에 맞춰 적는다. 위 표의 값은 예시이고, 도구가 모르는 이름을 받으면 그 호출은 실패한다.
 
 `harness/config.json`에서 단계별 모델·병렬 수·검토 도구와 일감 목록·덧대기·지키는 파일을 설정하는 예시는 아래와 같다.
 
@@ -339,6 +344,24 @@ pre-commit은 코드 파일을 커밋하는데 진행중인 작업이 없으면 
 읽지 않은 새 답이 있으면 진행중 작업이 없어도 새 답 줄(`새 답 N개(…)`)을 넣는다. 새 답 표시는 지우지 않아 메인이 `질문목록`으로 읽을 때까지 멈출 때마다 알린다. 진행중 작업도 새 답도 없으면 아무것도 하지 않는다.
 출력은 `hookSpecificOutput.additionalContext`라서 훅 오류로 보이지 않는다. 계속 일하게 붙잡는 장치가 아니다.
 
+## Windows에서 쓰기
+
+Windows 11에서 물레방아를 돌리며 찾은 것과 고친 곳이다(2026-10-28, W-28). 맥·리눅스에는 영향이 없다.
+
+- **콘솔 창이 깜빡이지 않는다.** 도구·확인 명령·질문 페이지를 띄우는 세 곳(`mullebanga-call.mjs`의 `run`, `mullebanga-git.mjs`의 `runShell`, `serve.mjs`의 `keep`)에 `windowsHide: true`를 주었다. `detached: true`는 프로세스 그룹을 끊는 데 필요해 그대로 둔다(W-25).
+- **도구 실행 파일을 풀어서 넘긴다.** 셸을 거치지 않는 `spawn`은 `.cmd`를 찾지 못하고 `.exe`만 고른다. 그래서 PATH를 직접 뒤져 `.exe`를 쓰고, `.exe`가 없으면 npm이 놓은 `.cmd`가 가리키는 대상(`.js`면 `node`로, `.exe`면 그대로)을 절대 경로로 넘긴다. npm의 `claude.cmd`는 `.js`가 아니라 `claude.exe`를 가리켜, 고치기 전에는 `launcher('claude')`가 `undefined`여서 `spawn claude ENOENT`가 났다.
+- **실행 파일을 바꿔 끼울 수 있다.** `HARNESS_CLAUDE_BIN`·`HARNESS_CODEX_BIN`·`HARNESS_GEMINI_BIN`에 실행 파일 경로를 주면 PATH보다 먼저 쓴다. PATH 앞쪽에 낡은 판이 있어 낡은 판이 잡힐 때 쓴다(낡은 `claude.exe`가 잡히면 `error: unknown option '--permission-prompts'`로 모든 단계가 즉시 실패했다). 없는 파일을 가리키면 그 변수 이름을 담은 오류로 멈춘다.
+- **어느 판을 쓰는지 표준 오류에 남긴다.** 도구마다 그 프로세스에서 처음 부를 때 `--version`을 한 번 찍는다: `[harness] claude 2.1.312 (Claude Code) — C:\…\claude.exe`. 단계가 이상하게 실패하면 이 줄부터 본다.
+- **판에 없는 인자는 빼고 부른다.** `claude --help`에 `--permission-prompts`가 없으면 그 인자를 빼고 부른다(2.1.31에 없었다).
+- **검사 명령의 파이썬을 정할 수 있다.** `harness/config.json`의 `일감목록.파이썬`에 인터프리터를 적으면 `python -m pytest` 같은 명령의 `python`이 그 파일로 바뀐다. Windows의 PATH에 있는 `python`이 프로젝트와 달라 `No module named pytest`가 나던 것을 막는다(위 '일감 목록 명령' 절).
+- **바깥 검토 결과를 끝까지 읽는다.** `agy`가 `structured_output` 없이 `response` 글에 같은 JSON(`{"findings": []}`)을 여러 번 담아 오면 마지막으로 성립하는 JSON 객체를 쓴다. 지적 0건이 '검토 실패'로 기록되던 것을 고쳤다.
+
+확인(2026-10-28, Windows 11 + Git Bash). 이 저장소 밖 임시 저장소에 `hello.js`를 고치는 작업 둘을 만들고 `node harness/mullebanga.mjs --도구 claude --시간제한 240 T-1 T-2`를 돌렸다(값싼 모델 `haiku`·`low`로 바꿔 돌렸고, 확인하려는 것은 도구 실행 파일·판 번호·검토 파싱이다).
+- 두 작업이 동시에 돌았다(단계 줄이 T-1·T-2로 번갈아 나왔다). `일감목록.동시상한.claude`가 2라 그렇다.
+- 표준 오류에 `[harness] claude 2.1.312 (Claude Code) — C:\…\claude.exe`와 `[harness] gemini 1.4.8 — C:\…\agy.exe`가 남았다. 그 실행에서 codex는 부르지 않아(제미나이 검토가 성공했다) codex 줄은 따로 확인했다: `[harness] codex codex-cli 0.165.0 — node … codex.js`.
+- 바깥 검토는 지적 0건으로 파싱됐다. T-2는 `checkPassed: true`, `highs: []`, `others: []`, `raised: true`였고 T-1은 일감 목록에 `검토: gemini`로 올림이 적혔다(검토가 실패했으면 `검토` 칸이 비고 중간 지적이 붙는다).
+- 콘솔 창은 눈으로 확인하지 못했다(이 환경에서는 화면을 볼 수 없다). 대신 `detached: true`로 띄우는 세 곳이 모두 `windowsHide: true`인 것을 코드로 확인했다.
+
 ## 쓰는 법
 
 이 폴더를 각 도구의 스킬 위치에 두고 "하네스 씌워줘"라고 한다.
@@ -409,7 +432,7 @@ Claude Code는 경로가 맞는 파일을 다룰 때 규칙 파일을 스스로 
 
 하네스가 하는 것(설정만으로):
 - `patterns`: 가이드가 막는 패턴(색 직접 쓰기 등)을 새로 더한 줄에서 잡는다. 패턴 목록은 공통이고, 종류에 `patterns: true`가 있어야 그 종류의 새 줄에 적용된다.
-- `afterEdit`: 고친 직후 린터를 돌려 알린다. 커밋 때는 돌지 않는다.
+- `afterEdit`: 고친 직후 린터를 돌려 알린다. 커밋 때는 돌지 않는다. Windows에서 `.cmd`로만 있는 도구(`npx`·`npm`·`prettier`)는 `["node", "<도구의 진입 .js>", "{file}"]`로 적는다.
 - 커밋 때 전체 린트 줄: 설치 때 승인하면 pre-commit 끝에 더한다.
 - `지키는파일` (`protect`): 토큰 파일 같은 지킬 파일의 편집을 막는다(일감 목록을 깐 때만). 적으면 기본 목록(`.env`, 잠금 파일, `.git`)이 바뀌므로 기본 목록도 함께 적는다.
 

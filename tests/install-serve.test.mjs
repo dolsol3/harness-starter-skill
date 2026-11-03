@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { setTimeout as sleep } from 'node:timers/promises';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { tempDir, stopServerAtEnd } from './helpers.mjs';
@@ -33,14 +32,10 @@ function install(dir, ...args) {
 const excludeLines = dir => fs.readFileSync(path.join(dir, EXCLUDE), 'utf8').split('\n');
 const count = (lines, line) => lines.filter(each => each === line).length;
 
-// 이 저장소의 장부 명령으로 돈 서버 프로세스들. 맥의 임시 폴더는 링크라 실제 경로로 찾는다.
-const servers = real => execFileSync('ps', ['-ax', '-o', 'command'], { encoding: 'utf8' }).split('\n').filter(line => line.includes(`${real}/harness/backlog.mjs 서버`));
-
-let keptReal;
+let keptPid;
 
 test('a new install keeps the server state and log out of git, once, even while the server is on', t => {
   const dir = project(t);
-  keptReal = fs.realpathSync(dir);
   assert.match(install(dir), /\[고침\] \.git\/info\/exclude/);
   install(dir, '--apply');
   for (const line of SERVE_LINES) assert.equal(count(excludeLines(dir), line), 1, line);
@@ -51,13 +46,14 @@ test('a new install keeps the server state and log out of git, once, even while 
   stopServerAtEnd(t, dir);
   assert.equal(kept.status, 0, kept.stderr);
   assert.ok(fs.existsSync(path.join(dir, 'harness/serve.json')) && fs.existsSync(path.join(dir, 'harness/serve.log')));
+  keptPid = JSON.parse(fs.readFileSync(path.join(dir, 'harness/serve.json'), 'utf8')).pid;
+  assert.ok(process.kill(keptPid, 0));
   const status = execFileSync('git', ['status', '--short', '-uall'], { cwd: dir, encoding: 'utf8' });
   assert.doesNotMatch(status, /serve\.json|serve\.log/);
 });
 
-test('the server started above is gone after its test ends', async () => {
-  for (let tries = 0; tries < 20 && servers(keptReal).length; tries++) await sleep(100);
-  assert.deepEqual(servers(keptReal), []);
+test('the server started above is gone after its test ends', () => {
+  assert.throws(() => process.kill(keptPid, 0), { code: 'ESRCH' });
 });
 
 test('--apply --upgrade adds the server lines to an old exclude and keeps the ledger lines and the user\'s own line', t => {

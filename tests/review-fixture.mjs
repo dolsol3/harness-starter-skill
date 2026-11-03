@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { reviewOther } from '../templates/harness/mullebanga-review.mjs';
+import { writeFakeTool, gitDirs, setTmpdir } from './helpers.mjs';
 
 // 부른 기록(FAKE_CALLS)은 샌드박스 밖이라 제미나이 깨뜨려 보기에서는 남지 않는다. 그때는 결과의 attempts를 본다.
 // 환경 FAKE_X_CODEX·FAKE_X_AGY·FAKE_X_CLAUDE가 FAKE_X보다 먼저 쓰인다.
@@ -18,7 +19,7 @@ const cp = require('node:child_process');
 const { spawn } = cp;
 const env = process.env;
 const args = process.argv.slice(2);
-const tool = path.basename(process.argv[1]);
+const tool = path.basename(process.argv[1], '.js');
 const opt = name => env[name + '_' + tool.toUpperCase()] ?? env[name];
 const mode = opt('FAKE_MODE') || 'ok';
 // sleep은 시험이 읽을 손자 pid 파일을 git 호출·objects 걷기보다 먼저 쓴다. 뒤에 두면 부하로 앞 일이 timeoutMs를 넘길 때 pid 파일 없이 죽는다.
@@ -27,7 +28,8 @@ if (mode === 'sleep') {
   if (env.FAKE_PIDFILE) fs.writeFileSync(env.FAKE_PIDFILE, String(grandchild.pid));
   setInterval(() => {}, 1000);
 }
-const prompt = tool === 'agy' ? args[args.indexOf('-p') + 1] : args[args.length - 1];
+const stdin = fs.readFileSync(0, 'utf8');
+const prompt = tool === 'agy' ? JSON.parse(stdin).message.content : stdin;
 const git = (...a) => { try { return cp.execFileSync('git', a, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return 'ERR'; } };
 const links = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? links(path.join(dir, e.name)) : [fs.statSync(path.join(dir, e.name)).nlink]);
 const base = /git diff (\\w+) HEAD/.exec(prompt)?.[1];
@@ -67,21 +69,17 @@ export const valueAfter = (args, flag) => args[args.indexOf(flag) + 1];
 // roles는 첫 커밋에 넣을 .agents/agents 역할 파일. 시험이 모듈과 같은 프로세스에서 TMPDIR을 바꾸므로 시험끼리 겹쳐 돌리지 않는다.
 export function setup(t, { roles = ['breaker', 'readonly'] } = {}) {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'harness-review-')));
-  const savedTmp = process.env.TMPDIR;
   const tmpRoot = path.join(dir, 'tmp');
   fs.mkdirSync(tmpRoot);
-  process.env.TMPDIR = tmpRoot;
-  t.after(() => {
-    if (savedTmp === undefined) delete process.env.TMPDIR;
-    else process.env.TMPDIR = savedTmp;
-    fs.rmSync(dir, { recursive: true, force: true });
-  });
+  setTmpdir(t, tmpRoot);
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const bin = path.join(dir, 'bin');
   const gitBin = path.join(dir, 'gitbin');
   fs.mkdirSync(bin);
   fs.mkdirSync(gitBin);
-  for (const name of ['codex', 'agy', 'claude']) fs.writeFileSync(path.join(bin, name), FAKE, { mode: 0o755 });
-  fs.symlinkSync(execFileSync('which', ['git'], { encoding: 'utf8' }).trim(), path.join(gitBin, 'git'));
+  const unix = process.platform !== 'win32';
+  for (const name of ['codex', 'agy', 'claude']) writeFakeTool(bin, name, FAKE);
+  if (unix) fs.symlinkSync(execFileSync('which', ['git'], { encoding: 'utf8' }).trim(), path.join(gitBin, 'git'));
   const repo = path.join(dir, 'repo');
   const worktree = path.join(dir, 'wt');
   fs.mkdirSync(path.join(repo, 'docs/tasks'), { recursive: true });
@@ -105,16 +103,16 @@ export function setup(t, { roles = ['breaker', 'readonly'] } = {}) {
   fs.mkdirSync(path.dirname(agentapi), { recursive: true });
   fs.writeFileSync(agentapi, '#!/bin/sh\necho agentapi\n');
   const nodeDir = path.dirname(process.execPath);
-  const searchPath = [bin, nodeDir, '/usr/bin', '/bin'].join(path.delimiter);
+  const searchPath = [bin, nodeDir, ...(unix ? ['/usr/bin', '/bin'] : [gitDirs()[0]])].join(path.delimiter);
   // sandbox-exec가 없는 PATH: /usr/bin을 빼고 git만 따로 둔다(fake가 git을 부른다).
-  const noSandboxPath = [bin, nodeDir, gitBin].join(path.delimiter);
+  const noSandboxPath = [bin, nodeDir, unix ? gitBin : gitDirs()[0]].join(path.delimiter);
   const setConfig = config => fs.writeFileSync(path.join(repo, 'harness/config.json'), JSON.stringify(config));
   setConfig(DEFAULT_CONFIG);
   let count = 0;
   const calls = path.join(dir, 'calls');
   const review = (fake = {}, input = {}) => {
     const n = count++;
-    const env = { PATH: searchPath, HOME: home, FAKE_CALLS: calls, FAKE_PIDFILE: path.join(dir, `pid${n}`), FAKE_AGENTAPI: agentapi, ...fake };
+    const env = { PATH: searchPath, HOME: home, ...(!unix && { SystemRoot: process.env.SystemRoot }), FAKE_CALLS: calls, FAKE_PIDFILE: path.join(dir, `pid${n}`), FAKE_AGENTAPI: agentapi, ...fake };
     return reviewOther({ repo, id: 'T-1', worktree, commit, base: 'main', author: 'claude', env, timeouts: { breaking: 20000, readOnly: 20000 }, ...input });
   };
   const called = () => (fs.existsSync(calls) ? fs.readFileSync(calls, 'utf8').split('\n').filter(Boolean) : []);

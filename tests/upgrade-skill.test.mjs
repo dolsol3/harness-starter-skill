@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { linkDir, fileLinkSkip } from './helpers.mjs';
 import { MARK, temp, git, setup, publish, places, snapshot, copiedFiles, ok } from './upgrade-setup.mjs';
 
 const { version } = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -127,7 +128,7 @@ test('a place that is a symlink is refused before anything outside it changes', 
   fs.writeFileSync(path.join(outside, 'scripts', 'old.mjs'), 'old script\n');
   const claude = places(s.home)[0];
   fs.mkdirSync(path.dirname(claude), { recursive: true });
-  fs.symlinkSync(outside, claude);
+  linkDir(outside, claude);
   const result = s.upgrade(['--예']);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /링크/);
@@ -142,7 +143,7 @@ test('a linked folder above a place is refused before anything outside it change
   fs.writeFileSync(path.join(outside, 'harness-starter', 'scripts', 'old.mjs'), 'old script\n');
   const skills = path.dirname(places(s.home)[0]);
   fs.mkdirSync(path.dirname(skills), { recursive: true });
-  fs.symlinkSync(outside, skills);
+  linkDir(outside, skills);
   const result = s.upgrade(['--예']);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /링크/);
@@ -150,21 +151,23 @@ test('a linked folder above a place is refused before anything outside it change
   assert.equal(fs.existsSync(path.join(s.home, '.harness-starter')), false);
 });
 
-test('a linked registry or backup folder is refused before another global file changes', t => {
-  for (const linked of [['projects.json'], ['backup']]) {
-    const s = setup(t);
-    const settings = path.join(s.home, '.claude', 'settings.json');
-    fs.mkdirSync(path.dirname(settings), { recursive: true });
-    fs.writeFileSync(settings, '{"theme":"dark"}\n');
-    const outside = temp(t, 'outside');
-    const target = linked[0] === 'backup' ? outside : settings;
-    fs.mkdirSync(path.join(s.home, '.harness-starter'));
-    fs.symlinkSync(target, path.join(s.home, '.harness-starter', ...linked));
-    const result = s.upgrade(['--예']);
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /링크/);
-    assert.equal(fs.readFileSync(settings, 'utf8'), '{"theme":"dark"}\n');
-    assert.deepEqual(fs.readdirSync(outside), []);
-    for (const place of places(s.home)) assert.equal(fs.existsSync(place), false);
-  }
-});
+function refusesLinkedGlobal(t, kind) {
+  const s = setup(t);
+  const settings = path.join(s.home, '.claude', 'settings.json');
+  fs.mkdirSync(path.dirname(settings), { recursive: true });
+  fs.writeFileSync(settings, '{"theme":"dark"}\n');
+  const outside = temp(t, 'outside');
+  fs.mkdirSync(path.join(s.home, '.harness-starter'));
+  if (kind === 'backup') linkDir(outside, path.join(s.home, '.harness-starter', 'backup'));
+  else fs.symlinkSync(settings, path.join(s.home, '.harness-starter', 'projects.json'));
+  const result = s.upgrade(['--예']);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /링크/);
+  assert.equal(fs.readFileSync(settings, 'utf8'), '{"theme":"dark"}\n');
+  assert.deepEqual(fs.readdirSync(outside), []);
+  for (const place of places(s.home)) assert.equal(fs.existsSync(place), false);
+}
+
+test('a linked backup folder is refused before another global file changes', t => refusesLinkedGlobal(t, 'backup'));
+
+test('a linked registry file is refused before another global file changes', { skip: fileLinkSkip }, t => refusesLinkedGlobal(t, 'projects.json'));

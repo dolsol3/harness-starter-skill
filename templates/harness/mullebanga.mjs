@@ -115,7 +115,7 @@ async function writeCode(ctx, state, step, prompt, schema) {
 // 확인 명령을 돌리고 통과했을 때만 message로 커밋한다. skipIfClean이면 통과한 뒤에도 바뀐 파일이 없을 때 state.commit(지금 HEAD)을 그대로 쓴다.
 // 확인 명령이 파일을 고칠 수 있어, 검사한 상태와 올릴 커밋이 같도록 커밋 여부는 통과한 뒤에 정한다.
 async function checkAndCommit(ctx, state, step, message, skipIfClean = false) {
-  const check = ctx.checks.length ? await runChecks(state.worktree, ctx.checks, { base: ctx.config.base }) : undefined;
+  const check = ctx.checks.length ? await runChecks(state.worktree, ctx.checks, { base: ctx.config.base, python: ctx.config.python }) : undefined;
   if (check) Object.assign(state, { checkPassed: check.ok, checkFailures: check.ok ? '' : failureText(check) });
   if (check && !check.ok) return;
   if (!skipIfClean || inspectBranch(state.worktree, ctx.config.base).dirty) {

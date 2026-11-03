@@ -17,10 +17,12 @@
 
 # Runtime agent state/config at this repository root (not package templates)
 /.claude/
+/.codebuddy/
 /.codex/
 /.omx/
 /.omc/
 /.antigravity/
+/.workbuddy-ai/
 
 # Logs, recordings and local scratch artifacts
 *.log

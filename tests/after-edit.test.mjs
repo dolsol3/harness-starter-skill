@@ -80,6 +80,33 @@ test('a missing afterEdit command is reported, not skipped', t => {
   assert.match(result.stderr, /'no-such-command-harness'을 찾지 못했다/);
 });
 
+// Windows에서 .cmd는 EINVAL, 맥에서 실행 권한 없는 파일은 EACCES: 둘 다 spawn 오류 경로를 탄다.
+function unrunnable(t) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-unrunnable-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const tool = path.join(tmp, 'harness-not-runnable.cmd');
+  fs.writeFileSync(tool, 'echo hi\n', { mode: 0o644 });
+  return [tool, '{file}'];
+}
+
+test('an afterEdit program that cannot be run is reported, not thrown', t => {
+  const { dir } = repo(t, { afterEdit: unrunnable(t) });
+  write(dir, 'a.js', 'run();\n');
+  const result = hook(dir, 'a.js');
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /harness-not-runnable\.cmd'을 실행하지 못했다/);
+  assert.doesNotMatch(result.stderr, /Error:/);
+});
+
+test('a limit violation is still reported when the afterEdit program cannot be run', t => {
+  const { dir } = repo(t, { afterEdit: unrunnable(t) });
+  write(dir, 'a.js', 'a();\nb();\nc();\nd();\ne();\nf();\n');
+  const result = hook(dir, 'a.js');
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /a\.js:1: 파일이 6줄/);
+  assert.match(result.stderr, /을 실행하지 못했다/);
+});
+
 test('an afterEdit command over afterEditSeconds is stopped and reported', t => {
   const { dir } = repo(t, { afterEdit: [process.execPath, '-e', 'setTimeout(() => {}, 5000)'], afterEditSeconds: 1 });
   write(dir, 'a.js', 'run();\n');
@@ -87,7 +114,8 @@ test('an afterEdit command over afterEditSeconds is stopped and reported', t => 
   const result = hook(dir, 'a.js');
   assert.equal(result.status, 2);
   assert.match(result.stderr, /1초 시간 제한을 넘었다/);
-  assert.ok(Date.now() - started < 4000, 'the hook waited for the slow command');
+  // 명령이 스스로 끝나는 때가 5000ms다. 그보다 먼저 돌아오면 1초에 끊은 것이다(4000ms는 부하에서 흔들렸다).
+  assert.ok(Date.now() - started < 5000, 'the hook waited for the slow command');
 });
 
 test('an afterEdit command that ignores SIGTERM is still stopped at the limit', t => {
@@ -98,7 +126,7 @@ test('an afterEdit command that ignores SIGTERM is still stopped at the limit', 
   const result = hook(dir, 'a.js');
   assert.equal(result.status, 2);
   assert.match(result.stderr, /1초 시간 제한을 넘었다/);
-  assert.ok(Date.now() - started < 4000, 'the hook waited for the command that ignored SIGTERM');
+  assert.ok(Date.now() - started < 5000, 'the hook waited for the command that ignored SIGTERM');
 });
 
 test('long afterEdit output is cut to the first 40 lines', t => {

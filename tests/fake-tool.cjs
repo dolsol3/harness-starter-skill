@@ -10,8 +10,10 @@ const cp = require('node:child_process');
 
 const env = process.env;
 const args = process.argv.slice(2);
-const tool = path.basename(process.argv[1]);
-const prompt = tool === 'agy' ? args[args.indexOf('-p') + 1] : args[args.length - 1];
+const tool = path.basename(process.argv[1], '.js');
+// 지시문은 인자가 아니라 stdin으로 온다(agy는 NDJSON 한 줄의 message.content).
+const stdin = fs.readFileSync(0, 'utf8');
+const prompt = tool === 'agy' ? JSON.parse(stdin).message.content : stdin;
 const MARKERS = [['specReview', '의 맞춰보기를 한다'], ['spec', '의 할 일 적기를 맡는다'], ['build', '를 만든다.'],
   ['other', '의 만든 코드를 다른 도구의 눈으로'], ['review', '의 만든 코드를 살핀다'], ['fix', '를 고친다.'], ['evidence', '의 끝 기준 증거를 모은다']];
 const CLEAN = { findings: [] };

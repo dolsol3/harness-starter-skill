@@ -32,6 +32,8 @@ export function setup(t) {
   git(env, work, 'init', '-q', '--bare', '-b', 'main', bare);
   git(env, work, 'init', '-q', '-b', 'main', publisher);
   for (const item of COPIED) fs.cpSync(path.join(SOURCE, item), path.join(publisher, item), { recursive: true });
+  // 실제 공개본에는 .gitattributes가 있어 clone의 줄바꿈이 컴퓨터 설정과 무관하다.
+  fs.copyFileSync(path.join(SOURCE, '.gitattributes'), path.join(publisher, '.gitattributes'));
   git(env, publisher, 'add', '-A');
   git(env, publisher, 'commit', '-q', '-m', 'first');
   git(env, publisher, 'remote', 'add', 'origin', bare);
@@ -70,7 +72,7 @@ export function places(home) {
 // 폴더 아래 모든 파일의 상대 경로와 내용.
 export function snapshot(dir) {
   if (!fs.existsSync(dir)) return {};
-  const names = fs.readdirSync(dir, { recursive: true }).filter(name => fs.statSync(path.join(dir, name)).isFile());
+  const names = fs.readdirSync(dir, { recursive: true }).filter(name => fs.statSync(path.join(dir, name)).isFile()).map(name => name.split(path.sep).join('/'));
   return Object.fromEntries(names.sort().map(name => [name, fs.readFileSync(path.join(dir, name), 'utf8')]));
 }
 
@@ -78,7 +80,7 @@ export function copiedFiles(dir) {
   return Object.fromEntries(COPIED.flatMap(item => {
     const full = path.join(dir, item);
     if (fs.statSync(full).isFile()) return [[item, fs.readFileSync(full, 'utf8')]];
-    return Object.entries(snapshot(full)).map(([name, text]) => [path.join(item, name), text]);
+    return Object.entries(snapshot(full)).map(([name, text]) => [`${item}/${name}`, text]);
   }));
 }
 

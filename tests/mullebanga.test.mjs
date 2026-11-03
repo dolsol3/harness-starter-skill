@@ -103,10 +103,11 @@ test('the other tool runs in a throwaway clone outside the worktree, which is ch
   assert.match(prompt, /mktemp -d/);
   assert.match(prompt, /cd \/repo\/\.claude\/worktrees\/wf_1-T-1 && git clone --no-hardlinks \. <임시>\/copy/);
   assert.match(prompt, /cd <임시>\/copy && git checkout --detach c0/);
+  assert.match(line('node -e'), /readFileSync\(0,"utf8"\).* < <임시>\/prompt\.txt > <임시>\/prompt.json`/);
   assert.match(line('prompt.txt'), /<임시>\/prompt\.txt.*<임시>\/result\.txt.*복사본 밖/);
   assert.match(line('codex exec'), /-s workspace-write .*-C <임시>\/copy -o <임시>\/result\.txt - < <임시>\/prompt\.txt/);
-  assert.match(line('--agent breaker'), /cd <임시>\/copy && sandbox-exec -f <임시>\/sb\.sb env TMPDIR=<임시>\/tmp agy -p .* --agent breaker --output-format json --print-timeout 25m --log-file <임시>\/agy\.log > <임시>\/result\.txt; echo \$\? > <임시>\/done/);
-  assert.match(line('--agent readonly --output-format'), /cd <임시>\/copy && HARNESS_READ_ONLY=1 agy -p .* --agent readonly --output-format json --print-timeout 5m > <임시>\/result\.txt/);
+  assert.match(line('--agent breaker'), /cd <임시>\/copy && sandbox-exec -f <임시>\/sb\.sb env TMPDIR=<임시>\/tmp agy --input-format stream-json --output-format stream-json .* --agent breaker --print-timeout 25m --log-file <임시>\/agy\.log < <임시>\/prompt\.json > <임시>\/result\.txt; echo \$\? > <임시>\/done/);
+  assert.match(line('--agent readonly --print-timeout'), /cd <임시>\/copy && HARNESS_READ_ONLY=1 agy --input-format stream-json --output-format stream-json .* --agent readonly --print-timeout 5m < <임시>\/prompt\.json > <임시>\/result\.txt/);
   assert.match(line('readonly.md`가 없으면'), /없으면 부르지 않고.*중간.*읽기 전용 역할 파일 없음/);
   assert.match(line('git status --porcelain'), /^4\. 읽기 전용 경로의 gemini면 .*cd <임시>\/copy && git status --porcelain.*높음.*깨뜨려 보기 경로\(Codex·gemini\)는 .* 확인을 하지 않는다/);
   assert.equal(lines.filter(each => each.includes('git status')).length, 1);

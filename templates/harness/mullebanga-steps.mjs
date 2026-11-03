@@ -28,6 +28,7 @@ export function readConfig(root) {
     limits: board.동시상한 ?? board.한도 ?? board.limits ?? {},
     defaultTool: board.기본맡길곳 ?? board.기본도구 ?? board.defaultTool ?? 'claude',
     base: board.기본브랜치 ?? board.baseBranch ?? 'main',
+    python: board.파이썬 ?? board.python,
   };
 }
 
@@ -53,7 +54,7 @@ export function fits(schema, value) {
 
 // 일감 목록 명령은 메인 폴더에서 돌린다.
 export function backlog(root, ...args) {
-  const done = spawnSync(process.execPath, [path.join(root, 'harness', 'backlog.mjs'), ...args], { cwd: root, encoding: 'utf8' });
+  const done = spawnSync(process.execPath, [path.join(root, 'harness', 'backlog.mjs'), ...args], { cwd: root, encoding: 'utf8', windowsHide: true });
   if (done.error) throw done.error;
   return { ok: done.status === 0, out: done.stdout.trim(), err: done.stderr.trim() };
 }

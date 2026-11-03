@@ -1,4 +1,5 @@
 // 4단계(잠금, 질문, 페이지, 서버) 테스트가 함께 쓰는 도우미: 하네스를 넣은 임시 git 저장소와 장부 명령 실행.
+// 물레방아 시험이 함께 쓰는 것: 가짜 도구를 만드는 `writeFakeTool`(Windows는 .cmd 쪽지+.js), 임시 폴더를 바꾸는 `setTmpdir`, git 폴더를 찾는 `gitDirs`.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -47,14 +48,15 @@ async function stopAll(t) {
   toStop.delete(t);
 }
 
-// 프로세스가 사라진 뒤에도 Windows는 수십 ms 동안 그 작업 폴더를 지우지 못한다(EPERM).
+// 프로세스가 사라진 뒤에도 Windows는 수십 ms 동안 그 작업 폴더를 지우지 못한다(EPERM). 서버가 아직 파일을 쥐고 있으면 EBUSY다.
+const BUSY_CODES = ['EPERM', 'EBUSY'];
 async function removeDir(dir) {
   for (let tries = 0; ; tries += 1) {
     try {
       fs.rmSync(dir, { recursive: true, force: true });
       return;
     } catch (error) {
-      if (error.code !== 'EPERM' || tries === 100) throw error;
+      if (!BUSY_CODES.includes(error.code) || tries === 100) throw error;
       await sleep(50);
     }
   }
@@ -117,3 +119,49 @@ export function refused(dir, ...args) {
   assert.equal(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null, before, 'a refused command leaves the ledger as it was');
   return result.stderr;
 }
+
+// 확장자 없는 가짜 도구는 Windows의 spawn이 실행하지 못한다(spawn ENOENT). 그래서 writeFakeTool은 Windows에서 npm 모양 .cmd 쪽지와 .js로 만든다(W-18의 launcher가 셸 없이 node로 부른다).
+// 물레방아는 도구를 처음 부를 때 --version과 --help를 묻는다. 가짜도 답해야 판 확인이 부작용(FAKE_CALLS·안 끝남)을 일으키지 않는다. sh 가짜(설치기 시험이 PATH에만 두는 것)에는 붙이지 않는다.
+const prelude = name => `(() => { const first = process.argv[2]; if (first === '--version' || first === '--help') { process.stdout.write('${name} fake 1.0\\n--permission-prompts <mode>\\n'); process.exit(0); } })();\n`;
+const afterShebang = (source, text) => (source.startsWith('#!') ? source.replace(/^#![^\n]*\n/, line => line + text) : text + source);
+// 가짜 도구 하나를 binDir에 만든다. source는 node 스크립트(첫 줄 shebang 가능). binDir는 os.tmpdir() 아래라야 한다: 위쪽에 "type": "module" package.json이 있으면 .js 가짜가 ESM으로 읽혀 깨진다.
+export function writeFakeTool(binDir, name, source) {
+  const node = !source.startsWith('#!') || /^#!.*node/.test(source);
+  const body = node ? afterShebang(source, prelude(name)) : source;
+  if (process.platform !== 'win32') return fs.writeFileSync(path.join(binDir, name), body, { mode: 0o755 });
+  fs.writeFileSync(path.join(binDir, `${name}.js`), body);
+  fs.writeFileSync(path.join(binDir, `${name}.cmd`), `@ECHO off\r\nendLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\\${name}.js" %*\r\n`);
+}
+
+// PATH에서 git이 든 폴더들. Windows에는 which도 심볼릭 링크도 없어 가짜 PATH에 이 폴더를 그대로 넣는다.
+export const gitDirs = () => process.env.PATH.split(path.delimiter).filter(dir => ['git', 'git.exe'].some(name => fs.existsSync(path.join(dir, name))));
+
+// os.tmpdir()는 Windows에서 TMPDIR이 아니라 TEMP·TMP를 본다. 셋을 dir로 바꾸고, 시험이 끝나면 원래 값(없었으면 없음)으로 되돌린다.
+export function setTmpdir(t, dir) {
+  const saved = ['TMPDIR', 'TEMP', 'TMP'].map(name => [name, process.env[name]]);
+  for (const [name] of saved) process.env[name] = dir;
+  t.after(() => {
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+}
+
+// 폴더 링크. junction은 권한 없이 만들어지고 대상이 절대 경로여야 해서 resolve한다(맥에서도 같은 호출이 된다).
+export const linkDir = (target, link) => fs.symlinkSync(path.resolve(target), link, 'junction');
+
+// 파일 링크를 한 번 만들어 보고 정한다: 만들 수 있으면 false, 없으면 건너뛸 이유 글(skip 옵션에 그대로 쓴다).
+export const fileLinkSkip = (() => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'filelink-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'a'), '');
+    fs.symlinkSync('a', path.join(dir, 'b'));
+    return false;
+  } catch (error) {
+    if (error.code === 'EPERM') return '파일 심볼릭 링크를 만들 권한이 없다(Windows 개발자 모드)';
+    throw error;
+  } finally {
+    fs.rmSync(dir, { recursive: true });
+  }
+})();

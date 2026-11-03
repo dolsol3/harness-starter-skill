@@ -112,7 +112,7 @@ test('callTool agent·logFile: agy에만 붙고 안 주면 없다', async t => {
   }
 });
 
-test('callTool wrap: 실행 파일 앞에 붙는 명령으로 불린다', async t => {
+test('callTool wrap: 실행 파일 앞에 붙는 명령으로 불린다', { skip: process.platform === 'win32' && 'Windows PATH에 POSIX env 실행 파일이 없어 wrap으로 쓸 수 없다(spawn env ENOENT, W-21)' }, async t => {
   const s = setup(t);
   const res = await callTool({ tool: 'gemini', prompt: '일', cwd: s.repo, schema, timeoutMs: 20000, wrap: ['env', 'WRAPPED=1'], env: { PATH: s.searchPath, HOME: s.home } });
   assert.equal(observed(res.result).env.WRAPPED, '1');
@@ -121,7 +121,7 @@ test('callTool wrap: 실행 파일 앞에 붙는 명령으로 불린다', async 
 });
 
 // timeoutMs는 가짜(node)가 뜨고 손자 pid 파일을 쓸 시간을 포함한다. 부하에서 node 기동만 1초가 걸려 700ms로는 파일을 쓰기 전에 죽었다(가짜는 파일을 먼저 쓴다).
-test('callTool wrap: 오래 자는 가짜도 timeoutMs 뒤 자손까지 죽고 시간초과를 돌려준다', async t => {
+test('callTool wrap: 오래 자는 가짜도 timeoutMs 뒤 자손까지 죽고 시간초과를 돌려준다', { skip: process.platform === 'win32' && 'Windows PATH에 POSIX env 실행 파일이 없어 wrap으로 쓸 수 없다(spawn env ENOENT, W-21)' }, async t => {
   const s = setup(t);
   const pidFile = path.join(s.dir, 'grandchild');
   const res = await callTool({ tool: 'gemini', prompt: '일', cwd: s.repo, schema, timeoutMs: 5000, wrap: ['env', 'WRAPPED=1'], env: { PATH: s.searchPath, HOME: s.home, FAKE_MODE: 'sleep', FAKE_PIDFILE: pidFile } });

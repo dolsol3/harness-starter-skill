@@ -44,13 +44,25 @@ test('후보 고르기: 작성 도구가 아니고 동시상한에 있는 첫 �
   }
 });
 
+// PATH에 없는 도구(여기서는 codex)는 고르지 않는다(Windows의 `.cmd` 쪽지만 있는 도구는 launcher가 node로 부르므로 있는 것으로 본다). 설정한 폴백도구(codex)를 못 쓰면 다음 후보(claude)로 잇는다.
+test('PATH에서 찾을 수 없는 도구는 고르지 않고, 설정한 폴백을 못 쓰면 다음 후보로 잇는다', async t => {
+  const s = setup(t);
+  const only = path.join(s.dir, 'only');
+  fs.mkdirSync(only);
+  for (const file of fs.readdirSync(path.join(s.dir, 'bin')).filter(file => ['agy', 'claude'].includes(file.split('.')[0]))) fs.copyFileSync(path.join(s.dir, 'bin', file), path.join(only, file));
+  const searchPath = [only, ...s.searchPath.split(path.delimiter).slice(1)].join(path.delimiter);
+  s.setConfig({ ...DEFAULT_CONFIG, ...review({ 검토도구: 'gemini', 폴백도구: 'codex' }) });
+  const res = await s.review({ PATH: searchPath, FAKE_MODE: 'limit' }, { author: 'codex' });
+  assert.deepEqual(res.attempts.map(a => a.tool), ['gemini', 'claude']);
+});
+
 test('고를 도구가 없으면 아무것도 부르지 않고 임시 폴더도 만들지 않는다', async t => {
   const s = setup(t);
   s.setConfig(limits('claude'));
   const res = await s.review({}, { author: 'claude' });
   assert.equal(res.tool, '');
   assert.equal(res.agentapiChanged, false);
-  assert.deepEqual(res.findings, [{ level: '중간', text: '다른 도구 검토 없음: 작성 도구가 아니고 동시상한에 있는 검토·폴백 도구가 없다' }]);
+  assert.deepEqual(res.findings, [{ level: '중간', text: '다른 도구 검토 없음: 작성 도구가 아니고 동시상한에 있으며 이 컴퓨터에서 실행할 수 있는 검토·폴백 도구가 없다' }]);
   assert.deepEqual(s.called(), []);
   assert.deepEqual(fs.readdirSync(s.tmpRoot), []);
 });
@@ -175,17 +187,17 @@ test('폴백까지 실패하면 tool을 비우고 중간 하나로 돌려준다'
 
 test('폴백이 없는 경우: 폴백도구가 동시상한 밖, 작성 도구, 이미 폴백도구를 골랐을 때', async t => {
   const cases = [
-    ['동시상한 밖', limits('claude', 'codex'), 'claude', 'codex'],
-    ['폴백도구가 작성 도구', DEFAULT_CONFIG, 'gemini', 'codex'],
-    ['처음부터 폴백도구를 골랐다(claude를 부르지 않는다)', DEFAULT_CONFIG, 'codex', 'gemini'],
+    ['동시상한 밖', limits('claude', 'codex'), 'claude', ['codex']],
+    ['폴백도구가 작성 도구라 다음 후보 claude로 잇는다(W-15)', DEFAULT_CONFIG, 'gemini', ['codex', 'claude']],
+    ['처음부터 폴백도구를 골랐다(claude를 부르지 않는다)', DEFAULT_CONFIG, 'codex', ['gemini']],
   ];
-  for (const [name, config, author, only] of cases) {
+  for (const [name, config, author, tools] of cases) {
     await t.test(name, async st => {
       const s = setup(st);
       s.setConfig(config);
       const res = await s.review({ FAKE_MODE: 'limit' }, { author });
       assert.equal(res.tool, '');
-      assert.deepEqual(res.attempts.map(a => a.tool), [only]);
+      assert.deepEqual(res.attempts.map(a => a.tool), tools);
     });
   }
 });

@@ -187,16 +187,16 @@ test('otherReviewPrompt reads 일감목록.동시상한 and 단계모델.번갈�
   assert.match(prompt, /<모델>·<추론>은 그 도구가 `검토도구`면 `바깥모델`·`바깥추론`, 폴백으로 부르면 `폴백모델`·`폴백추론`/);
   assert.match(prompt, /codex exec -s workspace-write --ephemeral -m <모델> -c model_reasoning_effort='"<추론>"' -C <임시>\/copy -o <임시>\/result\.txt - < <임시>\/prompt\.txt/);
   assert.match(prompt, /토큰·한도 부족\(quota·rate limit·usage limit 등\)이나 실행 실패로 검토를 못 하면.*폴백 도구\(`폴백도구`, 기본 `codex`, 모델 `폴백모델` 기본 `gpt-6\.1-sol`, 추론 `폴백추론` 기본 `medium`; `gemini`면 기본 `gemini-4-argon-medium`\)로 폴백/);
-  assert.match(prompt, /sandbox-exec -f <임시>\/sb\.sb env TMPDIR=<임시>\/tmp agy -p "\$\(cat <임시>\/prompt\.txt\)" --model <모델> --agent breaker --output-format json --print-timeout 25m --log-file <임시>\/agy\.log > <임시>\/result\.txt/);
-  assert.match(prompt, /cd <임시>\/copy && HARNESS_READ_ONLY=1 agy -p "\$\(cat <임시>\/prompt\.txt\)" --model <모델> --agent readonly --output-format json --print-timeout 5m > <임시>\/result\.txt/);
+  assert.match(prompt, /sandbox-exec -f <임시>\/sb\.sb env TMPDIR=<임시>\/tmp agy --input-format stream-json --output-format stream-json --model <모델> --agent breaker --print-timeout 25m --log-file <임시>\/agy\.log < <임시>\/prompt\.json > <임시>\/result\.txt/);
+  assert.match(prompt, /cd <임시>\/copy && HARNESS_READ_ONLY=1 agy --input-format stream-json --output-format stream-json --model <모델> --agent readonly --print-timeout 5m < <임시>\/prompt\.json > <임시>\/result\.txt/);
 });
 
 test('otherReviewPrompt picks the first of 검토도구, 폴백도구 that is not the author and is in 동시상한, calls nothing when none, and falls back only to a tool meeting the same condition', async () => {
   const { calls } = await run({ args: ['T-1'] });
   const { prompt } = calls.find(call => call.label.startsWith('다른 도구 검토'));
-  assert.match(prompt, /후보는 `검토도구`, `폴백도구` 순서다.*작성 도구가 아니고 `동시상한`에 있는 첫 도구를 고른다/);
+  assert.match(prompt, /후보는 `검토도구`, `폴백도구` 순서다.*작성 도구가 아니고 `동시상한`에 있으며 이 컴퓨터에서 실행할 수 있는.*첫 도구를 고른다/);
   assert.match(prompt, /고를 도구가 없으면 아무것도 부르지 않고 tool을 빈 문자열.*다른 도구 검토 없음/);
-  assert.match(prompt, /`폴백도구`가 작성 도구가 아니고 `동시상한`에 있을 때만.*이미 `폴백도구`였으면 폴백 없이/);
+  assert.match(prompt, /`폴백도구`가 작성 도구가 아니고 `동시상한`에 있으며 이 컴퓨터에서 실행할 수 있을 때만.*다음 후보.*이미 폴백이었으면 폴백 없이/);
   assert.doesNotMatch(prompt, /기본 검토도구\(`codex`\)를 우선 고르고|작성 도구 `claude` 말고/);
 });
 
@@ -239,7 +239,7 @@ test('otherReviewPrompt has the other tool break the clone: cut origin first, te
   assert.match(prompt, /& echo \$! > <임시>\/pid/);
   assert.match(prompt, /timeout 600000으로 최대 3번.*seq 1 110.*sleep 5/);
   assert.match(prompt, /kill \$\(cat <임시>\/pid\).*시간이 다 된 것은 모두 실행 실패/);
-  assert.match(prompt, /HARNESS_READ_ONLY=1 agy -p .* --agent readonly --output-format json --print-timeout 5m/);
+  assert.match(prompt, /HARNESS_READ_ONLY=1 agy --input-format stream-json --output-format stream-json .* --agent readonly --print-timeout 5m/);
 });
 
 test('the gemini breaker path builds the sandbox rule from the real temp path, runs behind the same wait and stop as Codex, and keeps the read-only path for no sandbox-exec or no breaker.md', async () => {
