@@ -125,6 +125,8 @@ const withPython = (command, python) => (python ? command.replace(PYTHON, quote(
 export async function runChecks(worktree, commands, { seconds = 900, base = 'HEAD', python } = {}) {
   if (commands.length === 0) return { ok: false, reason: '돌릴 확인 명령이 없다' };
   if (python && !fs.existsSync(python)) return { ok: false, reason: `일감목록.파이썬이 가리키는 파일이 없다: ${python}` };
+  const reports = [];
+  let outputLeft = 4000;
   for (const template of commands) {
     let command = template;
     if (template.includes(CHANGED_FILES)) {
@@ -132,12 +134,18 @@ export async function runChecks(worktree, commands, { seconds = 900, base = 'HEA
       if (files.length + deleted.length === 0) return { ok: false, command: template, reason: `${CHANGED_FILES}이 하나도 없어 검사할 것이 없다` };
       command = template.replaceAll(CHANGED_FILES, files.map(quote).join(' '));
     }
-    const result = await runShell(withPython(command, python), worktree, seconds);
+    command = withPython(command, python);
+    const result = await runShell(command, worktree, seconds);
     if (result.exitCode !== 0) {
       return { ok: false, command: template, exitCode: result.exitCode, output: result.output.trim().slice(-OUTPUT_TAIL) };
     }
+    const text = result.output.trim();
+    const limit = Math.min(800, outputLeft);
+    const output = limit ? text.slice(-limit) : '';
+    reports.push({ command, exitCode: result.exitCode, output, truncated: text.length > output.length });
+    outputLeft -= output.length;
   }
-  return { ok: true };
+  return { ok: true, reports };
 }
 
 // git worktree list --porcelain을 {path, branch, prunable} 목록으로 바꾼다.

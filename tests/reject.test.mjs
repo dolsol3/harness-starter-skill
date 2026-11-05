@@ -98,3 +98,25 @@ test('반려 keeps the 검토 written at 올림 and does not check the tool limi
   assert.deepEqual(taskOf(dir, 'T-1').반려.map(item => item.검토), ['claude']);
   assert.deepEqual(['T-1', 'T-2'].map(id => taskOf(dir, id).상태), ['진행중', '진행중'], 'claude has 2 running tasks over its limit of 1');
 });
+
+test('다시하기 and 반려 preserve 모델 and 깊이 when omitted, and update them when reselected', t => {
+  const dir = repo(t);
+  ok(dir, '추가', '모델 작업', ...START, '--모델', 'gpt-6.1-terra', '--깊이', 'low');
+  ok(dir, '시작', 'T-1');
+  submitted(dir, 'ai/first', '첫 증거');
+
+  ok(dir, '다시하기', 'T-1', '--사유', '원인 명확한 사소한 누락');
+  assert.equal(taskOf(dir, 'T-1').모델, 'gpt-6.1-terra');
+  assert.equal(taskOf(dir, 'T-1').깊이, 'low');
+
+  submitted(dir, 'ai/second', '둘째 증거');
+  ok(dir, '다시하기', 'T-1', '--사유', '다중 모듈 재분석 필요', '--모델', 'gpt-6.1-sol', '--깊이', 'medium');
+  assert.equal(taskOf(dir, 'T-1').모델, 'gpt-6.1-sol');
+  assert.equal(taskOf(dir, 'T-1').깊이, 'medium');
+  assert.match(ok(dir, '보기', 'T-1'), /모델: gpt-6\.1-sol\n깊이: medium/);
+
+  submitted(dir, 'ai/third', '셋째 증거');
+  ok(dir, '반려', 'T-1', '--사유', '추론 깊이 상향', '--추론', 'high');
+  assert.equal(taskOf(dir, 'T-1').모델, 'gpt-6.1-sol');
+  assert.equal(taskOf(dir, 'T-1').깊이, 'high');
+});

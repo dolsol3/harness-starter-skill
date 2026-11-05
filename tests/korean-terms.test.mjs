@@ -130,11 +130,38 @@ test('page.mjs renders 일감 목록 heading and 고칠곳/맡길곳 headers', (
   assert.match(html, /<td>둘째<\/td><td>src\/b<\/td><td>배정 gemini<\/td>/);
 });
 
-test('templates/harness/config.json includes valid 단계모델 defaults for all 11 stages', () => {
+test('templates/harness/config.json includes valid 단계모델 and 도구별단계모델 defaults for all 11 stages', () => {
   const config = JSON.parse(fs.readFileSync(templateConfig, 'utf8'));
   const stages = ['조사', '쪼개기', '할일적기', '맞춰보기', '만들기', '돌려보기', '번갈아보기', '고치기', '한일적기', '고르기', '올림'];
   assert.deepEqual(Object.keys(config.단계모델), stages);
-  assert.deepEqual(config.단계모델.조사, { 모델: 'sonnet', 깊이: 'medium', 보조모델: 'gemini-4-argon-medium', 최대병렬: 4 });
+  assert.deepEqual(Object.keys(config.도구별단계모델.codex), stages);
+  assert.deepEqual(Object.keys(config.도구별단계모델.gemini), stages);
+  assert.deepEqual(config.도구별단계모델.codex.조사, { 모델: 'gpt-6.1-sol', 깊이: 'high' });
+  for (const stage of ['쪼개기', '할일적기', '맞춰보기', '만들기', '고치기']) {
+    assert.deepEqual(config.도구별단계모델.codex[stage], { 모델: 'gpt-6.1-sol', 깊이: 'medium' }, `codex.${stage}`);
+  }
+  for (const stage of ['돌려보기', '한일적기', '고르기', '올림']) {
+    assert.deepEqual(config.도구별단계모델.codex[stage], { 모델: 'gpt-6-luna', 깊이: 'medium' }, `codex.${stage}`);
+  }
+  for (const stage of stages.filter(name => name !== '번갈아보기' && name !== '고르기')) {
+    assert.deepEqual(config.도구별단계모델.gemini[stage], { 모델: 'gemini-4-argon-medium', 깊이: 'medium' }, `gemini.${stage}`);
+  }
+  assert.deepEqual(config.도구별단계모델.gemini.고르기, { 모델: 'gemini-3.8-flash-medium', 깊이: 'medium' });
+  assert.deepEqual(config.도구별단계모델.codex.번갈아보기, {
+    모델: 'gpt-6.1-sol', 깊이: 'medium',
+    검토도구: 'gemini', 바깥모델: 'gemini-4-argon-medium', 바깥추론: 'medium',
+    폴백도구: 'claude', 폴백모델: 'opus', 폴백추론: 'medium',
+  });
+  assert.deepEqual(config.도구별단계모델.gemini.번갈아보기, {
+    모델: 'gemini-4-argon-medium', 깊이: 'medium',
+    검토도구: 'codex', 바깥모델: 'gpt-6.1-sol', 바깥추론: 'medium',
+    폴백도구: 'claude', 폴백모델: 'opus', 폴백추론: 'medium',
+  });
+  assert.deepEqual(config.단계모델.조사, {
+    우선도구: 'codex', 모델: 'gpt-6.1-sol', 깊이: 'high',
+    폴백도구: 'claude', 폴백모델: 'sonnet', 폴백추론: 'medium',
+    보조모델: 'gemini-4-argon-medium', 최대병렬: 4,
+  });
   assert.deepEqual(config.단계모델.번갈아보기, {
     모델: 'opus',
     깊이: 'medium',
@@ -149,4 +176,20 @@ test('templates/harness/config.json includes valid 단계모델 defaults for all
   assert.deepEqual(config.단계모델.올림, { 모델: 'sonnet', 깊이: 'low' });
   assert.deepEqual(config.단계모델.한일적기, { 모델: 'haiku', 깊이: 'medium' });
   assert.equal(config.일감목록, undefined, 'default template keeps tool limits off');
+});
+
+test('install --upgrade does not auto-inject 도구별단계모델 into existing user config.json', t => {
+  const dir = repo(t);
+  const home = path.join(dir, 'tmp-home');
+  fs.mkdirSync(home);
+  const file = path.join(dir, 'harness/config.json');
+  const existing = JSON.parse(fs.readFileSync(file, 'utf8'));
+  delete existing.도구별단계모델;
+  fs.writeFileSync(file, `${JSON.stringify(existing, null, 2)}\n`);
+  const installer = fileURLToPath(new URL('../scripts/install.mjs', import.meta.url));
+  const res = spawnSync(process.execPath, [installer, dir, '--apply', '--upgrade'], { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } });
+  assert.equal(res.status, 0, res.stderr);
+  const after = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal('도구별단계모델' in after, false);
+  assert.deepEqual(after.단계모델, existing.단계모델);
 });

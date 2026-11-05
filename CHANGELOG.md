@@ -5,7 +5,12 @@
 
 ## [Unreleased]
 
-- 공통 AGENTS 블록에서 메인 운영 절차를 `harness/main.md`로 분리하고, 물레방아 역할·단계의 중복 지시를 줄였다. instructions는 두 지침을 함께 설치하며 운영 파일 충돌 시 지침 세 파일을 함께 보존한다.
+## [0.9.2] - 2026-11-05
+
+- 공통 AGENTS 블록에서 메인 운영 절차를 `harness/main.md`로 분리하고, 물레방아 역할·단계의 중복 지시를 줄였다. `instructions`는 두 지침을 함께 설치하며 운영 파일 충돌 시 지침 세 파일을 함께 보존한다.
+- 실행 도구별 단계 모델 프로필(`도구별단계모델.codex`, `도구별단계모델.gemini`)과 세 도구(Claude·Codex·Antigravity) 메인별 단계 모델·외부 조사·바깥 독립 검토 우선/폴백 합의안을 반영했다(`단계모델.조사`는 `codex` `gpt-6.1-sol` `high` 우선 → `claude` `sonnet` `medium` 폴백, `codex`·`gemini`의 `번갈아보기` 바깥 검토는 실패 시 `claude` `opus` `medium` 폴백, Codex의 `돌려보기`·`한일적기`·`고르기`·`올림`은 `gpt-6-luna` `medium`, Antigravity의 `고르기`는 `gemini-3.8-flash-medium` `medium`).
+- 일감 목록의 `추가`·`시작`·`다시하기`(별칭 `반려`)에 작업별 `--모델`·`--깊이`(별칭 `--추론`) 옵션을 더하고, 물레방아(`mullebanga.mjs`·`mullebanga.js`)의 `만들기`·`고치기` 단계가 작업에 등록된 모델·깊이를 단계 기본값보다 먼저 쓰게 했다.
+- `install.mjs --upgrade`가 이미 켜져 있는 질문 페이지 서버를 새 코드로 다시 켜고, Windows에서 물레방아가 띄우는 도구는 `detached` 없이 시작해 프로세스 정리가 남지 않게 고쳤다.
 
 ## [0.9.1] - 2026-10-29
 

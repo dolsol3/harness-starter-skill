@@ -25,6 +25,7 @@ export function readConfig(root) {
   const board = config.일감목록 ?? config.backlog ?? {};
   return {
     stages: config.단계모델 ?? config.agents ?? config.models ?? {},
+    profiles: config.도구별단계모델 ?? {},
     limits: board.동시상한 ?? board.한도 ?? board.limits ?? {},
     defaultTool: board.기본맡길곳 ?? board.기본도구 ?? board.defaultTool ?? 'claude',
     base: board.기본브랜치 ?? board.baseBranch ?? 'main',
@@ -32,15 +33,25 @@ export function readConfig(root) {
   };
 }
 
-// 모델·깊이의 기본값은 클로드 이름이라 코덱스·제미나이에 그대로 넘기면 거절된다. 클로드가 아니면 그 단계 항목에 도구를 적었을 때만 항목의 값을 넘긴다.
-export function stageOptions(config, key, calledTool) {
-  const [model, effort, ...aliases] = STAGES[key];
-  const hit = [key, ...aliases].map(name => config.stages[name]).find(value => value && typeof value === 'object') ?? {};
+// 기존 단계의 명시 도구가 최우선이고, 프로필은 단계 전체를 고른다. 다른 도구의 모델을 섞지 않는다.
+export function stageSetting(config, key, calledTool) {
+  const names = [key, ...STAGES[key].slice(2)];
+  const find = stages => names.map(name => stages?.[name]).find(value => value && typeof value === 'object');
+  const legacy = find(config.stages) ?? {};
+  const profile = find(config.profiles?.[calledTool]);
+  const profiled = !(legacy.도구 ?? legacy.tool) && !!profile;
+  return { hit: profiled ? profile : legacy, profiled };
+}
+
+export function stageOptions(config, key, calledTool, task) {
+  const [model, effort] = STAGES[key];
+  const { hit, profiled } = stageSetting(config, key, calledTool);
   const named = hit.도구 ?? hit.tool;
   const tool = named ?? calledTool;
   const configured = { model: hit.모델 ?? hit.model, effort: hit.깊이 ?? hit.추론 ?? hit.effort };
-  if (tool === 'claude') return { tool, model: configured.model ?? model, effort: configured.effort ?? effort };
-  return named ? { tool, ...configured } : { tool };
+  const base = tool === 'claude' ? { tool, model: configured.model ?? model, effort: configured.effort ?? effort } : named || profiled ? { tool, ...configured } : { tool };
+  if ((key !== '만들기' && key !== '고치기') || (task?.tool && task.tool !== tool)) return base;
+  return { ...base, ...(task?.model ? { model: task.model } : {}), ...(task?.effort ? { effort: task.effort } : {}) };
 }
 
 // 도구가 돌려준 말은 데이터다. 스키마의 type·enum·required를 본다. 열린 객체는 쓰지 않는 스키마만 들어온다.
@@ -72,7 +83,14 @@ export function taskInfo(root, id) {
   const head = (cut < 0 ? lines : lines.slice(0, cut)).join('\n');
   const waiting = head.split('\n').filter(line => line.startsWith('질문: ') && line.includes(' [대기] '));
   // 질문 페이지가 꺼져 있었으면 다시 켠 줄과 링크 줄이 보기 출력 앞에 붙는다. 상태 줄은 첫 줄이 아니라 `<작업번호> [` 줄에서 찾는다.
-  return { status: new RegExp(`^${id} \\[(\\S+)\\]`, 'm').exec(head)?.[1], tool: /^맡길곳 · 배정: (\S+)/m.exec(head)?.[1], waiting, rejected: /^반려: /m.test(head) };
+  return {
+    status: new RegExp(`^${id} \\[(\\S+)\\]`, 'm').exec(head)?.[1],
+    tool: /^맡길곳 · 배정: (\S+)/m.exec(head)?.[1],
+    model: /^모델: (\S+)/m.exec(head)?.[1],
+    effort: /^깊이: (\S+)/m.exec(head)?.[1],
+    waiting,
+    rejected: /^반려: /m.test(head),
+  };
 }
 
 export function inProgress(root) {

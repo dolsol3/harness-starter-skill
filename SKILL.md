@@ -127,9 +127,9 @@ Claude Code, Codex, Antigravity, OpenClaw, WorkBuddy AI 어디서 불러도 설�
    덧대기 신호의 제목 규칙을 바꿨다면 `덧대기.수정패턴`(영문 별칭 `patch.fixPattern`, 예: `"덧대기": { "수정패턴": "^(버그|fix\\b)" }`)도 같이 적는다. JSON이라 `\\b`처럼 역슬래시를 두 번 쓴다.
    몇 번부터 알릴지(`횟수`/`times`, 기본 3)와 볼 커밋 수(`최근커밋`/`lastCommits`, 기본 50)는 사용자가 바꾸자고 할 때만 적는다.
    설치기가 `일감목록`을 적었으면(5단계 알림) 지우지 않고 그 위에 더한다. `기본브랜치` 같은 칸은 같은 `일감목록` 안에 더한다.
-   설치기가 적지 못한 경우(이미 `config.json`이 있던 프로젝트, `--main`을 안 준 경우, 메인 말고 깔린 도구를 못 찾은 경우, `--without=backlog`)에만, 사용자가 원하면 `동시상한`과 `기본맡길곳`(영문 별칭 `backlog.limits`, `defaultTool`, 예: `"일감목록": { "동시상한": { "claude": 3, "codex": 1, "gemini": 1 }, "기본맡길곳": "claude" }`)을 적게 한다. `kinds`가 찬 뒤 AI는 `config.json`을 못 고치므로 `kinds`와 한 번에 적거나 사람이 직접 적는다(물레방아 `번갈아 보기`에서 기본 검토 도구 제미나이와 토큰 부족 시 코덱스 폴백을 쓰려면 `"gemini": 1`·`"codex": 1`도 함께 적는다).
-   설치기가 적는 숫자(메인 3, 같이 쓸 도구 1)와 예시 숫자는 이 저장소에서 사람이 쓰는 값일 뿐 실험으로 정한 값이 아니다. 도구를 하나만 적으면 다른 도구의 검토 규칙은 꺼진다.
-   `templates/harness/config.json`에는 11개 단계별 기본 모델·추론 깊이 설정인 `단계모델`(영문 별칭 `agents`)이 기본으로 들어 있다(`조사`: 본체 `sonnet` `medium` + `보조모델` `gemini-4-argon-medium`·`최대병렬` `4`·코덱스 제외, `쪼개기`: `opus` `high`, `할일적기`·`만들기`·`고치기`: `sonnet` `medium`, `맞춰보기`: `opus` `medium`, `돌려보기`·`고르기`·`한일적기`: `haiku` `medium`, `올림`: `sonnet` `low`, `번갈아보기`: 살피기 담당 `opus` `medium` + `검토도구` `gemini`·`바깥모델` `gemini-4-argon-medium`·`폴백도구` `codex`·`폴백모델` `gpt-6.1-sol`·`폴백추론` `medium`). 사용자가 모델(`모델`/`model`), 추론 깊이(`깊이`/`추론`/`effort`), 조사 보조 모델(`보조모델`/`helperModel`)·병렬 수(`최대병렬`/`maxParallel`), 번갈아 보기 검토·폴백 도구(`검토도구`/`reviewTool`, `바깥모델`/`reviewModel`, `폴백도구`/`fallbackTool`, `폴백모델`/`fallbackModel`, `폴백추론`/`fallbackEffort`)를 바꾸자고 하면 `단계모델`에서 함께 맞춰 적는다.
+   설치기가 적지 못한 경우(이미 `config.json`이 있던 프로젝트, `--main`을 안 준 경우, 메인 말고 깔린 도구를 못 찾은 경우, `--without=backlog`)에만, 사용자가 원하면 `동시상한`과 `기본맡길곳`(영문 별칭 `backlog.limits`, `defaultTool`, 예: `"일감목록": { "동시상한": { "claude": 5, "codex": 5, "gemini": 5 }, "기본맡길곳": "claude" }`)을 적게 한다. `kinds`가 찬 뒤 AI는 `config.json`을 못 고치므로 `kinds`와 한 번에 적거나 사람이 직접 적는다(물레방아 `번갈아 보기`에서 기본 검토 도구 제미나이와 토큰 부족 시 코덱스 폴백을 쓰려면 `"gemini": 5`·`"codex": 5`도 함께 적는다).
+   신규 기본은 메인과 탐지한 다른 도구가 각각 5(세 도구면 5·5·5)다. 사용자가 정한 값이며 실험으로 정한 값이 아니다. 상한은 최대 동시 실행 수이지 매번 5개 호출하라는 뜻이 아니다. 도구를 하나만 적으면 다른 도구의 검토 규칙은 꺼진다.
+   `templates/harness/config.json`에는 11개 단계별 기본 모델·추론 깊이 설정인 `단계모델`(영문 별칭 `agents`)이 기본으로 들어 있다(`조사`: 본체 `sonnet` `medium` + `보조모델` `gemini-4-argon-medium`·`최대병렬` `4`·코덱스 제외는 2026-10-22 당시 전제, `쪼개기`: `opus` `high`, `할일적기`·`만들기`·`고치기`: `sonnet` `medium`, `맞춰보기`: `opus` `medium`, `돌려보기`·`고르기`·`한일적기`: `haiku` `medium`, `올림`: `sonnet` `low`, `번갈아보기`: 살피기 담당 `opus` `medium` + `검토도구` `gemini`·`바깥모델` `gemini-4-argon-medium`·`폴백도구` `codex`·`폴백모델` `gpt-6.1-sol`·`폴백추론` `medium`). 사용자가 모델(`모델`/`model`), 추론 깊이(`깊이`/`추론`/`effort`), 조사 보조 모델(`보조모델`/`helperModel`)·병렬 수(`최대병렬`/`maxParallel`), 번갈아 보기 검토·폴백 도구(`검토도구`/`reviewTool`, `바깥모델`/`reviewModel`, `폴백도구`/`fallbackTool`, `폴백모델`/`fallbackModel`, `폴백추론`/`fallbackEffort`)를 바꾸자고 하면 `단계모델`에서 함께 맞춰 적는다.
    `config.json`을 적은 직후 `node harness/backlog.mjs 목록`이 오류 없이 도는지 본다. `덧대기.수정패턴`(`patch.fixPattern`)이 올바른 정규식이 아니면 일감 목록 명령 전부가 실행 전에 `config.json의 patch.fixPattern이 올바른 정규식이 아니다`라고 알리며 멈추고,
    `kinds`가 차면 AI는 `config.json`을 고칠 수 없다.
    `kinds`가 이미 찬 설치(업그레이드, 일감 목록을 나중에 더하는 경우)에서는 막는 훅이 AI의 `config.json` 수정을 거절하므로 `일감목록`(`backlog`)·`단계모델`(`agents`)·`덧대기`(`patch`)·`지키는파일`(`protect`)·`afterEdit`·`afterEditSeconds`는 사람이 직접 적게 안내한다.
@@ -226,10 +226,27 @@ Claude Code, Codex, Antigravity, OpenClaw, WorkBuddy AI 어디서 불러도 설�
 이미 있는 `harness/` 파일과 lean-review는 내용이 다르면 건너뛴다. 검사기와 일감 목록 명령 파일, 제미나이 역할 파일, 이미 있는 역할·물레방아 사본, 깐 버전 `harness/VERSION`을 새 버전으로 바꾸려면 `--upgrade`를 쓴다.
 업그레이드는 공식 문서 길잡이를 만들지 않는다. 이미 깐 프로젝트에서 길잡이만 만들어 달라고 하면 2단계의 이미 있는 공식 문서 목록, 3단계, 4단계의 주제 모으기, 6단계의 길잡이 쓰기만 한다.
 
+
+## 도구별 모델 선택
+
+공용 물레방아는 명시 `--도구 claude|codex|gemini`로 실행 도구를 정한다. 앱 자동 감지가 아니다.
+예: `"도구별단계모델": { "codex": { "만들기": { "모델": "gpt-6.1-sol", "깊이": "medium" } } }`를 두고
+`node harness/mullebanga.mjs --도구 codex`로 부르면 만들기에 Sol medium을 넘긴다.
+기존 `단계모델.<단계>.도구` 명시 override → (`만들기`·`고치기`에서 작업에 등록된 `--모델`·`--깊이`가 있고 실행 도구가 `맡길곳`과 같을 때 작업별 값 우선) → 실행 도구의 프로필 → 기존 단계 설정 순이다. 프로필은 단계 전체를 고르며 Claude 모델과 필드별로 섞지 않는다.
+신규 템플릿(T-181)은 Claude 메인(`단계모델`)에서 외부 `조사`를 `codex` `gpt-6.1-sol high` 우선 → `claude` `sonnet medium` 폴백(다건 병렬 보조 `gemini-4-argon-medium`, 최대병렬 `4`), `번갈아보기` 바깥 검토를 `gemini` `gemini-4-argon-medium` 우선 → `codex` `gpt-6.1-sol medium` 폴백으로 두고, Codex 프로필(`도구별단계모델.codex`)은 `조사` `gpt-6.1-sol high`, `쪼개기`·`할일적기`·`맞춰보기`·`만들기`·`고치기` `gpt-6.1-sol medium`(범위가 명확한 작업은 작업별 `gpt-6.1-terra low`), `돌려보기`·`고르기`·`한일적기`·`올림` `gpt-6-luna medium`, `번갈아보기` 바깥 `gemini` `gemini-4-argon-medium medium` 우선 → `claude` `opus medium` 폴백으로, Gemini 프로필(`도구별단계모델.gemini`)은 `고르기`만 `gemini-3.8-flash-medium medium`이고 나머지(`조사` 포함)는 `gemini-4-argon-medium medium`, `번갈아보기` 바깥 `codex` `gpt-6.1-sol medium` 우선 → `claude` `opus medium` 폴백으로 담는다. 가벼운 모델(`gpt-6-luna`, `haiku`, `gemini-3.8-flash-medium`)은 확인된 입력과 정해진 형식만 다루며 최종 품질 판정·새 원인 분석·일반 코드 수정·병합 결정을 맡지 않는다.
+공용 mjs 6단계는 `할일적기`·`맞춰보기`·`만들기`·`번갈아보기`·`고치기`·`올림`이며, 메인 직접 5단계는 `조사`·`쪼개기`·`돌려보기`·`한일적기`·`고르기`다.
+직접 단계도 메인이 명시 운용 도구를 기준으로 위 우선순위와 지원 여부를 확인해 모델·추론을 명시 호출한다. 프로필만으로 자동 전환하거나 조용히 다른 모델로 바꾸지 않는다. `추가`·`시작`·`고치기`·`다시하기`의 `--모델`·`--깊이`(별칭 `--추론`)로 작업별 모델·깊이를 등록·재선정하면 물레방아가 `만들기`·`고치기`에서 기본값보다 먼저 쓴다.
+번갈아보기의 살피기·바깥 검토·폴백 설정에도 같은 선택이 적용되고 작성 도구 제외·등록·실행 가능 조건은 유지된다.
+기존 config는 업데이트로 덮어쓰거나 누락 프로필을 채우지 않는다. 신규 상한 5·5·5와 기존 프로젝트의 실제 설정 채택은 구분한다.
+새 모델은 프로필에 지원 ID·깊이를 적고 [작은 모델 시험](guide/model-exam.md)에서 필요한 후보만 비교한다. 미해결 때만 추가 호출을 제한하고 유력 조합만 실전 전체 작업으로 확인한다.
+Carbon은 출시 후 평가 후보이며 지원을 확정하지 않았다. 한 차례 소형 동점은 순위·최적 비용의 근거가 아니다.
+설정 예시와 기존 override·부분 프로필의 동작은 [사용법](guide/usage.md#단계별-기본-모델과-설정-바꾸기)에 있다.
+
 ## 업그레이드
 
 사용자가 "업그레이드 해 줘"라고 하면 이 스킬(전역 다섯 곳)과 명부의 프로젝트를 새 버전으로 올린다.
 `scripts/upgrade.mjs`는 git으로 받은 이 스킬 폴더에서 `git pull --ff-only`로 받고, 바뀐 것(`CHANGELOG.md`의 절)을 보이고, 전역 다섯 곳을 백업한 뒤 바꾸고, 명부의 프로젝트를 `install.mjs --apply --upgrade`로 올린다.
+새 스킬 사본에는 신규 기본 5·5·5가 들어가지만, 프로젝트의 기존 `일감목록.동시상한`과 다른 사용자 설정은 `--upgrade`로 덮어쓰지 않는다. 기존 상한도 5로 맞추려면 사용자가 해당 프로젝트의 `harness/config.json`을 직접 고친다(6단계). 전역 사본과 프로젝트 갱신은 아래 미리보기·대화 승인 절차를 따른다.
 전역 복사본(`.git` 없음)에서 불리면 명부의 `source`(마지막으로 다섯 곳을 바꾼 받은 폴더)로 넘긴다.
 
 1. 사람 없이 도는 작업(물레방아 등) 안이면 돌리지 않고 사용자에게 넘긴다.
@@ -284,7 +301,7 @@ Claude Code, Codex, Antigravity, OpenClaw, WorkBuddy AI 어디서 불러도 설�
   만들기 담당은 `isolation: worktree`로 뜬다(원격이 없는 임시 저장소에서 뜨는 것을 확인했고, 워크트리가 원격의 기본 브랜치에서 갈라지는 것은 T-5 서브에이전트에서 봤다).
   Claude Code 형식만 만든다(공식 문서의 `.claude/agents/` 머리말 칸으로 확인했고, 역할이 셋이던 때 임시 프로젝트에서 `claude`가 세 정의를 읽는 것까지 봤다). 파일을 채우는 일은 AI가 하므로 같은 입력에도 글이 조금 다를 수 있다.
 - 조사 담당(자세한 것은 `guide/limits.md`):
-  - 본체(`sonnet medium`)가 제미나이(`gemini-4-argon-medium`, `단계모델.조사.보조모델`)를 직접 부르므로 합칠 때 어느 모델이 썼는지 완전히 가리지 못한다(A·B·C로만 불러 대신한다). 코덱스는 토큰을 아껴 물레방아 `번갈아 보기` 검토에 쓰므로 조사에서 제외했다(2026-10-22 결정).
+  - 클로드 메인의 `단계모델.조사`는 외부 조사를 `codex`(`gpt-6.1-sol high`) 우선 → 한도·미설치·실패 시 클로드(`sonnet medium`) 폴백으로 두고(Antigravity 메인은 `gemini-4-argon-medium medium` 유지), 본체가 제미나이(`gemini-4-argon-medium`, `단계모델.조사.보조모델`)를 직접 부르므로 합칠 때 어느 모델이 썼는지 완전히 가리지 못한다(A·B·C로만 불러 대신한다). 물레방아 밖 조사는 메인이 선택된 설정·호출 지원 여부·읽기 전용 조건을 확인해 명시 호출한다. 프로필만으로 자동 전환되거나 실제 웹 조사 성능이 검증되는 것은 아니다.
   - 제미나이는 인용·앵커 수집량은 많지만 간헐적으로 지어낸 출처(환각)가 섞일 수 있어(2026-10-12 실험 및 2026-10-22 `T-115` 재시험), 어려운 사실·넓은 질문에서 제미나이를 병렬 보조로 쓰되 단독 채택하지 않고 반드시 본체(`sonnet medium`)가 원문을 직접 열어 검증한다.
   - 제미나이 `research` 역할이 작업 폴더 밖 파일을 읽은 일이 있다(전역 `allowNonWorkspaceAccess: true`). 전역 설정은 건드리지 않는다.
   - `agy -p`에 `-w` 플래그를 주면 `agy` 자체가 `flags provided but not defined: -w` 오류로 거절하므로 쓰지 않고, 번호별 버릴 복사본 폴더로 `cd`한 뒤 부른다.

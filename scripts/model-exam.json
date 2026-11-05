@@ -1,0 +1,24 @@
+{
+  "maxCalls": 16,
+  "timeoutMs": 120000,
+  "maxInputChars": 5000,
+  "concurrency": { "claude": 5, "codex": 5, "gemini": 5 },
+  "candidates": [
+    { "id": "sonnet", "tool": "claude", "model": "claude-sonnet-5-5", "effort": "medium" },
+    { "id": "opus", "tool": "claude", "model": "claude-opus-5-5", "effort": "medium" },
+    { "id": "haiku", "tool": "claude", "model": "claude-haiku-5-5", "effort": "medium" },
+    { "id": "sol-medium", "tool": "codex", "model": "gpt-6.1-sol", "effort": "medium" },
+    { "id": "sol-high", "tool": "codex", "model": "gpt-6.1-sol", "effort": "high" },
+    { "id": "sol-xhigh", "tool": "codex", "model": "gpt-6.1-sol", "effort": "xhigh" },
+    { "id": "terra-medium", "tool": "codex", "model": "gpt-6.1-terra", "effort": "medium" },
+    { "id": "terra-high", "tool": "codex", "model": "gpt-6.1-terra", "effort": "high" },
+    { "id": "terra-xhigh", "tool": "codex", "model": "gpt-6.1-terra", "effort": "xhigh" },
+    { "id": "astra-medium", "tool": "codex", "model": "gpt-6-astra", "effort": "medium" },
+    { "id": "astra-high", "tool": "codex", "model": "gpt-6-astra", "effort": "high" },
+    { "id": "astra-xhigh", "tool": "codex", "model": "gpt-6-astra", "effort": "xhigh" },
+    { "id": "argon-medium", "tool": "gemini", "model": "gemini-4-argon-medium" },
+    { "id": "argon-high", "tool": "gemini", "model": "gemini-4-argon-high" },
+    { "id": "flash-medium", "tool": "gemini", "model": "gemini-3.8-flash-medium" },
+    { "id": "flash-high", "tool": "gemini", "model": "gemini-3.8-flash-high" }
+  ]
+}

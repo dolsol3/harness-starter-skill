@@ -5,7 +5,7 @@ import path from 'node:path';
 import { setup, stoppedAt } from './run-fixture.mjs';
 import { taskInfo } from '../templates/harness/mullebanga-steps.mjs';
 
-const KEYS = ['id', 'worktree', 'branches', 'commit', 'fixes', 'raised', 'raiseOutput', 'checkPassed', 'checkFailures', 'highs', 'others', 'resumed', 'spec', 'specReview'];
+const KEYS = ['id', 'worktree', 'branches', 'commit', 'fixes', 'raised', 'raiseOutput', 'checkPassed', 'checkFailures', 'highs', 'others', 'resumed', 'spec', 'specReview', 'reviewTool', 'attempts'];
 const stages = s => s.called().filter(call => call.ph === 'start').map(call => call.stage);
 const PERMIT = ['허락', 'T-1', '지울까', '--행동', '삭제', '--설명', '설명', '--보기', '예=지움|아니오=둠', '--추천', '아니오', '--이유', '이유'];
 const withCriteria = (s, criteria, heading = '## 끝 기준') => fs.writeFileSync(path.join(s.dir, 'docs/tasks/T-1.md'), `# T-1 시험 작업\n\n## 사용자 원래 말\n\n- 사용자: "시험"\n\n${heading}\n\n${criteria}`);

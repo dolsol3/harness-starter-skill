@@ -112,3 +112,23 @@ test('이어 가기: 워크트리 폴더만 지워졌으면 같은 브랜치로 
   assert.ok(fs.statSync(task.worktree).isDirectory());
   assert.equal(worktreeLines(s), 2);
 });
+
+test('이어 가기·다시하기: 보존되거나 재선정된 작업 모델·깊이가 만들기·고치기에 그대로 반영된다', async t => {
+  const s = setup(t);
+  s.rewrite(book => { Object.assign(book.작업[0], { 모델: 'gpt-6.1-terra', 깊이: 'low' }); });
+  s.scenario({ 'T-1': { build: [{ write: { 'impl.txt': 'impl\n', FAIL: 'x' } }], fix: [{}, {}, {}, { write: { FAIL: null } }] } });
+  await s.run(['--도구', 'codex', 'T-1']);
+  const [resumed] = (await s.run(['--도구', 'codex', 'T-1'])).json;
+  assert.equal(resumed.raised, true);
+  const fixCalls = () => s.called().filter(c => c.ph === 'start' && c.stage === 'fix');
+  assert.ok(fixCalls().at(-1).args.includes('gpt-6.1-terra'));
+  assert.ok(fixCalls().at(-1).args.includes('model_reasoning_effort="low"'));
+
+  s.ledger('다시하기', 'T-1', '--사유', '구조 재검토', '--모델', 'gpt-6.1-sol', '--깊이', 'high');
+  s.scenario({ 'T-1': { spec: [{ payload: { outcome: '건너뜀', rejectedCommit: resumed.commit, rejectedReason: '구조 재검토' } }], build: [{ write: { 'impl.txt': 'rebuilt\n' } }] } });
+  const [rebuilt] = (await s.run(['--도구', 'codex', 'T-1'])).json;
+  assert.equal(rebuilt.raised, true);
+  const lastBuild = s.called().filter(c => c.ph === 'start' && c.stage === 'build').at(-1);
+  assert.ok(lastBuild.args.includes('gpt-6.1-sol'));
+  assert.ok(lastBuild.args.includes('model_reasoning_effort="high"'));
+});

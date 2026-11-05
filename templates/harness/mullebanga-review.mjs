@@ -7,6 +7,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { callTool, agentapiPath, onPath, hasTool, intact, sandboxWrap } from './mullebanga-call.mjs';
 import { schemas } from './mullebanga-prompts.mjs';
+import { readConfig, stageSetting } from './mullebanga-steps.mjs';
 
 const AUTHORS = ['codex', 'gemini', 'claude'];
 const LEVELS = ['높음', '중간', '낮음'];
@@ -21,14 +22,13 @@ class ReviewFailure extends Error {}
 
 const plainObject = value => (value !== null && typeof value === 'object' && !Array.isArray(value) ? value : undefined);
 const pick = (source, ...names) => names.map(name => source?.[name]).find(value => value !== undefined);
-const section = (source, ...names) => plainObject(pick(source, ...names)) ?? {};
 const finding = (level, text) => ({ level, text });
 const oneLine = text => text.split('\n').findLast(line => line.trim())?.trim().slice(0, DETAIL_LINE) ?? '';
 
-function readSettings(repo) {
-  const file = path.join(repo, 'harness', 'config.json');
-  const config = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
-  const review = section(section(config, '단계모델', 'agents', 'models'), '번갈아보기', '번갈아 보기', '교차리뷰', '교차 리뷰', 'review');
+function readSettings(repo, tool) {
+  const config = readConfig(repo);
+  const { hit: review, profiled } = stageSetting(config, '번갈아보기', tool);
+  const modelTool = pick(review, '도구', 'tool') ?? (profiled ? tool : 'claude');
   return {
     reviewTool: pick(review, '검토도구', '바깥도구', 'reviewTool') ?? 'gemini',
     fallbackTool: pick(review, '폴백도구', 'fallbackTool') ?? 'codex',
@@ -36,10 +36,10 @@ function readSettings(repo) {
     outsideEffort: pick(review, '바깥추론', 'outsideEffort'),
     fallbackModel: pick(review, '폴백모델', 'fallbackModel'),
     fallbackEffort: pick(review, '폴백추론', 'fallbackEffort'),
-    model: pick(review, '모델', 'model') ?? 'opus',
-    effort: pick(review, '깊이', '추론', 'effort') ?? 'medium',
+    model: modelTool === 'claude' ? (pick(review, '모델', 'model') ?? 'opus') : 'opus',
+    effort: modelTool === 'claude' ? (pick(review, '깊이', '추론', 'effort') ?? 'medium') : 'medium',
     // 동시상한에 0(또는 양수가 아닌 값)으로 적힌 도구는 쓰지 말라는 뜻이라 검토 후보에서도 뺀다.
-    limits: Object.entries(section(section(config, '일감목록', 'backlog'), '동시상한', '한도', 'limits')).filter(([, limit]) => limit > 0).map(([tool]) => tool),
+    limits: Object.entries(config.limits).filter(([, limit]) => limit > 0).map(([tool]) => tool),
   };
 }
 
@@ -57,6 +57,13 @@ function planTools(settings, author, env) {
 // 모델·추론은 자리(주/폴백)가 아니라 부르는 도구로 고른다: 검토도구면 바깥 값, 폴백으로 불리면 폴백 값(없으면 바깥 값), 둘 다 없으면 그 도구 기본값.
 function toolOptions(settings, tool) {
   const asReviewTool = tool === settings.reviewTool;
+  // Claude의 마지막 후보는 다른 도구의 바깥·폴백 모델을 물려받지 않고 기존 Claude 배정을 쓴다.
+  if (tool === 'claude') {
+    const configured = asReviewTool || tool === settings.fallbackTool;
+    const model = asReviewTool ? settings.outsideModel : settings.fallbackModel;
+    const effort = asReviewTool ? settings.outsideEffort : settings.fallbackEffort;
+    return { model: (configured ? model : undefined) ?? settings.model, effort: (configured ? effort : undefined) ?? settings.effort };
+  }
   const model = asReviewTool ? settings.outsideModel : (settings.fallbackModel ?? settings.outsideModel);
   const effort = asReviewTool ? settings.outsideEffort : (settings.fallbackEffort ?? settings.outsideEffort);
   return { model: model ?? DEFAULT_MODEL[tool], effort: effort ?? DEFAULT_EFFORT[tool] };
@@ -132,7 +139,7 @@ async function breakGemini(ctx, agentapi, backup) {
   const allowed = [`(subpath "${ctx.copy}")`, `(subpath "${ctx.home}")`, `(subpath "${tmpDir}")`, `(literal "${log}")`, '(subpath "/dev")', `(literal "${agentapi}")`];
   const outcome = await callChecked(ctx, {
     tool: 'gemini', write: true, agent: 'breaker', logFile: log, wrap: sandboxWrap(path.join(ctx.tmp, 'sb.sb'), allowed), prompt: breakPrompt(ctx),
-    env: { ...ctx.env, TMPDIR: tmpDir }, model: toolOptions(ctx.settings, 'gemini').model, timeoutMs: ctx.timeouts.breaking,
+    env: { ...ctx.env, TMPDIR: tmpDir }, ...toolOptions(ctx.settings, 'gemini'), timeoutMs: ctx.timeouts.breaking,
   });
   return intact(agentapi, backup) ? outcome : { ...outcome, agentapiChanged: true, extra: [finding('높음', AGENTAPI_CHANGED)] };
 }
@@ -141,7 +148,7 @@ async function readOnlyGemini(ctx) {
   if (!fs.existsSync(path.join(ctx.copy, '.agents', 'agents', 'readonly.md'))) return { ok: false, detail: '읽기 전용 역할 파일 없음' };
   const outcome = await callChecked(ctx, {
     tool: 'gemini', write: false, agent: 'readonly', prompt: readOnlyPrompt(ctx),
-    env: { ...ctx.env, HARNESS_READ_ONLY: '1' }, model: toolOptions(ctx.settings, 'gemini').model, timeoutMs: ctx.timeouts.readOnly,
+    env: { ...ctx.env, HARNESS_READ_ONLY: '1' }, ...toolOptions(ctx.settings, 'gemini'), timeoutMs: ctx.timeouts.readOnly,
   });
   const dirty = git(ctx.copy, 'status', '--porcelain');
   if (!dirty) return outcome;
@@ -166,7 +173,7 @@ const attemptCodex = ctx => callChecked(ctx, {
 
 // 샌드박스가 allowUnsandboxedCommands:false로 켜져 있어 모든 Bash가 샌드박스 안이다.
 const attemptClaude = ctx => callChecked(ctx, {
-  tool: 'claude', write: true, allowedTools: ['Bash'], prompt: breakPrompt(ctx), model: ctx.settings.model, effort: ctx.settings.effort, timeoutMs: ctx.timeouts.breaking, env: ctx.env,
+  tool: 'claude', write: true, allowedTools: ['Bash'], prompt: breakPrompt(ctx), ...toolOptions(ctx.settings, 'claude'), timeoutMs: ctx.timeouts.breaking, env: ctx.env,
 });
 
 const ATTEMPTS = { codex: attemptCodex, gemini: attemptGemini, claude: attemptClaude };
@@ -203,7 +210,7 @@ export async function reviewOther(input) {
   const { repo, id, author, env = process.env } = input;
   const specFile = path.join(repo, 'docs', 'tasks', `${id}.md`);
   if (!fs.existsSync(specFile)) throw new Error(`작업 문서 파일이 없다: ${specFile}`);
-  const settings = readSettings(repo);
+  const settings = readSettings(repo, input.tool ?? author);
   const plan = planTools(settings, author, env);
   if (!plan.length) return { tool: '', findings: [finding('중간', NO_TOOL)], agentapiChanged: false, attempts: [] };
   const realHome = fs.realpathSync(env.HOME ?? os.homedir());

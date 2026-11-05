@@ -52,10 +52,10 @@ function parseArguments(argv) {
 }
 
 // 한 번 부르고 되풀이하지 않는다. 실패는 던지지 않고 이유를 담아 돌려준다(폴백은 바깥 검토 안에서만 한다).
-async function callStep(ctx, id, step, { cwd, prompt, schema, write = false }) {
-  const { tool, model, effort } = stageOptions(ctx.config, step.key, ctx.tool);
+async function callStep(ctx, state, step, { cwd, prompt, schema, write = false }) {
+  const { tool, model, effort } = stageOptions(ctx.config, step.key, ctx.tool, state.task);
   if (barred(ctx.config, tool)) return { ok: false, reason: `${step.label} 단계에서 멈춤: 일감목록.동시상한.${tool}이 ${ctx.config.limits[tool]}이라 이 도구로는 돌리지 않는다` };
-  log(id, `${step.label} 시작 (${tool})`);
+  log(state.id, `${step.label} 시작 (${tool})`);
   const call = { tool, cwd, prompt, schema, write, model, effort, timeoutMs: (ctx.seconds ?? (write ? WRITE_SECONDS : READ_SECONDS)) * 1000 };
   if (tool === 'claude') call.allowedTools = write ? ['Bash'] : READ_COMMANDS;
   if (tool === 'gemini' && !write) Object.assign(call, { agent: 'readonly', env: { ...process.env, HARNESS_READ_ONLY: '1' } });
@@ -68,7 +68,7 @@ const must = res => (res.ok ? res.result : halt(res.reason));
 
 async function writeSpec(ctx, state) {
   const { id } = state;
-  const spec = must(await callStep(ctx, id, STEPS.spec, { cwd: ctx.root, prompt: specPrompt(ctx.root, id), schema: schemas.SPEC }));
+  const spec = must(await callStep(ctx, state, STEPS.spec, { cwd: ctx.root, prompt: specPrompt(ctx.root, id), schema: schemas.SPEC }));
   state.spec = spec;
   for (const ask of spec.asks) {
     const asked = backlog(ctx.root, ...askArgs(id, ask));
@@ -82,7 +82,7 @@ async function writeSpec(ctx, state) {
 
 async function matchSpec(ctx, state) {
   const { id } = state;
-  const review = must(await callStep(ctx, id, STEPS.specReview, { cwd: ctx.root, prompt: specReviewPrompt(ctx.root, id), schema: schemas.SPEC_REVIEWED }));
+  const review = must(await callStep(ctx, state, STEPS.specReview, { cwd: ctx.root, prompt: specReviewPrompt(ctx.root, id), schema: schemas.SPEC_REVIEWED }));
   state.specReview = review;
   if (!review.passed || review.findings.some(finding => finding.level !== '낮음')) halt('맞춰보기 단계에서 멈춤: 높음·중간 지적이 있거나 사용자 원래 말 절이 없다');
 }
@@ -105,7 +105,7 @@ const treeOf = worktree => {
 // 실패한 내용을 먼저 커밋하면 검사기가 HEAD와 비교해 그 위반을 이미 있던 것으로 보고 고치지 않은 채 통과시킨다(Codex 재현).
 async function writeCode(ctx, state, step, prompt, schema) {
   const before = treeOf(state.worktree);
-  const res = await callStep(ctx, state.id, step, { cwd: state.worktree, prompt, schema, write: true });
+  const res = await callStep(ctx, state, step, { cwd: state.worktree, prompt, schema, write: true });
   const { summary } = must(res);
   state.writer = res.tool;
   if (treeOf(state.worktree) === before) halt(`${step.label} 단계에서 멈춤: 커밋할 바뀐 파일이 없다`);
@@ -116,7 +116,7 @@ async function writeCode(ctx, state, step, prompt, schema) {
 // 확인 명령이 파일을 고칠 수 있어, 검사한 상태와 올릴 커밋이 같도록 커밋 여부는 통과한 뒤에 정한다.
 async function checkAndCommit(ctx, state, step, message, skipIfClean = false) {
   const check = ctx.checks.length ? await runChecks(state.worktree, ctx.checks, { base: ctx.config.base, python: ctx.config.python }) : undefined;
-  if (check) Object.assign(state, { checkPassed: check.ok, checkFailures: check.ok ? '' : failureText(check) });
+  if (check) Object.assign(state, { checkPassed: check.ok, checkFailures: check.ok ? '' : failureText(check), checkReports: check.ok ? check.reports : undefined });
   if (check && !check.ok) return;
   if (!skipIfClean || inspectBranch(state.worktree, ctx.config.base).dirty) {
     const committed = commitAll(state.worktree, message);
@@ -153,11 +153,12 @@ async function crossReview(ctx, state) {
   const { id } = state;
   const ms = ctx.seconds && ctx.seconds * 1000;
   const [mine, other] = await Promise.all([
-    callStep(ctx, id, STEPS.review, { cwd: state.worktree, prompt: reviewPrompt(ctx.root, id, ctx.config.base), schema: schemas.REVIEWED }),
-    reviewOther({ repo: ctx.root, id, worktree: state.worktree, commit: state.commit, base: ctx.config.base, author: state.writer, ...(ms && { timeouts: { breaking: ms, readOnly: ms } }) }),
+    callStep(ctx, state, STEPS.review, { cwd: state.worktree, prompt: reviewPrompt(ctx.root, id, ctx.config.base), schema: schemas.REVIEWED }),
+    reviewOther({ repo: ctx.root, id, worktree: state.worktree, commit: state.commit, base: ctx.config.base, author: state.writer, tool: ctx.tool, ...(ms && { timeouts: { breaking: ms, readOnly: ms } }) }),
   ]);
   const findings = [...(mine.ok ? mine.result.findings : []), ...other.findings];
   Object.assign(state, { reviewTool: other.tool, highs: findings.filter(finding => finding.level === '높음'), others: findings.filter(finding => finding.level !== '높음') });
+  state.attempts = other.attempts;
   if (other.agentapiChanged) halt('다른 도구 검토 뒤 진짜 홈 agentapi가 바뀜: 고치지 않고 멈춘다. 사람이 본다');
   must(mine);
 }
@@ -170,7 +171,7 @@ async function raise(ctx, state) {
   }
   const numbers = criteriaNumbers(ctx.root, id);
   if (!numbers.length) halt('올림 단계에서 멈춤: 작업 문서 `## 끝 기준` 절에서 번호 항목(1. 또는 1))을 하나도 읽지 못했다');
-  const evidence = must(await callStep(ctx, id, STEPS.raise, { cwd: state.worktree, prompt: evidencePrompt(ctx.root, id, state.commit), schema: schemas.EVIDENCE }));
+  const evidence = must(await callStep(ctx, state, STEPS.raise, { cwd: state.worktree, prompt: evidencePrompt(ctx.root, id, state.commit, state.checkReports), schema: schemas.EVIDENCE }));
   const have = new Set(evidence.items.filter(item => item.evidence.trim()).map(item => item.no.trim().replace(/[.)]+$/, '')));
   const missing = numbers.filter(no => !have.has(no));
   if (evidence.unconfirmed.length || missing.length) {
@@ -206,6 +207,7 @@ const finish = state => ({
   id: state.id, worktree: state.worktree ?? null, branches: state.branches ?? [], commit: state.commit ?? null, fixes: state.fixes ?? 0, raised: state.raised ?? false,
   raiseOutput: state.raiseOutput ?? '', checkPassed: state.checkPassed ?? null, checkFailures: state.checkFailures ?? '', highs: state.highs ?? [], others: state.others ?? [],
   resumed: state.resumed ?? false, spec: state.spec ?? null, specReview: state.specReview ?? null,
+  reviewTool: state.reviewTool ?? '', attempts: (state.attempts ?? []).map(({ tool, ok }) => ({ tool, ok })),
 });
 const stopped = (state, reason) => ({ ...finish(state), stopped: true, reason });
 
@@ -216,6 +218,7 @@ async function runTask(ctx, id) {
     if (info.error) halt(`일감 목록에서 읽지 못했다: ${info.error}`);
     if (info.status !== '진행중') halt(`진행중이 아니다(지금 ${info.status})`);
     state.assignee = info.tool;
+    state.task = { tool: info.tool, model: info.model, effort: info.effort };
     // 반려 기록이 없고 ai/ 브랜치가 이미 있으면 할 일 적기와 맞춰보기는 앞서 통과했다(work는 둘 다 통과한 뒤에만 워크트리를 만든다). 반려는 할 일 적기 결과에서 반려 커밋을 받아야 해서 건너뛰지 못한다.
     state.resume = !info.rejected && branchExists(ctx.root, id);
     await work(ctx, state);

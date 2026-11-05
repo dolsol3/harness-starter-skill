@@ -257,3 +257,25 @@ test('unknown commands, unknown numbers and a folder without git are refused wit
   fs.cpSync(templates, path.join(bare, 'harness'), { recursive: true });
   assert.match(refused(bare, '목록'), /not a git repository/);
 });
+
+test('추가 and 시작 record --모델 and --깊이 (--추론 alias) and 보기 displays them', t => {
+  const { dir } = repo(t);
+  ok(dir, '추가', '작은 작업', '--종류', '기능', '--고칠곳', 'a.mjs', '--확인방법', 'npm test', '--모델', 'gpt-6.1-terra', '--깊이', 'low');
+  assert.equal(ledgerOf(dir).작업[0].모델, 'gpt-6.1-terra');
+  assert.equal(ledgerOf(dir).작업[0].깊이, 'low');
+  assert.match(ok(dir, '보기', 'T-1'), /확인방법: npm test\n모델: gpt-6\.1-terra\n깊이: low/);
+
+  ok(dir, '시작', 'T-1', '--모델', 'opus', '--깊이', 'high');
+  assert.equal(ledgerOf(dir).작업[0].모델, 'gpt-6.1-terra', 'start only fills blanks');
+  assert.equal(ledgerOf(dir).작업[0].깊이, 'low');
+
+  ok(dir, '추가', '둘째 작업', ...WHERE);
+  ok(dir, '시작', 'T-2', '--모델', 'sonnet', '--깊이', 'medium');
+  assert.equal(ledgerOf(dir).작업[1].모델, 'sonnet');
+  assert.equal(ledgerOf(dir).작업[1].깊이, 'medium');
+  assert.match(ok(dir, '보기', 'T-2'), /모델: sonnet\n깊이: medium/);
+
+  ok(dir, '추가', '별칭 작업', ...WHERE, '--모델', 'gpt-6.1-sol', '--추론', 'high');
+  assert.equal(ledgerOf(dir).작업[2].깊이, 'high');
+  assert.match(ok(dir, '보기', 'T-3'), /모델: gpt-6\.1-sol\n깊이: high/);
+});

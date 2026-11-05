@@ -2,7 +2,7 @@
 // 성공은 { ok: true, result }, 실패는 { ok: false, reason, detail }이고 reason은 시간초과·한도·권한·결과없음·실패 중 하나다.
 // 도구가 실패해도 던지지 않는다(폴백은 부르는 쪽이 고른다). 입력이 틀렸을 때만 던진다. 한 번 부를 뿐 되풀이하지 않고 커밋도 하지 않는다.
 // 판정은 종료 코드가 아니라 결과가 있는지로 한다: 멈춰 죽인 codex가 exit 0이었고 결과 파일이 없었다(T-143 실험).
-// 선택 입력: agent·logFile(제미나이만), wrap(모든 도구, 실행 파일 앞에 붙는 명령 배열. 예 sandbox-exec -f 규칙).
+// 선택 입력: agent·logFile(제미나이만), wrap(실행 파일 앞 명령 배열), observe(stream, chunk)(stdout/stderr 관찰자).
 // 지시문은 인자가 아니라 stdin으로 주고 쓴 뒤 닫는다: Windows는 명령줄이 32767자를 넘으면 도구를 못 띄우고, 닫지 않으면 codex가 "Reading additional input from stdin..."에서 끝없이 기다린다.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -22,7 +22,6 @@ const SANDBOX_SETTINGS = JSON.stringify({ sandbox: { enabled: true, allowUnsandb
 const plainObject = value => (value !== null && typeof value === 'object' && !Array.isArray(value) ? value : undefined);
 const optional = (flag, value) => (value ? [flag, value] : []);
 
-// JSON이 아닌 글은 결과가 없는 것으로 본다.
 function parseJson(text) {
   try {
     return JSON.parse(text);
@@ -46,7 +45,6 @@ function lastJsonObject(text) {
   return found.map(parseJson).filter(plainObject).at(-1);
 }
 
-// 도구마다: 실행 파일(command), 인자(args), stdin에 쓸 지시문(stdin), 끝난 뒤 결과 읽기(read), 도는 중 일찍 멈출 이유(earlyStop, 선택), 결과가 있어도 끝에 멈출 이유(finalStop, 선택).
 // read는 { result }(결과 있음), { failed: true }(도구가 오류를 알림), {}(결과 없음) 중 하나를 돌려준다.
 const TOOLS = {
   codex(call, { dir, bin }) {
@@ -105,7 +103,6 @@ const TOOLS = {
 
 const tail = text => text.trim().slice(-DETAIL_TAIL);
 
-// 자식을 프로세스 그룹째 멈춘다. 자손이 남지 않게 한다.
 // 그룹에 거두어지지 않은 좀비만 남으면 macOS가 ESRCH 대신 EPERM을 던진다(2026-10-24 재현). 멈출 것이 없다는 같은 뜻이다.
 // Windows에는 프로세스 그룹이 없어 taskkill /T로 트리째 끈다. /T는 살아 있는 부모에서 트리를 따라가므로 유예 없이 바로 /F로 끈다.
 // taskkill은 PATH에 System32가 없어도 되도록 절대 경로로 부른다. 128은 이미 끝난 pid라 멈출 것이 없다는 같은 뜻이고, 실행 실패와 그 밖의 종료 코드는 실패 설명을 돌려준다(던지면 타이머 안에서 프로그램이 죽는다).
@@ -124,7 +121,6 @@ export function killTree(child, signal) {
   }
 }
 
-// 끝날 때까지 기다려 { code, out, err, stopped, spawnError }를 돌려준다. stopped는 우리가 멈춘 이유로, 종료 코드보다 먼저 본다.
 function run(spec, call) {
   return new Promise(resolve => {
     const argv = [...(call.wrap ?? []), ...spec.bin, ...spec.args];
@@ -148,10 +144,14 @@ function run(spec, call) {
     const timer = setTimeout(() => stop('시간초과', `${call.timeoutMs}ms 안에 끝나지 않아 멈췄다`), call.timeoutMs);
     child.stdout.setEncoding('utf8').on('data', chunk => {
       state.out += chunk;
+      call.observe?.('stdout', chunk);
       const early = spec.earlyStop?.(state.out);
       if (early) stop(early.reason, early.detail);
     });
-    child.stderr.setEncoding('utf8').on('data', chunk => { state.err += chunk; });
+    child.stderr.setEncoding('utf8').on('data', chunk => {
+      state.err += chunk;
+      call.observe?.('stderr', chunk);
+    });
     // 자식이 지시문을 다 읽기 전에 끝나면 EPIPE가 난다. 던지지 않고 실패 detail에 담는다.
     child.stdin.on('error', error => { state.stdinError = error; });
     child.stdin.end(spec.stdin);
@@ -204,7 +204,6 @@ export async function callTool(call) {
 }
 
 export const agentapiPath = home => path.join(home, '.gemini', 'antigravity-cli', 'bin', 'agentapi');
-// 띄울 argv 앞부분을 돌려준다. 못 찾으면 undefined.
 // Windows의 spawn은 .exe만 실행한다. .exe가 없고 npm이 놓은 .cmd만 있으면 쪽지가 가리키는 것을 꺼내 부른다(셸로 감싸면 지시문 인용이 깨진다, 2026-10-27 확인).
 // .cmd 안의 대상은 npm이 만드는 고정 모양 `"%dp0%\상대경로"`만 읽는다. .js가 있으면 node로 부르고(codex는 node.exe도 함께 적는다) 없으면 .exe를 그대로 부른다(claude). 맥은 PATH에 그 이름의 파일이 있으면 이름 그대로 쓴다.
 const CMD_ENTRY = /"%dp0%\\([^"]+\.(?:js|exe))"/g;

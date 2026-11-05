@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // 일감 목록 명령. 일감 목록 파일(harness/backlog.json)은 이 명령으로만 읽고 쓴다.
 //
-//   node harness/backlog.mjs 추가 "제목" [--종류 기능|수정] [--고칠곳|--영역 a,b] [--확인방법 "…"] [--먼저할일|--선행 T-1,T-2] [--원인 "…"] [--방향 "…"]
+//   node harness/backlog.mjs 추가 "제목" [--종류 기능|수정] [--고칠곳|--영역 a,b] [--확인방법 "…"] [--먼저할일|--선행 T-1,T-2] [--원인 "…"] [--방향 "…"] [--모델 이름] [--깊이|--추론 단계]
 //   node harness/backlog.mjs 목록 [--상태 할일|진행중|올림|완료]
 //   node harness/backlog.mjs 다음                      지금 시작할 수 있는 첫 작업
 //   node harness/backlog.mjs 바로할일 (또는 준비)      지금 같이 시작해도 되는 작업(고칠곳이 겹치지 않는 것)과 미룬 이유
@@ -9,7 +9,7 @@
 //   node harness/backlog.mjs 시작 T-1 [추가와 같은 옵션] [--맡길곳|--배정 도구]   비어 있는 칸을 채우며 시작한다. 도구는 config.json의 일감목록.동시상한(backlog.limits)에 적힌 것.
 //                                                      수정 작업의 영역이 최근 수정 커밋에 여러 번(덧대기.횟수/patch.times, 기본 3) 들어 있는 파일과 겹치면 주의 줄을 더 보인다(막지는 않는다)
 //   node harness/backlog.mjs 올림 T-1 --커밋 <해시> --증거 "…" [--검토 도구]   도구가 둘 이상이면 작성한 도구와 다른 도구의 검토가 필요하다
-//   node harness/backlog.mjs 다시하기 (또는 반려) T-1 --사유 "…"   올림을 진행중으로 돌려보낸다. 올릴 때 적은 커밋·증거·검토는 반려 기록으로 남고, 다시 올릴 때 새로 적는다
+//   node harness/backlog.mjs 다시하기 (또는 반려) T-1 --사유 "…" [--모델 이름] [--깊이|--추론 단계]   올림을 진행중으로 돌려보낸다. 올릴 때 적은 커밋·증거·검토는 반려 기록으로 남고, 다시 올릴 때 새로 적는다
 //   node harness/backlog.mjs 완료 T-1                  올린 커밋이 기본 브랜치에 병합됐는지 확인하고 끝낸다
 //   node harness/backlog.mjs 허락 T-1 "제목" --행동 삭제|약속변경|외부발행|결제|장치풀기 --설명 "…" --보기 "이름=결과|이름=결과" --추천 이름 --이유 "…"
 //                                                      허락받고 나서 할 일을 묻는다. 답을 기다리는 동안 그 작업만 시작·올림·완료를 하지 못한다
@@ -54,8 +54,8 @@ const defaultTool = 일감설정.기본맡길곳 ?? 일감설정.기본도구 ??
 const list = text => text?.split(',').map(item => item.trim()).filter(Boolean);
 
 // 옵션에서 작업 칸으로: 영역(고칠곳)과 선행(먼저할일)은 쉼표로 나눈 목록이다.
-function fields({ 종류, 영역, 고칠곳, 확인방법, 선행, 먼저할일, 원인, 방향, 배정, 맡길곳 }) {
-  return { 종류, 영역: list(영역 ?? 고칠곳), 확인방법, 선행: list(선행 ?? 먼저할일), 원인, 방향, 배정: 배정 ?? 맡길곳 };
+function fields({ 종류, 영역, 고칠곳, 확인방법, 선행, 먼저할일, 원인, 방향, 배정, 맡길곳, 모델, 깊이, 추론 }) {
+  return { 종류, 영역: list(영역 ?? 고칠곳), 확인방법, 선행: list(선행 ?? 먼저할일), 원인, 방향, 배정: 배정 ?? 맡길곳, 모델, 깊이: 깊이 ?? 추론 };
 }
 
 const summary = task => `${task.번호} [${task.상태}] ${task.종류} ${task.제목}`;
@@ -103,7 +103,7 @@ const LABEL = { 영역: '고칠곳 · 영역', 선행: '먼저할일 · 선행',
 function detail(root, book, task) {
   const rows = [summary(task)];
   for (const name of ['영역', '선행']) if (task[name].length) rows.push(`${LABEL[name]}: ${task[name].join(', ')}`);
-  for (const name of ['확인방법', '원인', '방향', '배정', '커밋', '증거', '검토']) if (task[name]) rows.push(`${LABEL[name] ?? name}: ${task[name]}`);
+  for (const name of ['확인방법', '원인', '방향', '배정', '모델', '깊이', '커밋', '증거', '검토']) if (task[name]) rows.push(`${LABEL[name] ?? name}: ${task[name]}`);
   rows.push(...(task.반려 ?? []).map(item => `반려: ${item.커밋.slice(0, 7)} ${item.사유}`));
   rows.push(...book.질문.filter(item => item.작업 === task.번호).map(item => `질문: ${questionLine(item)}`));
   const doc = path.join(root, 'docs/tasks', `${task.번호}.md`);
@@ -123,7 +123,7 @@ function readyRun(book, korean = false) {
 const commands = {
   추가: {
     writes: true,
-    options: ['종류', '영역', '확인방법', '선행', '원인', '방향', '고칠곳', '먼저할일'],
+    options: ['종류', '영역', '확인방법', '선행', '원인', '방향', '고칠곳', '먼저할일', '모델', '깊이', '추론'],
     run: ({ ledger: book, args: [title], values }) => ({ rows: [`추가: ${summary(ledger.add(book, title, fields(values)))}`] }),
   },
   목록: {
@@ -145,7 +145,7 @@ const commands = {
   보기: { options: [], narrow: 'docs/tasks/ 아래의 작업 문서를 직접 읽는다', run: ({ root, ledger: book, args: [id] }) => ({ rows: detail(root, book, ledger.find(book, id)) }) },
   시작: {
     writes: true,
-    options: ['영역', '확인방법', '원인', '방향', '배정', '고칠곳', '맡길곳'],
+    options: ['영역', '확인방법', '원인', '방향', '배정', '고칠곳', '맡길곳', '모델', '깊이', '추론'],
     run: ({ root, ledger: book, args: [id], values }) => {
       const task = ledger.start(book, id, fields(values), { limits, defaultTool });
       if (task.종류 !== '수정') return { rows: [`시작: ${summary(task)}`] };
@@ -160,8 +160,8 @@ const commands = {
   },
   반려: {
     writes: true,
-    options: ['사유'],
-    run: ({ ledger: book, args: [id], values }) => ({ rows: [`반려: ${summary(ledger.reject(book, id, values.사유))}`] }),
+    options: ['사유', '모델', '깊이', '추론'],
+    run: ({ ledger: book, args: [id], values }) => ({ rows: [`반려: ${summary(ledger.reject(book, id, values.사유, '반려', fields(values)))}`] }),
   },
   완료: {
     writes: true,
@@ -232,8 +232,8 @@ const commands = {
   바로할일: { options: [], run: ({ ledger: book }) => readyRun(book, true) },
   다시하기: {
     writes: true,
-    options: ['사유'],
-    run: ({ ledger: book, args: [id], values }) => ({ rows: [`다시하기: ${summary(ledger.reject(book, id, values.사유, '다시하기'))}`] }),
+    options: ['사유', '모델', '깊이', '추론'],
+    run: ({ ledger: book, args: [id], values }) => ({ rows: [`다시하기: ${summary(ledger.reject(book, id, values.사유, '다시하기', fields(values)))}`] }),
   },
 };
 const OPTIONS = Object.fromEntries(

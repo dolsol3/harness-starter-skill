@@ -177,6 +177,14 @@ test('단계모델 overrides work via args, 작업 고르기, and 기획 담당 
   assert.deepEqual(mergedModel('만들기 담당 이어 고치기'), { model: 'haiku', effort: 'medium' });
   assert.deepEqual(mergedModel('돌려보기'), { model: 'opus', effort: 'low' });
   assert.deepEqual(mergedModel('살피기 담당 T-1'), { model: 'sonnet', effort: 'low' });
+
+  const { calls: fromTask } = await run({ args: ['T-1'], checks: [{ passed: false, failures: 'fail' }], spec: { taskModel: 'opus', taskEffort: 'high' } });
+  const taskPicked = prefix => ({ model: fromTask.find(c => c.label.startsWith(prefix)).model, effort: fromTask.find(c => c.label.startsWith(prefix)).effort });
+  assert.deepEqual(taskPicked('만들기 담당 T-1'), { model: 'opus', effort: 'high' });
+  assert.deepEqual(taskPicked('고치기'), { model: 'opus', effort: 'high' });
+  assert.deepEqual(taskPicked('살피기 담당 맞춰보기'), { model: 'opus', effort: 'medium' });
+  const { calls: fromResumedTask } = await run({ args: ['T-1'], spec: { rejectedCommit: 'abc1234', rejectedReason: 'fix', taskModel: 'haiku', taskEffort: 'low' } });
+  assert.deepEqual({ model: fromResumedTask.find(c => c.label.startsWith('만들기 담당 이어 고치기')).model, effort: fromResumedTask.find(c => c.label.startsWith('만들기 담당 이어 고치기')).effort }, { model: 'haiku', effort: 'low' });
 });
 
 test('otherReviewPrompt reads 일감목록.동시상한 and 단계모델.번갈아보기, invokes codex with model and effort, and falls back to codex gpt-6.1-sol on quota/rate-limit or failure', async () => {

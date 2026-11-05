@@ -34,10 +34,11 @@ let modelCfg = isCfgObj ? { ...(args.단계모델 ?? args.agents ?? args.models)
 const mergeModels = next => {
   if (next && typeof next === 'object') modelCfg = { ...modelCfg, ...next };
 };
-const stageModel = key => {
+const stageModel = (key, spec) => {
   const [defModel, defEffort, ...aliases] = MODELS[key];
   const hit = [key, ...aliases].map(name => modelCfg[name]).find(val => val && typeof val === 'object');
-  return { model: hit?.모델 ?? hit?.model ?? defModel, effort: hit?.깊이 ?? hit?.추론 ?? hit?.effort ?? defEffort };
+  const task = key === '만들기' || key === '고치기' ? spec : undefined;
+  return { model: (task?.taskModel || undefined) ?? hit?.모델 ?? hit?.model ?? defModel, effort: (task?.taskEffort || undefined) ?? hit?.깊이 ?? hit?.추론 ?? hit?.effort ?? defEffort };
 };
 
 const schemaObj = (properties, required = Object.keys(properties)) => ({ type: 'object', properties, required });
@@ -50,6 +51,8 @@ const SPEC = schemaObj({
   rejectedCommit: { type: 'string', description: '보기의 마지막 반려 줄의 커밋. 반려가 없으면 빈 문자열' },
   rejectedReason: { type: 'string', description: '보기의 마지막 반려 줄의 사유. 반려가 없으면 빈 문자열' },
   pendingQuestions: { type: 'array', items: { type: 'string' }, description: '보기의 [대기] 질문 줄. 없으면 빈 목록' },
+  taskModel: { type: 'string', description: '보기의 모델 줄 값. 없으면 빈 문자열' },
+  taskEffort: { type: 'string', description: '보기의 깊이 줄 값. 없으면 빈 문자열' },
   agents: { type: 'object' },
 }, ['outcome', 'reason', 'rejectedCommit', 'rejectedReason', 'pendingQuestions']);
 const BUILT = schemaObj({
@@ -76,7 +79,7 @@ const pickPrompt = () => [
 // 물레방아 안의 일꾼은 대화를 못 본다. 그래서 메인이 작업 문서 맨 위에 적은 사용자 원래 말 절이 맞춰보기의 원문이다(사용자 결정 2026-10-12).
 const specPrompt = id => [
   `작업 ${id}의 할 일 적기를 맡는다. 먼저 \`node harness/backlog.mjs 보기 ${id}\`로 작업 문서와 일감 목록 칸을 읽는다. 출력이 잘리면(\`…줄 더 있다\` 안내가 보이면) 메인 폴더(\`git rev-parse --git-common-dir\`의 부모)의 \`docs/tasks/${id}.md\` 전체를 읽는다. \`harness/config.json\`에 \`단계모델\`(또는 \`agents\`)이 있으면 함께 읽어 \`agents\`로 돌려준다.`,
-  '`보기` 출력에 `반려: <커밋> <사유>` 줄이 있으면 마지막 반려 줄의 커밋과 사유를 돌려준다. 없으면 둘 다 빈 문자열이다. 아래 어느 경우든 돌려준다.',
+  '`보기` 출력에 `반려: <커밋> <사유>` 줄이 있으면 마지막 반려 줄의 커밋과 사유를 돌려준다. 없으면 둘 다 빈 문자열이다. `모델: <값>`·`깊이: <값>` 줄이 있으면 각각 `taskModel`·`taskEffort`로 돌려준다(없으면 빈 문자열). 아래 어느 경우든 돌려준다.',
   '`보기` 출력의 `질문: … [대기] …` 줄(답을 기다리는 질문)을 그대로 pendingQuestions로 돌려준다. 하나라도 있으면 끝 기준을 보기 전에 멈춘다: 작업 문서를 쓰지 않고 새 질문도 하지 않고 허락으로 돌려준다.',
   '작업 문서에 `## 끝 기준`이 이미 있으면 작업 문서를 쓰지 않고 건너뜀으로 돌려준다.',
   `없으면 메인 폴더(\`git rev-parse --git-common-dir\`의 부모)의 \`docs/tasks/${id}.md\`에 나머지를 쓴다: 왜 하나 / 어디까지·하지 않을 것 / 이미 정한 것 / 참고할 파일 / 끝 기준.`,
@@ -229,12 +232,12 @@ const working = (task, built, resumed) => ({ ...task, worktree: built.worktree, 
 // 칸을 직접 읽어, 만들기 담당이 null이면 다른 단계처럼 여기서 던져 작업을 멈춘다.
 async function build(task) {
   if (task.spec.rejectedCommit) return resume(task);
-  const built = await agent(buildPrompt(task.id), { label: `만들기 담당 ${task.id}`, phase: '만들기', agentType: 'implementer', isolation: 'worktree', ...stageModel('만들기'), schema: BUILT });
+  const built = await agent(buildPrompt(task.id), { label: `만들기 담당 ${task.id}`, phase: '만들기', agentType: 'implementer', isolation: 'worktree', ...stageModel('만들기', task.spec), schema: BUILT });
   return working(task, built, false);
 }
 
 async function resume(task) {
-  const built = await agent(resumePrompt(task.id, task.spec), { label: `만들기 담당 이어 고치기 ${task.id}`, phase: '만들기', agentType: 'implementer', ...stageModel('만들기'), schema: RESUMED });
+  const built = await agent(resumePrompt(task.id, task.spec), { label: `만들기 담당 이어 고치기 ${task.id}`, phase: '만들기', agentType: 'implementer', ...stageModel('만들기', task.spec), schema: RESUMED });
   return built.stopReason ? stop(task, `이어 고치기 멈춤: ${built.stopReason}`) : working(task, built, true);
 }
 
@@ -252,7 +255,7 @@ async function inspect(work) {
       log(`${id}: ${MAX_FIXES}번 고쳐도 돌려보기 실패나 높음이 남아 올리지 않고 진행중으로 둔다`);
       return done;
     }
-    const fixed = await agent(fixPrompt(id, work, check, highs), { label: `고치기 ${id} ${work.fixes + 1}번째`, phase: '고치기', agentType: 'implementer', ...stageModel('고치기'), schema: FIXED });
+    const fixed = await agent(fixPrompt(id, work, check, highs), { label: `고치기 ${id} ${work.fixes + 1}번째`, phase: '고치기', agentType: 'implementer', ...stageModel('고치기', work.spec), schema: FIXED });
     work = { ...work, commit: fixed.commit, fixes: work.fixes + 1 };
   }
 }

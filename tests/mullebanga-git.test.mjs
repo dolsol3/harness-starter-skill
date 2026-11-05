@@ -140,7 +140,7 @@ test('readCheckCommands: 백틱 명령을 차례로 뽑고 없으면 빈 배열'
 test('runChecks: 통과하면 ok, 처음 실패에서 멈추고 명령·종료 코드·출력을 돌려준다', async t => {
   const { dir } = repo(t);
   const pass = 'node -e "process.exit(0)"';
-  assert.deepEqual(await runChecks(dir, [pass, pass]), { ok: true });
+  assert.deepEqual(await runChecks(dir, [pass, pass]), { ok: true, reports: [pass, pass].map(command => ({ command, exitCode: 0, output: '', truncated: false })) });
   const fail = `node -e "console.error('boom'); process.exit(3)"`;
   const result = await runChecks(dir, [pass, fail, `node -e "require('fs').writeFileSync('third.txt','x')"`]);
   assert.equal(result.ok, false);
@@ -156,7 +156,7 @@ test('runChecks: Windows에서 git이 mingw64\\bin에서 먼저 잡혀도 sh를 
   const saved = process.env.PATH;
   t.after(() => { process.env.PATH = saved; });
   process.env.PATH = [path.join(gitRoot, 'mingw64', 'bin'), path.dirname(process.execPath), path.join(process.env.SystemRoot, 'System32')].join(path.delimiter);
-  assert.deepEqual(await runChecks(dir, ['echo hi']), { ok: true });
+  assert.deepEqual(await runChecks(dir, ['echo hi']), { ok: true, reports: [{ command: 'echo hi', exitCode: 0, output: 'hi', truncated: false }] });
 });
 
 test('runChecks: 출력은 뒤쪽 4000자만, 빈 명령 목록은 실패', async t => {

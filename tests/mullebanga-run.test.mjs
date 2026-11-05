@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { setup, calledStages, read, stoppedAt } from './run-fixture.mjs';
 
-const KEYS = ['id', 'worktree', 'branches', 'commit', 'fixes', 'raised', 'raiseOutput', 'checkPassed', 'checkFailures', 'highs', 'others', 'resumed', 'spec', 'specReview'];
+const KEYS = ['id', 'worktree', 'branches', 'commit', 'fixes', 'raised', 'raiseOutput', 'checkPassed', 'checkFailures', 'highs', 'others', 'resumed', 'spec', 'specReview', 'reviewTool', 'attempts'];
 
 test('순서대로 불리고 표준 출력은 JSON 하나, 진행은 표준 오류, 올림은 다른 도구 검토로 적힌다', async t => {
   const s = setup(t);

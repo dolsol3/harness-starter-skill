@@ -15,7 +15,7 @@ test('모듈은 reviewOther를 내보내고 허용한 것만 가져오며 관련
   const text = read('templates/harness/mullebanga-review.mjs');
   const imports = [...text.matchAll(/^import .* from '([^']+)'/gm)].map(match => match[1]);
   assert.match(text, /export async function reviewOther/);
-  assert.deepEqual(imports.filter(name => !name.startsWith('node:')).sort(), ['./mullebanga-call.mjs', './mullebanga-prompts.mjs']);
+  assert.deepEqual(imports.filter(name => !name.startsWith('node:')).sort(), ['./mullebanga-call.mjs', './mullebanga-prompts.mjs', './mullebanga-steps.mjs']);
   assert.ok(imports.every(name => name.startsWith('node:') || name.startsWith('./mullebanga-')));
   assert.doesNotMatch(text, /workflows\/mullebanga/);
   for (const file of ['templates/harness/mullebanga-review.mjs', 'templates/harness/mullebanga-call.mjs', 'tests/mullebanga-review.test.mjs', 'tests/mullebanga-review-sandbox.test.mjs', 'tests/review-fixture.mjs']) {

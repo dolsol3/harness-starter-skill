@@ -63,7 +63,7 @@ function assertNoTools(dir) {
   assert.equal(fs.readFileSync(path.join(dir, 'harness/config.json'), 'utf8'), templateText);
 }
 
-const STAGE_TWO = { 동시상한: { claude: 3, codex: 1, gemini: 1 }, 기본맡길곳: 'claude' };
+const STAGE_TWO = { 동시상한: { claude: 5, codex: 5, gemini: 5 }, 기본맡길곳: 'claude' };
 
 test('preview tells what the 일감목록 would be and writes nothing', t => {
   const dir = project(t);
@@ -71,7 +71,7 @@ test('preview tells what the 일감목록 would be and writes nothing', t => {
   const line = lineOf(out, CONFIG_LINE);
   assert.match(line, /일감목록을 적는다/);
   assert.doesNotMatch(line, /적었다/, 'a preview has not written anything');
-  assert.match(line, /claude 3·codex 1·gemini 1/);
+  assert.match(line, /claude 5·codex 5·gemini 5/);
   assert.match(line, /기본맡길곳 claude/);
   assert.match(line, /실험으로 정한 값이 아니다/);
   assert.match(line, /harness\/config\.json의 일감목록을 고친다/);
@@ -79,32 +79,34 @@ test('preview tells what the 일감목록 would be and writes nothing', t => {
 });
 
 test('apply writes the 일감목록 and leaves the rest of the template alone', t => {
-  const dir = project(t);
-  install(dir, pathWith(t, 'codex', 'agy'), '--main=claude', '--apply');
-  assert.deepEqual(configOf(dir).일감목록, STAGE_TWO);
-  assertTemplateExceptTools(dir);
+  for (const main of ['claude', 'codex', 'gemini']) {
+    const dir = project(t);
+    install(dir, pathWith(t, 'claude', 'codex', 'agy'), `--main=${main}`, '--apply');
+    assert.deepEqual(configOf(dir).일감목록, { 동시상한: STAGE_TWO.동시상한, 기본맡길곳: main });
+    assertTemplateExceptTools(dir);
+  }
 });
 
 test('the main tool leaves the partners; any main name is taken as it is', t => {
   const codexMain = project(t);
   install(codexMain, pathWith(t, 'codex', 'agy'), '--main=codex', '--apply');
-  assert.deepEqual(configOf(codexMain).일감목록, { 동시상한: { codex: 3, gemini: 1 }, 기본맡길곳: 'codex' });
+  assert.deepEqual(configOf(codexMain).일감목록, { 동시상한: { codex: 5, gemini: 5 }, 기본맡길곳: 'codex' });
   const kimiMain = project(t);
   install(kimiMain, pathWith(t, 'claude', 'codex'), '--main=kimi', '--apply');
-  assert.deepEqual(configOf(kimiMain).일감목록, { 동시상한: { kimi: 3, claude: 1, codex: 1 }, 기본맡길곳: 'kimi' });
+  assert.deepEqual(configOf(kimiMain).일감목록, { 동시상한: { kimi: 5, claude: 5, codex: 5 }, 기본맡길곳: 'kimi' });
 });
 
 test('a Codex main with only claude installed lists claude as its partner', t => {
   const dir = project(t);
   install(dir, pathWith(t, 'claude'), '--main=codex', '--apply');
-  assert.deepEqual(configOf(dir).일감목록, { 동시상한: { codex: 3, claude: 1 }, 기본맡길곳: 'codex' });
+  assert.deepEqual(configOf(dir).일감목록, { 동시상한: { codex: 5, claude: 5 }, 기본맡길곳: 'codex' });
 });
 
 test('a main name with $ replacement patterns is written as it is', t => {
   for (const main of ['$&', '$$', "$'", '$`']) {
     const dir = project(t);
     install(dir, pathWith(t, 'codex'), `--main=${main}`, '--apply');
-    assert.deepEqual(configOf(dir).일감목록, { 동시상한: { [main]: 3, codex: 1 }, 기본맡길곳: main });
+    assert.deepEqual(configOf(dir).일감목록, { 동시상한: { [main]: 5, codex: 5 }, 기본맡길곳: main });
   }
 });
 
@@ -149,6 +151,12 @@ test('--upgrade writes the 일감목록 only when it creates config.json', t => 
   fs.writeFileSync(path.join(old, 'harness/config.json'), '{ "maxFileLines": 300 }\n');
   install(old, tools, '--upgrade', '--main=claude', '--apply');
   assert.equal('일감목록' in configOf(old), false);
+  const file = path.join(fresh, 'harness/config.json');
+  const custom = { ...configOf(fresh), 일감목록: { 동시상한: { claude: 2, codex: 4, gemini: 1 }, 기본맡길곳: 'codex' }, maxCommitLines: 123 };
+  const saved = `${JSON.stringify(custom, null, 4)}\n\n`;
+  fs.writeFileSync(file, saved);
+  install(fresh, tools, '--upgrade', '--main=gemini', '--apply');
+  assert.equal(fs.readFileSync(file, 'utf8'), saved);
 });
 
 test('the installed 장부 command reads the written 일감목록', t => {
@@ -181,7 +189,7 @@ test('a PATH entry that cannot be read is skipped, and the install still ends wi
   for (const flags of [['--main=claude'], []]) {
     const dir = project(t);
     install(dir, tools, ...flags, '--apply');
-    if (flags.length) assert.deepEqual(configOf(dir).일감목록, { 동시상한: { claude: 3, codex: 1 }, 기본맡길곳: 'claude' });
+    if (flags.length) assert.deepEqual(configOf(dir).일감목록, { 동시상한: { claude: 5, codex: 5 }, 기본맡길곳: 'claude' });
     else assertNoTools(dir);
   }
 });
@@ -190,7 +198,7 @@ test('a PATH entry with a 300-character folder name is skipped, and the tool aft
   const tools = [path.join(os.tmpdir(), 'x'.repeat(300)), pathWith(t, 'codex')].join(path.delimiter);
   const dir = project(t);
   install(dir, tools, '--main=claude', '--apply');
-  assert.deepEqual(configOf(dir).일감목록, { 동시상한: { claude: 3, codex: 1 }, 기본맡길곳: 'claude' });
+  assert.deepEqual(configOf(dir).일감목록, { 동시상한: { claude: 5, codex: 5 }, 기본맡길곳: 'claude' });
 });
 
 test('an empty PATH entry is the current folder, as the shell sees it', t => {
@@ -199,7 +207,7 @@ test('an empty PATH entry is the current folder, as the shell sees it', t => {
   const env = { ...process.env, HOME: home, USERPROFILE: home, PATH: [git, ''].join(path.delimiter) };
   const result = spawnSync(process.execPath, [installer, dir, '--main=claude', '--apply'], { cwd: bin, encoding: 'utf8', env });
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(configOf(dir).일감목록, { 동시상한: { claude: 3, codex: 1 }, 기본맡길곳: 'claude' });
+  assert.deepEqual(configOf(dir).일감목록, { 동시상한: { claude: 5, codex: 5 }, 기본맡길곳: 'claude' });
 });
 
 test('a file the current user cannot run is not a tool', { skip: noPerm || (process.getuid?.() === 0 && 'root는 실행 비트가 하나라도 있으면 실행한다') }, t => {
@@ -218,7 +226,7 @@ test('a CRLF config.json template gets the 일감목록 with CRLF line ends', t 
   process.env.PATH = pathWith(t, 'codex');
   t.after(() => { process.env.PATH = before; });
   const found = toolsConfig(templateText.replace(/\n/g, '\r\n'), 'claude');
-  assert.deepEqual(JSON.parse(found.content).일감목록, { 동시상한: { claude: 3, codex: 1 }, 기본맡길곳: 'claude' });
+  assert.deepEqual(JSON.parse(found.content).일감목록, { 동시상한: { claude: 5, codex: 5 }, 기본맡길곳: 'claude' });
   assert.doesNotMatch(found.content, /(?<!\r)\n/, 'no bare line feed is left');
   assert.doesNotMatch(toolsConfig(templateText, 'claude').content, /\r/);
 });
@@ -228,12 +236,12 @@ const NO_HOOK = '--without=antigravity-hook';
 test('without the antigravity-hook, agy is not written as gemini, in the preview, the apply, and the --upgrade that creates config.json', t => {
   const tools = pathWith(t, 'codex', 'agy');
   const preview = install(project(t), tools, '--main=claude', NO_HOOK);
-  assert.match(lineOf(preview, CONFIG_LINE), /동시상한 claude 3·codex 1,/);
+  assert.match(lineOf(preview, CONFIG_LINE), /동시상한 claude 5·codex 5,/);
   assert.doesNotMatch(lineOf(preview, CONFIG_LINE), /gemini/);
   for (const flags of [[], ['--upgrade']]) {
     const dir = project(t);
     install(dir, tools, ...flags, '--main=claude', NO_HOOK, '--apply');
-    assert.deepEqual(configOf(dir).일감목록, { 동시상한: { claude: 3, codex: 1 }, 기본맡길곳: 'claude' });
+    assert.deepEqual(configOf(dir).일감목록, { 동시상한: { claude: 5, codex: 5 }, 기본맡길곳: 'claude' });
     assert.equal(fs.existsSync(path.join(dir, '.agents/agents')), false);
   }
 });
@@ -270,9 +278,9 @@ test('npm .cmd and .exe tools are found; a .cmd without its js is not', { skip: 
   npmCmd(bin, 'codex');
   fs.writeFileSync(path.join(bin, 'agy.exe'), '');
   withPath(t, bin);
-  assert.deepEqual(limitsOf(), { 동시상한: { claude: 3, codex: 1, gemini: 1 }, 기본맡길곳: 'claude' });
+  assert.deepEqual(limitsOf(), { 동시상한: { claude: 5, codex: 5, gemini: 5 }, 기본맡길곳: 'claude' });
   fs.rmSync(path.join(bin, 'node_modules'), { recursive: true });
-  assert.deepEqual(limitsOf().동시상한, { claude: 3, gemini: 1 });
+  assert.deepEqual(limitsOf().동시상한, { claude: 5, gemini: 5 });
 });
 
 test('a folder named codex.cmd is not a tool and the real one later on PATH is found; an empty search path finds nothing', { skip: onlyWindows }, t => {
@@ -282,6 +290,6 @@ test('a folder named codex.cmd is not a tool and the real one later on PATH is f
   npmCmd(good, 'codex');
   assert.equal(onPath('codex', bad), false);
   withPath(t, bad, good);
-  assert.deepEqual(limitsOf().동시상한, { claude: 3, codex: 1 });
+  assert.deepEqual(limitsOf().동시상한, { claude: 5, codex: 5 });
   assert.equal(launcher('x', ''), undefined);
 });
