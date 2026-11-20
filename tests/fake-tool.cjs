@@ -15,16 +15,15 @@ const tool = path.basename(process.argv[1], '.js');
 const stdin = fs.readFileSync(0, 'utf8');
 const prompt = tool === 'agy' ? JSON.parse(stdin).message.content : stdin;
 const MARKERS = [['specReview', '의 맞춰보기를 한다'], ['spec', '의 할 일 적기를 맡는다'], ['build', '를 만든다.'],
-  ['other', '의 만든 코드를 다른 도구의 눈으로'], ['review', '의 만든 코드를 살핀다'], ['fix', '를 고친다.'], ['evidence', '의 끝 기준 증거를 모은다']];
+  ['other', '의 만든 코드를 다른 도구의 눈으로'], ['review', '의 만든 코드를 살핀다'], ['fix', '를 고친다.']];
 const CLEAN = { findings: [] };
 const DEFAULTS = {
   spec: { outcome: '건너뜀', reason: '', rejectedCommit: '', rejectedReason: '', pendingQuestions: [], specText: '', asks: [] },
   specReview: { passed: true, findings: [] },
   build: { summary: '만들었다\n둘째 줄' },
-  review: CLEAN,
+  review: { findings: [], items: [{ no: '1', evidence: '실행해 봄' }], unconfirmed: [] },
   other: CLEAN,
   fix: { summary: '고쳤다' },
-  evidence: { items: [{ no: '1', evidence: '실행해 봄' }], unconfirmed: [] },
 };
 
 function identify() {
@@ -78,8 +77,11 @@ async function main() {
   if (resp.exit) process.exit(resp.exit);
   if (resp.noresult) return;
   const payload = { ...DEFAULTS[stage], ...resp.payload };
-  if (tool === 'codex') fs.writeFileSync(args[args.indexOf('-o') + 1], JSON.stringify(payload));
-  else if (tool === 'agy') process.stdout.write([{ event: 'init', init: { permission_mode: 'always-proceed' } }, { event: 'result', result: { status: 'SUCCESS', structured_output: payload } }].map(line => JSON.stringify(line)).join('\n') + '\n');
-  else process.stdout.write(JSON.stringify({ type: 'result', is_error: false, structured_output: payload }));
+  if (tool === 'codex') {
+    fs.writeFileSync(args[args.indexOf('-o') + 1], JSON.stringify(payload));
+    if (resp.usage) process.stdout.write(JSON.stringify({ type: 'turn.completed', usage: resp.usage }) + '\n');
+  }
+  else if (tool === 'agy') process.stdout.write([{ event: 'init', init: { permission_mode: 'always-proceed' } }, { event: 'result', result: { status: 'SUCCESS', structured_output: payload, usage: resp.usage } }].map(line => JSON.stringify(line)).join('\n') + '\n');
+  else process.stdout.write(JSON.stringify({ type: 'result', is_error: false, structured_output: payload, usage: resp.usage }));
 }
 main();

@@ -7,7 +7,7 @@
 // 원칙은 AGENTS.md에 넣는다(Codex·Antigravity가 읽는다). Claude Code는 CLAUDE.md의 @AGENTS.md로 불러온다.
 //
 // 사용자가 쓴 내용은 덮어쓰지 않는다. 이미 다른 내용이 있으면 건너뛰고 할 일을 알린다.
-// 예외는 --upgrade뿐이다. 옛 검사기, 옛 모양의 harness/config.json, 설치된 일감 목록 명령 파일(backlog·ledger·questions·page·patch·serve·guard·stop)과 공용 물레방아 여섯 파일(mullebanga*), 제미나이 역할 파일(readonly·research·breaker), 이미 있는 역할·물레방아 사본(.claude/agents/, .claude/workflows/mullebanga.js, 역할 파일은 '## 이 프로젝트' 줄부터 지킨다), 깐 버전(harness/VERSION), .codex/hooks.json·.agents/hooks.json의 옛 훅 명령을 새것으로 바꾸고
+// 예외는 --upgrade뿐이다. 옛 검사기, 옛 모양의 harness/config.json, 설치된 일감 목록 명령 파일(backlog·ledger·questions·page·patch·serve·guard·stop)과 공용 물레방아 모듈(mullebanga*), 제미나이 역할 파일(readonly·research·breaker), 이미 있는 역할·물레방아 사본(.claude/agents/, .claude/workflows/mullebanga.js, 역할 파일은 '## 이 프로젝트' 줄부터 지킨다), 깐 버전(harness/VERSION), .codex/hooks.json·.agents/hooks.json의 옛 훅 명령을 새것으로 바꾸고
 // 우리가 만든 pre-commit에 막는 훅 줄을 더한다. 사용자가 승인했고 미리보기에서 [고침]으로 먼저 보인다.
 // --apply면 대상 폴더를 명부(~/.harness-starter/projects.json)에 한 번 적는다. 업그레이드 명령이 이 명부로 프로젝트를 찾는다.
 // 대상이 git 워크트리면 메인 작업 폴더를 적는다. 워크트리는 작업이 끝나면 지워진다.
@@ -201,7 +201,7 @@ function planBacklog(target, upgrade) {
   const now = read(path.join(target, exclude));
   const kept = now && !now.endsWith('\n') ? `${now}\n` : (now ?? '');
   const missing = UNTRACKED.filter(line => !now?.split('\n').includes(line));
-  const files = ['backlog', 'ledger', 'questions', 'page', 'patch', 'serve', 'stop', 'mullebanga', 'mullebanga-call', 'mullebanga-git', 'mullebanga-prompts', 'mullebanga-review', 'mullebanga-steps'].map(name => `harness/${name}.mjs`);
+  const files = ['backlog', 'ledger', 'questions', 'page', 'patch', 'serve', 'stop', 'mullebanga', 'mullebanga-call', 'mullebanga-git', 'mullebanga-prompts', 'mullebanga-review', 'mullebanga-steps', 'mullebanga-model', 'mullebanga-policy', 'mullebanga-stats', 'mullebanga-direct'].map(name => `harness/${name}.mjs`);
   return [
     ...[...files, GUARD].map(rel => planCopy(target, rel, rel, upgrade)),
     missing.length ? decide(exclude, now, `${kept}${missing.join('\n')}\n`) : { rel: exclude, action: 'same' },

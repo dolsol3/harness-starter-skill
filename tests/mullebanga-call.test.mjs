@@ -12,17 +12,18 @@ const modulePath = path.join(root, 'templates/harness/mullebanga-call.mjs');
 const schema = { type: 'object', additionalProperties: false, properties: { done: { type: 'boolean' } }, required: ['done'] };
 const answer = { done: true };
 // 가짜 도구: 받은 인자·작업 폴더·stdin 전체·스키마 파일 내용을 FAKE_LOG에 남기고, 환경 변수로 정한 대로 -o 파일·stdout·stderr를 쓰고 끝낸다.
-// FAKE_SLEEP이면 자손(오래 자는 node)을 띄워 pid를 FAKE_PIDFILE에 적고(FAKE_LOG·stdin·-o 파일보다 먼저: 시간초과가 이 일 앞에서 일어나면 시험이 읽을 pid가 없다) 안 끝난다. FAKE_TERM_EXIT0이면 SIGTERM을 받고 exit 0으로 끝난다. FAKE_GC_IGNORE_TERM이면 자손이 SIGTERM을 무시한다.
+// FAKE_SLEEP은 자손의 신호 처리 준비 뒤 ready를 알린다. FAKE_TERM_EXIT0은 부모가 SIGTERM에 exit 0, FAKE_GC_IGNORE_TERM은 자손이 SIGTERM을 무시한다.
 const FAKE = `#!/usr/bin/env node
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const env = process.env;
 const args = process.argv.slice(2);
 if (env.FAKE_SLEEP) {
-  const grandchildCode = (env.FAKE_GC_IGNORE_TERM ? "process.on('SIGTERM', () => {});" : '') + 'setTimeout(() => {}, 300000)';
-  const grandchild = spawn(process.execPath, ['-e', grandchildCode], { stdio: 'ignore' });
+  const grandchildCode = (env.FAKE_GC_IGNORE_TERM ? "process.on('SIGTERM', () => {});" : '') + "process.send('ready'); process.disconnect(); setTimeout(() => {}, 300000)";
+  const grandchild = spawn(process.execPath, ['-e', grandchildCode], { stdio: ['ignore', 'ignore', 'ignore', 'ipc'], windowsHide: true });
   fs.writeFileSync(env.FAKE_PIDFILE, String(grandchild.pid));
   if (env.FAKE_TERM_EXIT0) process.on('SIGTERM', () => process.exit(0));
+  grandchild.on('message', () => process.stdout.write('ready\\n'));
 }
 const schemaFlag = ['--output-schema', '--json-schema'].find(flag => args.includes(flag));
 const schemaFile = schemaFlag && args[args.indexOf(schemaFlag) + 1];
@@ -104,7 +105,7 @@ test('codex·gemini: 스키마 파일 내용이 입력 schema와 같고, 쓰기�
 
 test('gemini: agy 인자를 만들고 result 줄의 structured_output을 돌려준다', async t => {
   const { call, dir } = setup(t);
-  const { res, log } = await call('gemini', { timeoutMs: 2500 }, { FAKE_OUT: geminiOut() });
+  const { res, log } = await call('gemini', { timeoutMs: 12500 }, { FAKE_OUT: geminiOut() });
   assert.deepEqual(res, { ok: true, result: answer });
   const { args } = log;
   assert.ok(!args.includes('-p') && !args.includes('일을 해'));
@@ -112,7 +113,7 @@ test('gemini: agy 인자를 만들고 result 줄의 structured_output을 돌려�
   assert.deepEqual(JSON.parse(log.stdin), { event: 'user', message: { content: '일을 해' } });
   assert.equal(valueAfter(args, '--output-format'), 'stream-json');
   assert.ok(valueAfter(args, '--json-schema').endsWith('schema.json'));
-  assert.equal(valueAfter(args, '--print-timeout'), '3s');
+  assert.equal(valueAfter(args, '--print-timeout'), '13s');
   assert.ok(!args.includes('-w') && !args.includes('--dangerously-skip-permissions'));
   assert.equal(log.cwd, dir);
 });
@@ -170,25 +171,25 @@ async function assertDead(pid) {
   }
   assert.fail(`자손 ${pid}이 살아 있다`);
 }
-
-// timeoutMs 4000, < 12000: 가짜의 node 기동이 부하에서 1000ms를 넘어 pid를 쓰기 전에 죽었다(60개 부하 60번 중 14번). 2000도 부하 20개에서 가끔 실패했다. 12000은 4000 + 죽이기 여유다.
-test('시간 초과: 자손까지 멈추고 SIGTERM에 exit 0으로 끝나도 시간초과다', async t => {
+// 실제 자손이 준비된 뒤 시계를 진행해, 부하로 CLI 기동이 늦어져도 자손 종료를 검사한다.
+// https://nodejs.org/api/test.html#class-mocktimers
+test('시간 초과: 자손까지 멈추고 SIGTERM에 exit 0으로 끝나도 시간초과다', { timeout: 30000 }, async t => {
   const { call } = setup(t);
-  for (const [tool, extra] of [['codex', { FAKE_TERM_EXIT0: '1' }], ['gemini', {}], ['claude', { FAKE_TERM_EXIT0: '1' }]]) {
-    const started = Date.now();
-    const { res, pidFile } = await call(tool, { timeoutMs: 4000 }, { FAKE_SLEEP: '1', FAKE_FILE: JSON.stringify(answer), FAKE_OUT: claudeOut, ...extra });
+  const cases = [['codex', { FAKE_TERM_EXIT0: '1' }], ['gemini', {}], ['claude', { FAKE_TERM_EXIT0: '1' }],
+    ['codex', { FAKE_TERM_EXIT0: '1', FAKE_GC_IGNORE_TERM: '1' }]];
+  for (const [tool, extra] of cases) {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    let output = '';
+    const observe = (stream, chunk) => {
+      if (stream === 'stdout') output += chunk;
+      if (output.includes('ready\n')) t.mock.timers.tick(4000);
+    };
+    const { res, pidFile } = await call(tool, { timeoutMs: 4000, observe }, { FAKE_SLEEP: '1', FAKE_FILE: JSON.stringify(answer), FAKE_OUT: claudeOut, ...extra });
+    t.mock.timers.reset();
     assert.equal(res.ok, false, tool);
     assert.equal(res.reason, '시간초과', tool);
-    assert.ok(Date.now() - started < 12000, tool);
     await assertDead(Number(fs.readFileSync(pidFile, 'utf8')));
   }
-});
-
-test('시간 초과: SIGTERM을 무시하는 자손도 호출이 돌아올 때 이미 죽는다', async t => {
-  const { call } = setup(t);
-  const { res, pidFile } = await call('codex', { timeoutMs: 4000 }, { FAKE_SLEEP: '1', FAKE_TERM_EXIT0: '1', FAKE_GC_IGNORE_TERM: '1' });
-  assert.equal(res.reason, '시간초과');
-  await assertDead(Number(fs.readFileSync(pidFile, 'utf8')));
 });
 
 test('결과 없는 exit 0은 결과없음이다', async t => {

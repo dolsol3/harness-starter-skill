@@ -23,7 +23,7 @@ test('단계 도구: 설정의 도구가 먹고 agents·tool 별칭도 먹으며
   });
   const [task] = (await s.run(['--도구', 'codex', 'T-1'])).json;
   assert.equal(task.raised, true);
-  assert.deepEqual(calledStages(s.called()), ['T-1:spec:codex', 'T-1:specReview:codex', 'T-1:build:agy', 'T-1:review:codex', 'T-1:other:codex', 'T-1:evidence:codex']);
+  assert.deepEqual(calledStages(s.called()), ['T-1:spec:codex', 'T-1:specReview:codex', 'T-1:build:agy', 'T-1:review:codex', 'T-1:other:codex']);
 });
 
 test('모델·깊이: 클로드는 기본값이나 설정값을 받고, 코덱스는 단계에 도구를 적었을 때만 받는다', async t => {
@@ -68,7 +68,7 @@ test('제미나이가 작업 워크트리 밖에 쓰려 하면 진짜 샌드박�
   assert.equal(fs.readFileSync(path.join(task.worktree, 'impl.txt'), 'utf8'), 'impl\n');
 });
 
-const ROLE = { spec: 'planner', specReview: 'reviewer', build: 'implementer', review: 'reviewer', fix: 'implementer', evidence: 'implementer' };
+const ROLE = { spec: 'planner', specReview: 'reviewer', build: 'implementer', review: 'reviewer', fix: 'implementer' };
 
 test('읽기·쓰기 역할: 읽기 단계는 읽기 전용, 만들기는 작업 워크트리에만 쓰고, 모든 지시문 앞에 역할 안내문이 있다', async t => {
   const s = setup(t, { tools: ['codex', 'claude', 'gemini'] });

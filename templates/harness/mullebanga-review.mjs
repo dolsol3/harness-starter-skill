@@ -5,13 +5,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { callTool, agentapiPath, onPath, hasTool, intact, sandboxWrap } from './mullebanga-call.mjs';
+import { agentapiPath, onPath, hasTool, intact, sandboxWrap } from './mullebanga-call.mjs';
 import { schemas } from './mullebanga-prompts.mjs';
+import { automaticStage, outsideOptions, trackedCall } from './mullebanga-model.mjs';
+import { sampleId } from './mullebanga-stats.mjs';
 import { readConfig, stageSetting } from './mullebanga-steps.mjs';
 
 const AUTHORS = ['codex', 'gemini', 'claude'];
 const LEVELS = ['높음', '중간', '낮음'];
-const DEFAULT_TIMEOUTS = { breaking: 1500000, readOnly: 300000 };
+const DEFAULT_TIMEOUTS = { breaking: 1500000, readOnly: 900000 };
+const OTHER_SCHEMA = { type: 'object', properties: { findings: { type: 'array', items: schemas.FINDING } }, required: ['findings'], additionalProperties: false };
 const NO_TOOL = '다른 도구 검토 없음: 작성 도구가 아니고 동시상한에 있으며 이 컴퓨터에서 실행할 수 있는 검토·폴백 도구가 없다';
 const AGENTAPI_CHANGED = '다른 도구 검토 뒤 진짜 홈 agentapi가 바뀜';
 const DETAIL_LINE = 200;
@@ -25,13 +28,16 @@ const pick = (source, ...names) => names.map(name => source?.[name]).find(value 
 const finding = (level, text) => ({ level, text });
 const oneLine = text => text.split('\n').findLast(line => line.trim())?.trim().slice(0, DETAIL_LINE) ?? '';
 
-function readSettings(repo, tool) {
+function readSettings(repo, tool, author) {
   const config = readConfig(repo);
   const { hit: review, profiled } = stageSetting(config, '번갈아보기', tool);
   const modelTool = pick(review, '도구', 'tool') ?? (profiled ? tool : 'claude');
+  const auto = automaticStage(config, '번갈아보기', tool);
+  const order = author === 'gemini' ? ['codex', 'claude'] : author === 'codex' ? ['gemini', 'claude'] : ['gemini', 'codex'];
   return {
-    reviewTool: pick(review, '검토도구', '바깥도구', 'reviewTool') ?? 'gemini',
-    fallbackTool: pick(review, '폴백도구', 'fallbackTool') ?? 'codex',
+    config, auto,
+    reviewTool: auto ? order[0] : pick(review, '검토도구', '바깥도구', 'reviewTool') ?? 'gemini',
+    fallbackTool: auto ? order[1] : pick(review, '폴백도구', 'fallbackTool') ?? 'codex',
     outsideModel: pick(review, '바깥모델', 'outsideModel'),
     outsideEffort: pick(review, '바깥추론', 'outsideEffort'),
     fallbackModel: pick(review, '폴백모델', 'fallbackModel'),
@@ -124,7 +130,8 @@ const checkFindings = list =>
 
 // 도구가 돌려준 말은 데이터다. level과 text만 꺼내 쓴다. 스키마 검증 엔진이 없어 바깥에서 오는 값은 이 경계에서 한 번 본다.
 async function callChecked(ctx, call) {
-  const res = await callTool({ cwd: ctx.copy, schema: schemas.REVIEWED, ...call });
+  const selection = ctx.settings.auto ? await outsideOptions(ctx.settings.config, ctx.tool ?? ctx.author, call.tool, sampleId(ctx.repo, ctx.id), ctx.env) : undefined;
+  const res = await trackedCall({ config: ctx.settings.config, root: ctx.repo, id: ctx.id, stage: '번갈아보기', selection, env: ctx.env, call: { cwd: ctx.copy, schema: OTHER_SCHEMA, ...call, ...selection } });
   if (!res.ok) return { ok: false, detail: oneLine(`${res.reason}: ${res.detail}`) };
   const findings = checkFindings(res.result.findings);
   return findings ? { ok: true, findings } : { ok: false, detail: '결과없음: findings 모양이 틀렸다' };
@@ -210,7 +217,7 @@ export async function reviewOther(input) {
   const { repo, id, author, env = process.env } = input;
   const specFile = path.join(repo, 'docs', 'tasks', `${id}.md`);
   if (!fs.existsSync(specFile)) throw new Error(`작업 문서 파일이 없다: ${specFile}`);
-  const settings = readSettings(repo, input.tool ?? author);
+  const settings = readSettings(repo, input.tool ?? author, author);
   const plan = planTools(settings, author, env);
   if (!plan.length) return { tool: '', findings: [finding('중간', NO_TOOL)], agentapiChanged: false, attempts: [] };
   const realHome = fs.realpathSync(env.HOME ?? os.homedir());

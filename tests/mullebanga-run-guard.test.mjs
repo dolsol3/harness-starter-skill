@@ -78,7 +78,7 @@ test('동시상한: 단계 도구·바깥 검토에도 0을 지키고, 숫자가
 
 test('끝 기준: 빈 증거는 증거로 받지 않는다', async t => {
   const s = setup(t);
-  s.scenario({ 'T-1': { evidence: [{ payload: { items: [{ no: '1', evidence: '  ' }], unconfirmed: [] } }] } });
+  s.scenario({ 'T-1': { review: [{ payload: { items: [{ no: '1', evidence: '  ' }], unconfirmed: [] } }] } });
   const [task] = (await s.run(['--도구', 'codex', 'T-1'])).json;
   stoppedAt(task, '1번 증거 없음');
   assert.match(s.ledger('보기', 'T-1'), /^T-1 \[진행중\]/);

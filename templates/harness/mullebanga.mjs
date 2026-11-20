@@ -13,16 +13,17 @@
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { callTool, callWritingGemini } from './mullebanga-call.mjs';
+import { enabled, modelOptions, trackedCall } from './mullebanga-model.mjs';
+import { sampleId, markQuality } from './mullebanga-stats.mjs';
 import { createWorktree, commitAll, snapshot, readCheckCommands, runChecks, findResumeBranch, branchExists, openBranch, inspectBranch } from './mullebanga-git.mjs';
-import { schemas, rolePrompt, specPrompt, specReviewPrompt, buildPrompt, reviewPrompt, fixPrompt, evidencePrompt } from './mullebanga-prompts.mjs';
+import { schemas, rolePrompt, specPrompt, specReviewPrompt, buildPrompt, reviewPrompt, fixPrompt } from './mullebanga-prompts.mjs';
 import { reviewOther } from './mullebanga-review.mjs';
 import { Stop, halt, readConfig, stageOptions, fits, backlog, taskInfo, inProgress, askArgs, recordSpec, criteriaNumbers } from './mullebanga-steps.mjs';
 
 const TOOLS = ['codex', 'gemini', 'claude'];
 const TASK_ID = /^[A-Za-z]+-\d+$/;
 const MAX_FIXES = 3;
-const READ_SECONDS = 300;
+const READ_SECONDS = 900;
 const WRITE_SECONDS = 1800;
 const SPEC_STOPS = ['허락', '실험 필요'];
 const STEPS = {
@@ -31,7 +32,6 @@ const STEPS = {
   build: { key: '만들기', label: '만들기' },
   review: { key: '번갈아보기', label: '번갈아 보기' },
   fix: { key: '고치기', label: '고치기' },
-  raise: { key: '올림', label: '올림(증거 모으기)' },
 };
 
 // 읽기 단계 claude는 작업 문서·일감 목록·git 기록을 읽는 명령만 받는다. Bash를 통째로 주면 읽기 전용(plan) 단계에서도 셸로 파일을 쓴다(재현함).
@@ -53,13 +53,14 @@ function parseArguments(argv) {
 
 // 한 번 부르고 되풀이하지 않는다. 실패는 던지지 않고 이유를 담아 돌려준다(폴백은 바깥 검토 안에서만 한다).
 async function callStep(ctx, state, step, { cwd, prompt, schema, write = false }) {
-  const { tool, model, effort } = stageOptions(ctx.config, step.key, ctx.tool, state.task);
+  const selection = enabled(ctx.config) ? await modelOptions(ctx.config, step.key, ctx.tool, state.task, sampleId(ctx.root, state.id)) : stageOptions(ctx.config, step.key, ctx.tool, state.task);
+  const { tool, model, effort } = selection;
   if (barred(ctx.config, tool)) return { ok: false, reason: `${step.label} 단계에서 멈춤: 일감목록.동시상한.${tool}이 ${ctx.config.limits[tool]}이라 이 도구로는 돌리지 않는다` };
   log(state.id, `${step.label} 시작 (${tool})`);
   const call = { tool, cwd, prompt, schema, write, model, effort, timeoutMs: (ctx.seconds ?? (write ? WRITE_SECONDS : READ_SECONDS)) * 1000 };
   if (tool === 'claude') call.allowedTools = write ? ['Bash'] : READ_COMMANDS;
   if (tool === 'gemini' && !write) Object.assign(call, { agent: 'readonly', env: { ...process.env, HARNESS_READ_ONLY: '1' } });
-  const res = await (tool === 'gemini' && write ? callWritingGemini(call) : callTool(call));
+  const res = await trackedCall({ config: ctx.config, root: ctx.root, id: state.id, stage: step.key, selection, call });
   if (!res.ok) return { ok: false, reason: `${step.label} 단계 도구 실패(${res.reason}): ${res.detail}` };
   if (!fits(schema, res.result)) return { ok: false, reason: `${step.label} 단계 도구 실패(결과없음): 결과 모양이 스키마와 다르다` };
   return { ok: true, tool, result: res.result };
@@ -117,7 +118,10 @@ async function writeCode(ctx, state, step, prompt, schema) {
 async function checkAndCommit(ctx, state, step, message, skipIfClean = false) {
   const check = ctx.checks.length ? await runChecks(state.worktree, ctx.checks, { base: ctx.config.base, python: ctx.config.python }) : undefined;
   if (check) Object.assign(state, { checkPassed: check.ok, checkFailures: check.ok ? '' : failureText(check), checkReports: check.ok ? check.reports : undefined });
-  if (check && !check.ok) return;
+  if (check && !check.ok) {
+    if (enabled(ctx.config)) await markQuality(sampleId(ctx.root, state.id), false);
+    return;
+  }
   if (!skipIfClean || inspectBranch(state.worktree, ctx.config.base).dirty) {
     const committed = commitAll(state.worktree, message);
     if (!committed.ok) halt(`${step.label} 단계에서 멈춤: ${committed.reason}`);
@@ -153,25 +157,26 @@ async function crossReview(ctx, state) {
   const { id } = state;
   const ms = ctx.seconds && ctx.seconds * 1000;
   const [mine, other] = await Promise.all([
-    callStep(ctx, state, STEPS.review, { cwd: state.worktree, prompt: reviewPrompt(ctx.root, id, ctx.config.base), schema: schemas.REVIEWED }),
+    callStep(ctx, state, STEPS.review, { cwd: state.worktree, prompt: reviewPrompt(ctx.root, id, ctx.config.base, state.commit, state.checkReports), schema: schemas.REVIEWED }),
     reviewOther({ repo: ctx.root, id, worktree: state.worktree, commit: state.commit, base: ctx.config.base, author: state.writer, tool: ctx.tool, ...(ms && { timeouts: { breaking: ms, readOnly: ms } }) }),
   ]);
   const findings = [...(mine.ok ? mine.result.findings : []), ...other.findings];
   Object.assign(state, { reviewTool: other.tool, highs: findings.filter(finding => finding.level === '높음'), others: findings.filter(finding => finding.level !== '높음') });
   state.attempts = other.attempts;
+  state.reviewComplete = mine.ok && Boolean(other.tool);
   if (other.agentapiChanged) halt('다른 도구 검토 뒤 진짜 홈 agentapi가 바뀜: 고치지 않고 멈춘다. 사람이 본다');
-  must(mine);
+  const reviewed = must(mine);
+  state.evidence = { items: reviewed.items, unconfirmed: reviewed.unconfirmed };
 }
 
 async function raise(ctx, state) {
-  const { id } = state;
+  const { id, evidence } = state;
   // 일감 목록은 맡길곳을 작성 도구로 보고 그 도구의 검토를 거절한다. 단계 도구로 실제 작성 도구를 바꾸면 바깥 검토가 맡길곳과 같아질 수 있다.
   if (Object.keys(ctx.config.limits).length > 1 && state.reviewTool === state.assignee) {
     halt(`올림 단계에서 멈춤: 바깥 검토 도구(${state.reviewTool})가 일감 목록의 맡길곳과 같아 일감 목록이 올림을 거절한다(실제 작성 도구 ${state.writer}). 단계모델의 만들기·고치기 도구를 맡길곳과 맞추거나 사람이 다른 도구로 검토한다`);
   }
   const numbers = criteriaNumbers(ctx.root, id);
   if (!numbers.length) halt('올림 단계에서 멈춤: 작업 문서 `## 끝 기준` 절에서 번호 항목(1. 또는 1))을 하나도 읽지 못했다');
-  const evidence = must(await callStep(ctx, state, STEPS.raise, { cwd: state.worktree, prompt: evidencePrompt(ctx.root, id, state.commit, state.checkReports), schema: schemas.EVIDENCE }));
   const have = new Set(evidence.items.filter(item => item.evidence.trim()).map(item => item.no.trim().replace(/[.)]+$/, '')));
   const missing = numbers.filter(no => !have.has(no));
   if (evidence.unconfirmed.length || missing.length) {
@@ -193,6 +198,7 @@ async function work(ctx, state) {
   for (;;) {
     if (state.checkPassed) await crossReview(ctx, state);
     else Object.assign(state, { highs: [], others: [], reviewTool: '' });
+    if (enabled(ctx.config) && (!state.checkPassed || state.highs.length || state.reviewComplete)) await markQuality(sampleId(ctx.root, id), state.checkPassed && !state.highs.length);
     if (state.checkPassed && !state.highs.length) return raise(ctx, state);
     if (state.fixes === MAX_FIXES) return log(id, `${MAX_FIXES}번 고쳐도 돌려보기 실패나 높음이 남아 올리지 않고 진행중으로 둔다`);
     haltIfWaiting(ctx, id);

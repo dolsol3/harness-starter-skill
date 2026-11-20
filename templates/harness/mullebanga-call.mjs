@@ -52,6 +52,7 @@ const TOOLS = {
     const outFile = path.join(dir, 'out.json');
     fs.writeFileSync(schemaFile, JSON.stringify(call.schema));
     const args = ['exec', '-s', call.write ? 'workspace-write' : 'read-only', '-C', call.cwd, '--json', '--output-schema', schemaFile, '-o', outFile,
+      ...(call.liveWeb ? ['-c', 'web_search="live"'] : []),
       ...optional('-m', call.model), ...optional('-c', call.effort && `model_reasoning_effort="${call.effort}"`), '-'];
     // 끝났는데 turn.failed를 찍었으면 결과 파일이 있어도 실패다. 보통 파일이 아닌 -o 경로(FIFO·폴더)는 읽지 않는다: FIFO는 읽기에서 멈춘다.
     const failedTurn = out => out.split('\n').map(parseJson).some(line => plainObject(line)?.type === 'turn.failed');
@@ -88,19 +89,18 @@ const TOOLS = {
   },
   claude(call, { bin }) {
     const permissionPrompts = flagSupported(bin, '--permission-prompts') ? ['--permission-prompts', 'none'] : [];
-    const args = ['-p', '--output-format', 'json', '--json-schema', JSON.stringify(call.schema), '--permission-mode', call.write ? 'acceptEdits' : 'plan',
+    const args = ['-p', '--output-format', call.streamJson ? 'stream-json' : 'json', ...(call.streamJson ? ['--verbose'] : []), '--json-schema', JSON.stringify(call.schema), '--permission-mode', call.write ? 'acceptEdits' : 'plan',
       ...permissionPrompts, '--no-session-persistence', '--settings', SANDBOX_SETTINGS,
       ...optional('--model', call.model), ...optional('--effort', call.effort),
       ...(call.allowedTools?.length ? ['--allowedTools', ...call.allowedTools] : [])];
     const read = out => {
-      const envelope = plainObject(parseJson(out.trim()));
+      const envelope = call.streamJson ? out.split('\n').map(parseJson).findLast(e => e?.type === 'result') : plainObject(parseJson(out.trim()));
       if (envelope?.is_error) return { failed: true };
       return { result: plainObject(envelope?.structured_output) };
     };
     return { command: 'claude', bin, args, stdin: call.prompt, read };
   },
 };
-
 const tail = text => text.trim().slice(-DETAIL_TAIL);
 
 // 그룹에 거두어지지 않은 좀비만 남으면 macOS가 ESRCH 대신 EPERM을 던진다(2026-10-24 재현). 멈출 것이 없다는 같은 뜻이다.
@@ -124,6 +124,7 @@ export function killTree(child, signal) {
 function run(spec, call) {
   return new Promise(resolve => {
     const argv = [...(call.wrap ?? []), ...spec.bin, ...spec.args];
+    call.trace?.({ argv, cwd: call.cwd });
     const child = spawn(argv[0], argv.slice(1), { cwd: call.cwd, env: call.env ?? process.env, ...SPAWN_GROUP, stdio: ['pipe', 'pipe', 'pipe'] });
     const state = { out: '', err: '', stopped: undefined };
     let killer;
@@ -168,7 +169,6 @@ function run(spec, call) {
     });
   });
 }
-
 const stdinNote = finished => (finished.stdinError ? ` (stdin 쓰기 오류: ${finished.stdinError.message})` : '');
 
 function judge(spec, finished) {
@@ -294,6 +294,6 @@ export async function callWritingGemini(call) {
     if (guarded && !intact(agentapi, backup)) return { ok: false, reason: '권한', detail: '제미나이 쓰기 뒤 진짜 홈 agentapi가 바뀜' };
     return res;
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   }
 }

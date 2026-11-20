@@ -127,4 +127,34 @@ if (!['preview','apply'].includes(mode)) throw new Error('mode');
 console.log(JSON.stringify(mode==='preview'?preview(csv,store):apply(csv,store,token)));
 `,
   },
+  Q22: { 'memo.mjs': `export function memo(fn) {
+  const cache = new Map();
+  return (...args) => {
+    const key = JSON.stringify(args);
+    if (!cache.has(key)) cache.set(key, fn(...args));
+    return cache.get(key);
+  };
+}
+` },
+  Q23: { 'ledger.mjs': `import fs from 'node:fs/promises';
+import path from 'node:path';
+const queues = new Map();
+async function apply(file, id, change) {
+  const rows = JSON.parse(await fs.readFile(file, 'utf8'));
+  let row = rows.find(item => item.id === id);
+  const state = await change(row?.state);
+  if (JSON.stringify(state) === undefined) throw new TypeError('JSON으로 바꿀 수 없는 state');
+  const next = row ? rows : [...rows, { id }];
+  row ??= next.at(-1);
+  const text = JSON.stringify(next.map(item => item === row ? { ...item, state } : item));
+  await fs.writeFile(file, text);
+  return state;
+}
+export function update(file, id, change) {
+  const key = path.resolve(file);
+  const current = (queues.get(key) ?? Promise.resolve()).then(() => apply(file, id, change));
+  queues.set(key, current.then(() => undefined, () => undefined));
+  return current;
+}
+` },
 };

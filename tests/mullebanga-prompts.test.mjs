@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { rolePrompt, specPrompt, specReviewPrompt, buildPrompt, reviewPrompt, fixPrompt, evidencePrompt, schemas } from '../templates/harness/mullebanga-prompts.mjs';
+import { rolePrompt, specPrompt, specReviewPrompt, buildPrompt, reviewPrompt, fixPrompt, schemas } from '../templates/harness/mullebanga-prompts.mjs';
 
 const ROLES = ['planner', 'reviewer', 'implementer'];
 const front = role => `---\nname: ${role}\ndescription: ${role} 설명\ntools: Read, Bash\n---\n`;
@@ -46,7 +46,7 @@ function strictProblems(node, where) {
 }
 
 test('모든 결과 모양이 Codex 엄격 조건을 지킨다', () => {
-  assert.deepEqual(Object.keys(schemas).sort(), ['BUILT', 'CHECKED', 'EVIDENCE', 'FINDING', 'FIXED', 'OTHER_REVIEWED', 'REVIEWED', 'SPEC', 'SPEC_REVIEWED']);
+  assert.deepEqual(Object.keys(schemas).sort(), ['BUILT', 'CHECKED', 'FINDING', 'FIXED', 'OTHER_REVIEWED', 'REVIEWED', 'SPEC', 'SPEC_REVIEWED']);
   assert.deepEqual(strictProblems(schemas, 'schemas'), []);
 });
 
@@ -57,16 +57,17 @@ test('엄격 조건 검사가 어긴 모양은 잡는다', () => {
   assert.equal(strictProblems({ type: 'object', properties: { list: { type: 'array', items: { type: 'object' } } }, required: ['list'], additionalProperties: false }, 'a').length, 1);
 });
 
-test('SPEC 칸: 작업 문서 글과 허락·확인·기록 줄을 받고 agents는 없다', () => {
-  const { SPEC, BUILT, FIXED, EVIDENCE } = schemas;
+test('SPEC·REVIEWED 칸: 작업 문서 글과 허락·확인·기록 줄, 살피기 지적과 끝 기준 증거를 받는다', () => {
+  const { SPEC, BUILT, FIXED, REVIEWED } = schemas;
   assert.deepEqual(Object.keys(SPEC.properties), ['outcome', 'reason', 'rejectedCommit', 'rejectedReason', 'pendingQuestions', 'specText', 'asks']);
   assert.ok(!('agents' in SPEC.properties));
   assert.deepEqual(Object.keys(SPEC.properties.asks.items.properties), ['kind', 'option', 'title', 'description', 'choices', 'recommend', 'reason']);
   assert.deepEqual(SPEC.properties.asks.items.properties.kind.enum, ['허락', '확인', '기록']);
   assert.deepEqual(Object.keys(BUILT.properties), ['summary']);
   assert.deepEqual(Object.keys(FIXED.properties), ['summary']);
-  assert.deepEqual(Object.keys(EVIDENCE.properties), ['items', 'unconfirmed']);
-  assert.deepEqual(Object.keys(EVIDENCE.properties.items.items.properties), ['no', 'evidence']);
+  assert.deepEqual(Object.keys(REVIEWED.properties), ['findings', 'items', 'unconfirmed']);
+  assert.deepEqual(Object.keys(REVIEWED.properties.items.items.properties), ['no', 'evidence']);
+  assert.ok(!('EVIDENCE' in schemas));
   assert.ok(!('RAISED' in schemas));
 });
 
@@ -82,9 +83,8 @@ test('나머지 지시문: 작업 번호와 해당 역할 본문이 있다', t =
   const cases = [
     [specReviewPrompt(root, 'T-9'), 'reviewer'],
     [buildPrompt(root, 'T-9'), 'implementer'],
-    [reviewPrompt(root, 'T-9', 'main'), 'reviewer'],
+    [reviewPrompt(root, 'T-9', 'main', 'abc123'), 'reviewer'],
     [fixPrompt(root, 'T-9', { passed: true, failures: '' }, []), 'implementer'],
-    [evidencePrompt(root, 'T-9', 'abc123'), 'implementer'],
   ];
   for (const [text, role] of cases) {
     assert.ok(text.startsWith(`${role} 본문 시작`), role);
@@ -119,11 +119,11 @@ test('fixPrompt: 돌려보기 실패와 높음 지적만 담고 커밋하지 않
   assert.ok(text.includes('브랜치를 바꾸지 않는다'));
 });
 
-test('evidencePrompt: 읽기 전용이고 올림 명령을 시키지 않으며 EVIDENCE 모양으로만 돌려받는다', t => {
-  const text = evidencePrompt(rootWith(t), 'T-9', 'abc123');
-  for (const part of ['파일을 쓰지 않고', 'abc123', 'items', 'unconfirmed', 'JSON 한 덩어리']) assert.ok(text.includes(part), part);
+test('reviewPrompt: 읽기 전용이고 통과한 검사 기록을 전달하며 REVIEWED 모양으로 지적과 끝 기준 증거를 함께 돌려받는다', t => {
+  const text = reviewPrompt(rootWith(t), 'T-9', 'main', 'abc123', [{ command: 'npm test', exitCode: 0, output: 'ok', truncated: false }]);
+  for (const part of ['파일을 쓰지 않고', 'abc123', 'findings', 'items', 'unconfirmed', 'JSON 한 덩어리', '"command":"npm test"']) assert.ok(text.includes(part), part);
   assert.doesNotMatch(text, /backlog\.mjs 올림/);
-  assert.ok(text.indexOf('implementer 본문 끝') < text.indexOf('abc123'));
+  assert.ok(text.indexOf('reviewer 본문 끝') < text.indexOf('abc123'));
 });
 
 // 실제 역할과 프로젝트 지침을 합친 입력을 포착한다. 도구는 기존 가짜 실행기를 쓴다.
@@ -179,20 +179,20 @@ test('CLI와 Claude의 실제 단계 호출에 권한·원문 대조·직접 실
     prompt: rolePrompt(s.dir, call.agentType, call.prompt),
     stage: ({ '할 일 적기': 'spec', '맞춰보기': 'specReview', '만들기': 'build', '번갈아 보기': 'review', '올림': 'evidence' })[call.phase],
   }));
+  assert.deepEqual(cli.map(call => call.stage), ['spec', 'specReview', 'build', 'review']);
+  assert.deepEqual(claude.map(call => call.stage), ['spec', 'specReview', 'build', 'review', 'evidence']);
   for (const calls of [cli, claude]) {
-    assert.deepEqual(calls.map(call => call.stage), ['spec', 'specReview', 'build', 'review', 'evidence']);
     for (const call of calls) requireParts(call.prompt, ['node sample-run.mjs', 'HOME', 'USERPROFILE']);
     requireParts(calls[0].prompt, ['한 글자도 바꾸지 않', '허락', '그 작업은 멈춘다', '확인', '그 작업은 멈추지 않는다', '문서충돌', '실데이터', '구조변경', '기록']);
     requireParts(calls[1].prompt, ['## 사용자 원래 말', '사용자가 정한 것', '출처', '앞으로', '높음', '중간']);
     requireParts(calls[2].prompt, ['작업 문서는 고치지 않는다', '범위 밖', '작업 워크트리', 'ai/<작업명>', '100줄', 'git rev-parse --git-common-dir', 'node ci.mjs']);
     requireParts(calls[3].prompt, ['독립적으로', '명령을 직접 실행', '테스트로 대신하지 않는다', '실행 못 함']);
-    requireParts(calls[4].prompt, ['번호', '명령', '본 결과', '실행 못 함', '다시 부르지 않는다']);
   }
   requireParts(cli[0].prompt, ['파일을 쓰지 않고', 'specText', 'asks']);
   requireParts(cli[2].prompt, ['커밋하지 않는다', '브랜치를 바꾸지 않는다']);
-  requireParts(cli[4].prompt, ['파일을 쓰지 않고', 'unconfirmed']);
+  requireParts(cli[3].prompt, ['파일을 쓰지 않고', 'items', 'unconfirmed', '다시 부르지 않는다']);
   requireParts(claude[2].prompt, ['git switch -c ai/<작업명>', '만들고 커밋한다']);
-  requireParts(claude[4].prompt, ['backlog.mjs 올림 T-1', '--검토 gemini']);
+  requireParts(claude[4].prompt, ['번호', '명령', '본 결과', '실행 못 함', '다시 부르지 않는다', 'backlog.mjs 올림 T-1', '--검토 gemini']);
   const fix = fixPrompt(s.dir, 'T-1', { passed: false, failures: '고칠 실패' }, []);
   requireParts(fix, ['작업 워크트리에서만', '보기 T-1', '작업 문서는 고치지 않는다', '커밋하지 않는다']);
 });

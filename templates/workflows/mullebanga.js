@@ -30,6 +30,13 @@ const MODELS = {
   올림: ['sonnet', 'low', 'raise'],
 };
 const isCfgObj = args && typeof args === 'object' && !Array.isArray(args);
+// 자동 정책은 공용 본체에 위임해 모델 선택·성적부·증거 검사 경로를 하나로 유지한다.
+if (isCfgObj && args.자동모델?.사용) {
+  const ids = args.tasks ?? args.args ?? [];
+  if (!Array.isArray(ids) || ids.some(id => !/^[A-Za-z]+-\d+$/.test(id))) throw new Error('자동 정책 tasks는 작업 번호 배열이다');
+  const result = await agent(`harness/config.json의 자동모델.사용이 true인지 확인하고, 아니면 멈춘다. 터미널에서 node harness/mullebanga.mjs --도구 claude ${ids.join(' ')} 를 한 번 실행한다. 결과 JSON 배열을 output 문자열로 그대로 돌려준다. 별도 올림 AI·병합·완료·푸시는 하지 않는다.`, { label: '공용 물레방아', phase: '고르기', model: 'haiku', effort: 'medium', schema: { type: 'object', properties: { output: { type: 'string' } }, required: ['output'] } });
+  return JSON.parse(result.output);
+}
 let modelCfg = isCfgObj ? { ...(args.단계모델 ?? args.agents ?? args.models) } : {};
 const mergeModels = next => {
   if (next && typeof next === 'object') modelCfg = { ...modelCfg, ...next };

@@ -12,7 +12,7 @@ const templates = fileURLToPath(new URL('../templates/harness/', import.meta.url
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-home-'));
 after(() => fs.rmSync(home, { recursive: true, force: true }));
 const env = { ...process.env, HOME: home, USERPROFILE: home };
-const FILES = ['mullebanga', 'mullebanga-call', 'mullebanga-git', 'mullebanga-prompts', 'mullebanga-review', 'mullebanga-steps'].map(name => `harness/${name}.mjs`);
+const FILES = ['mullebanga', 'mullebanga-call', 'mullebanga-git', 'mullebanga-prompts', 'mullebanga-review', 'mullebanga-steps', 'mullebanga-model', 'mullebanga-policy', 'mullebanga-stats', 'mullebanga-direct'].map(name => `harness/${name}.mjs`);
 const WORKTREES = '.claude/worktrees/';
 const EXCLUDE = '.git/info/exclude';
 
@@ -34,7 +34,7 @@ function install(dir, ...args) {
   return result.stdout;
 }
 
-test('preview lists the six files as new and writes nothing; --apply copies them from templates', t => {
+test('preview lists the common modules as new and writes nothing; --apply copies them from templates', t => {
   const dir = repo(t);
   const preview = install(dir);
   for (const rel of FILES) assert.match(preview, new RegExp(`\\[새로 만듦\\] ${rel}`));

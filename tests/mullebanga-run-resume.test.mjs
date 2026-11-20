@@ -12,14 +12,14 @@ const evidenceLater = [{ payload: { unconfirmed: ['실행 못 함'] } }, {}];
 
 test('이어 가기: 커밋 뒤 멈춘 작업을 다시 돌리면 할 일 적기·만들기 없이 같은 브랜치에서 올린다', async t => {
   const s = setup(t);
-  s.scenario({ 'T-1': { evidence: evidenceLater } });
+  s.scenario({ 'T-1': { review: evidenceLater } });
   const [first] = (await s.run(['--도구', 'codex', 'T-1'])).json;
   stoppedAt(first, '증거 부족');
   const before = s.git('rev-list', '--count', 'main..ai/T-1');
   const afterFirst = stages(s).length;
   const [task] = (await s.run(['--도구', 'codex', 'T-1'])).json;
   assert.deepEqual([task.raised, task.resumed, task.spec], [true, true, null]);
-  assert.deepEqual(stages(s).slice(afterFirst).sort(), ['evidence', 'other', 'review']);
+  assert.deepEqual(stages(s).slice(afterFirst).sort(), ['other', 'review']);
   assert.equal(s.git('branch', '--list', 'ai/*').split('\n').length, 1);
   assert.equal(s.git('rev-list', '--count', 'main..ai/T-1'), before);
   assert.equal(task.commit, first.commit);
@@ -54,7 +54,7 @@ test('이어 가기: 변경을 확인 명령이 통과하면 만들기 없이 �
 
 test('이어 가기: 확인 명령이 만든 변경도 커밋해 검사한 상태 그대로 올린다', async t => {
   const s = setup(t, { checkLine: "- 확인 명령: `node -e \"require('fs').appendFileSync('impl.txt', 'check\\\\n')\"`" });
-  s.scenario({ 'T-1': { evidence: evidenceLater } });
+  s.scenario({ 'T-1': { review: evidenceLater } });
   const [first] = (await s.run(['--도구', 'codex', 'T-1'])).json;
   stoppedAt(first, '증거 부족');
   const [task] = (await s.run(['--도구', 'codex', 'T-1'])).json;
@@ -79,7 +79,7 @@ test('이어 가기: 아직 한 일이 없으면 새 워크트리 없이 같은 
 test('이어 가기: 할 일 적기를 다시 부르지 않아 기록이 겹치지 않는다', async t => {
   const s = setup(t, { bareSpec: true });
   const asks = [{ kind: '기록', title: '이름을 정했다', option: '', description: '설명', choices: '', recommend: '', reason: '이유' }];
-  s.scenario({ 'T-1': { spec: [{ payload: { outcome: '썼음', asks, specText: '## 끝 기준\n\n1. 된다\n' } }], evidence: evidenceLater } });
+  s.scenario({ 'T-1': { spec: [{ payload: { outcome: '썼음', asks, specText: '## 끝 기준\n\n1. 된다\n' } }], review: evidenceLater } });
   stoppedAt((await s.run(['--도구', 'codex', 'T-1'])).json[0], '증거 부족');
   const records = () => JSON.parse(fs.readFileSync(path.join(s.dir, 'harness/backlog.json'), 'utf8')).처리함.length;
   assert.equal(records(), 1);
@@ -90,7 +90,7 @@ test('이어 가기: 할 일 적기를 다시 부르지 않아 기록이 겹치�
 
 test('이어 가기: 사람이 올린 허락 질문이 대기 중이면 브랜치와 작업 폴더를 건드리지 않고 멈춘다', async t => {
   const s = setup(t);
-  s.scenario({ 'T-1': { evidence: evidenceLater } });
+  s.scenario({ 'T-1': { review: evidenceLater } });
   stoppedAt((await s.run(['--도구', 'codex', 'T-1'])).json[0], '증거 부족');
   const head = s.git('rev-parse', 'ai/T-1');
   fs.writeFileSync(path.join(s.dir, '.claude/worktrees/T-1/untracked.txt'), 'keep\n');
@@ -104,7 +104,7 @@ test('이어 가기: 사람이 올린 허락 질문이 대기 중이면 브랜�
 
 test('이어 가기: 워크트리 폴더만 지워졌으면 같은 브랜치로 다시 열어 이어 간다', async t => {
   const s = setup(t);
-  s.scenario({ 'T-1': { evidence: evidenceLater } });
+  s.scenario({ 'T-1': { review: evidenceLater } });
   const [first] = (await s.run(['--도구', 'codex', 'T-1'])).json;
   s.git('worktree', 'remove', '--force', first.worktree);
   const [task] = (await s.run(['--도구', 'codex', 'T-1'])).json;

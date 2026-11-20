@@ -83,7 +83,10 @@ const solutions = {
       store.save(rows);
     },
     run() {
-      if (!active) active = drain().finally(()=>{active=undefined;});
+      if (active) return active;
+      let resolve, reject;
+      active = new Promise((a,b)=>{resolve=a;reject=b;});
+      drain().then(()=>{active=undefined;resolve();},error=>{active=undefined;reject(error);});
       return active;
     },
   };
@@ -104,9 +107,9 @@ function execution(cwd,command) {
   const result = spawnSync(bin,args,{cwd,encoding:'utf8'});
   return {cwd,command,exitCode:result.status,stdout:result.stdout,stderr:result.stderr};
 }
-test('10 cases keep 2/3/3/2 distribution and disclose no grading assets', t=>{
-  assert.deepEqual(['쉬움','중간','어려움','초고난도'].map(level=>cases.filter(c=>c.difficulty===level).length),[2,3,3,2]);
-  for (const item of cases.filter(c=>c.id !== 'Q10')) {
+test('original 10 cases keep their stages under the new levels and disclose no grading assets', t=>{
+  assert.deepEqual(cases.slice(0,10).map(c=>c.difficulty),[null,null,'중간','중간','중간','고난도','고난도','고난도','초고난도','초고난도']);
+  for (const item of cases.slice(0,9)) {
     const {cwd,prepared} = fixture(t,item.id);
     assert.ok(item.stage && item.mode && item.timeoutSeconds > 0);
     assert.ok(prepared.prompt && prepared.schema && Array.isArray(prepared.checks));
@@ -141,6 +144,14 @@ for (const id of ['Q4','Q7','Q8','Q9']) test(`${id}: baseline, correct, public-t
   const evidence = {commands,assessments};
   const correct = gradeCase(id,{cwd,evidence});
   assert.equal(correct.score,10,JSON.stringify(correct));
+  if (['Q8','Q9'].includes(id)) {
+    const testRun=execution(cwd,'node --test repro-fresh.mjs');
+    assert.equal(testRun.exitCode,0,testRun.stderr);
+    const testEvidence={commands:[run,testRun],assessments:assessments.map(a=>({...a,reproductionHash:answerHash({run:testRun,source:reproductions[id]})}))};
+    assert.equal(gradeCase(id,{cwd,evidence:testEvidence}).score,10);
+    testRun.exitCode=1;
+    assert.equal(gradeCase(id,{cwd,evidence:testEvidence}).criteria.find(c=>c.name==='execution').score,0);
+  }
   assert.ok(initial.score < correct.score);
   assert.equal(gradeCase(id,{cwd}).score,9);
   if (['Q8','Q9'].includes(id)) {
@@ -183,7 +194,7 @@ test('independent requirement weights reject targeted defective solutions',t=>{
     ['Q8','answers.mjs','ids.includes(row.id)',"row.state===state",'falseReview'],
     ['Q9','queue.mjs',"if (row.state === 'running') row.state = state;",'row.state = state;','cancel'],
     ['Q9','queue.mjs',"if (row.state === 'running') row.state = 'queued';", "if (false) row.state = 'queued';",'recovery'],
-    ['Q9','queue.mjs','if (!active) active = drain()', 'active = drain()','ordering'],
+    ['Q9','queue.mjs','if (active) return active;', 'if (false) return active;','ordering'],
   ];
   for (const [id,file,from,to,criterion] of variants) {
     const {cwd}=fixture(t,id);
@@ -261,4 +272,20 @@ test('Q4 distinguishes omitted unlimited limit from explicit Infinity and NaN',t
   assert.notEqual(mutant,source);
   fs.writeFileSync(path.join(cwd,'select.mjs'),mutant);
   assert.equal(gradeCase('Q4',{cwd}).reports.limits.passed,false);
+});
+
+test('Q9 accepts synchronous and deferred starts, rejecting reentrant overlap and failure regression',t=>{
+  const {cwd}=fixture(t,'Q9');
+  const source=solutions.Q9['queue.mjs'];
+  for (const deferred of [false,true]) {
+    const correct=deferred?source.replace('drain().then(', 'Promise.resolve().then(drain).then('):source;
+    fs.writeFileSync(path.join(cwd,'queue.mjs'),correct);
+    const result=gradeCase('Q9',{cwd});
+    assert.ok(Object.values(result.reports).every(r=>r.passed),JSON.stringify(result.reports));
+    const broken=correct.replace('active = new Promise((a,b)=>{resolve=a;reject=b;});','active = undefined;');
+    fs.writeFileSync(path.join(cwd,'queue.mjs'),broken);
+    assert.equal(gradeCase('Q9',{cwd}).reports.ordering.passed,false);
+  }
+  fs.writeFileSync(path.join(cwd,'queue.mjs'),source.replace("state = 'failed';",'throw error;'));
+  assert.equal(gradeCase('Q9',{cwd}).reports.failure.passed,false);
 });

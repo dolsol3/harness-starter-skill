@@ -114,7 +114,7 @@ test('신규 템플릿 프로필로 전 단계 실행, 클로드 폴백과 잠�
     assert.equal(result.json[0].raised, true, result.stdout + result.stderr);
     assert.equal(result.json[0].fixes, 1);
     for (const call of starts(s).filter(c => c.stage !== 'other')) {
-      const expected = tool === 'codex' ? (call.stage === 'evidence' ? 'gpt-6-luna' : 'gpt-6.1-sol') : 'gemini-4-argon-medium';
+      const expected = tool === 'codex' ? 'gpt-6.1-sol' : 'gemini-4-argon-medium';
       assert.equal(model(call), expected, `${tool}:${call.stage}`);
     }
   }
@@ -147,7 +147,7 @@ test('작업별 --모델·--깊이는 만들기·고치기에서만 단계 기�
     assert.equal(model(byStage(stage)), 'gpt-6.1-sol', stage);
     assert.equal(effort(byStage(stage)), 'model_reasoning_effort="medium"', stage);
   }
-  assert.equal(model(byStage('evidence')), 'gpt-6-luna');
+  assert.equal(byStage('evidence'), undefined);
 
   s.editConfig(config => { config.단계모델.만들기 = { 도구: 'claude' }; });
   s.ledger('추가', '명시 도구 불일치', '--고칠곳', 'src', '--확인방법', '시험', '--모델', 'gpt-6.1-terra', '--깊이', 'low');

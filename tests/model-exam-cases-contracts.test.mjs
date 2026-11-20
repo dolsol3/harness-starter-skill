@@ -6,6 +6,7 @@ import path from 'node:path';
 import {execFileSync,spawnSync} from 'node:child_process';
 import {prepareCase} from '../scripts/model-exam-fixtures.mjs';
 import {gradeCase,answerHash,rubrics} from '../scripts/model-exam-grade.mjs';
+import {assess} from '../scripts/model-exam-run.mjs';
 import {referenceSolutions} from './model-exam-cases-reference.mjs';
 function fixture(t,id) {
   const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'exam-contract-'));
@@ -230,4 +231,40 @@ export function select(rows,{minScore=-Infinity,limit}={}) {
   const result=gradeCase('Q4',{cwd});
   assert.equal(result.score,9,JSON.stringify(result));
   assert.ok(Object.values(result.reports).every(report=>report.passed && report.completed));
+});
+
+test('Q7 direct Node and --test public executions score equally, failed runs never qualify',t=>{
+  const {cwd}=fixture(t,'Q7');
+  for(const [name,source]of Object.entries(referenceSolutions.Q7)) fs.writeFileSync(path.join(cwd,name),source);
+  for(const args of [['public.test.mjs'],['--test','public.test.mjs']]) {
+    const run=spawnSync(process.execPath,args,{cwd,encoding:'utf8'});
+    assert.equal(run.status,0,run.stderr);
+    const command={cwd,command:'node '+args.join(' '),exitCode:run.status,stdout:run.stdout,stderr:run.stderr};
+    assert.equal(gradeCase('Q7',{cwd,evidence:{commands:[command]}}).score,10);
+    assert.equal(gradeCase('Q7',{cwd,evidence:{commands:[{...command,exitCode:1}]}}).score,9);
+  }
+});
+
+test('Q5 native quoted standalone Node import preserves TypeError proof and source packet',t=>{
+  const {cwd}=fixture(t,'Q5');
+  const source="import {total} from './review.mjs';\ntry { total([]); throw new Error('expected TypeError'); } catch(error) { if(!(error instanceof TypeError)) throw error; console.log(error.toString()); }\n";
+  fs.writeFileSync(path.join(cwd,'repro-total.mjs'),source);
+  const script="node --input-type=module -e \"await import('./repro-total.mjs')\"";
+  const run=spawnSync(process.execPath,['--input-type=module','-e',"await import('./repro-total.mjs')"],{cwd,encoding:'utf8'});
+  assert.equal(run.status,0,run.stderr);
+  assert.match(run.stdout,/TypeError/);
+  const command=String.raw`/bin/zsh -lc "node --input-type=module -e \"await import('./repro-total.mjs')\""`;
+  const trace={cwd,command,exitCode:run.status,stdout:run.stdout,stderr:run.stderr};
+  const answer={summary:'empty total raises TypeError; release is correct'};
+  const assessments=rubrics.Q5.map(([criterion,score])=>({criterion,score,reason:'독립 검증용 판단',answerHash:answerHash(answer)}));
+  for(const command of [trace.command,script]) assert.equal(gradeCase('Q5',{cwd,answer,evidence:{commands:[{...trace,command}],assessments}}).score,10);
+  assert.equal(gradeCase('Q5',{cwd,answer,evidence:{commands:[trace]}}).score,0);
+  for(const command of ["echo 'node --input-type=module -e TypeError'",String.raw`/bin/zsh -lc "echo 'node --input-type=module -e TypeError'"`]) {
+    assert.equal(gradeCase('Q5',{cwd,answer,evidence:{commands:[{...trace,command}],assessments}}).score,7);
+  }
+  assert.equal(gradeCase('Q5',{cwd,answer,evidence:{commands:[{...trace,stdout:'no exception'}],assessments}}).score,7);
+  assess({case:{id:'Q5'},key:'proof'},cwd,answer,cwd,{commands:[trace]},{},{});
+  const packet=JSON.parse(fs.readFileSync(path.join(cwd,'grading-packet.json')));
+  assert.equal(packet.reproductions[0].source,source);
+  assert.equal(packet.reproductions[0].reproductionHash,answerHash({run:trace,source}));
 });

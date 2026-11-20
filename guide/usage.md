@@ -181,7 +181,7 @@ node harness/mullebanga.mjs --도구 codex|gemini|claude [--시간제한 초] [T
 - 읽기 전용은 도구가 아니라 역할로 정한다. 할 일 적기·맞춰보기·살피기·증거 모으기는 어떤 도구든 읽기 전용이고, 만들기·고치기는 어떤 도구든 그 작업의 워크트리에만 쓴다. 담당은 `--도구`로 부른 도구가 맡는 것이 기본이다.
 - 담당 입력은 `.claude/agents/`의 `planner`·`reviewer`·`implementer` 중 해당 역할의 짧아진 본문 전체와 해당 단계 지시다. 역할의 일부 절만 고르는 로더는 없으며, 메인 전용 `harness/main.md` 전체를 서브 입력에 넣지 않는다. 이 세 파일이 없으면 시작에서 `역할 안내문 파일이 없다`로 멈춘다(스킬 7단계가 메인 도구와 상관없이 만든다. 조사 담당 `researcher.md`는 읽지 않는다).
 - 표준 출력에는 작업마다 한 칸인 JSON 배열이 나온다. 칸은 `id`, `worktree`, `branches`, `commit`, `fixes`, `raised`, `raiseOutput`, `checkPassed`, `checkFailures`, `highs`, `others`, `resumed`, `spec`, `specReview`이고, 멈춘 작업은 여기에 `stopped: true`와 `reason`이 더해진다. 진행 줄은 표준 오류에 나오고 `harness/` 안에 상태 파일은 만들지 않는다.
-- Codex 기본 샌드박스 세션 안에서는 자식 `codex exec`가 `Operation not permitted`로 실패한다. 사람 터미널이나 전체 접근 세션에서 부른다. 제미나이를 쓰기 단계(만들기·고치기)에 쓰려면 그 기계에서 `agy`의 권한 모드가 이미 "묻지 않고 진행"(always-proceed)이어야 한다. 이 스킬은 그 설정을 바꾸지 않고 `--dangerously-skip-permissions`도 쓰지 않는다.
+- Codex 기본 샌드박스 세션 안에서는 자식 `codex exec`가 `Operation not permitted`로 실패한다. 사람 터미널이나 전체 접근 세션에서 부른다. 제미나이를 쓰기 단계(만들기·고치기)에 쓰려면 그 기계에서 `agy`의 권한 모드가 이미 "묻지 않고 진행"(always-proceed)이어야 한다. 이 스킬은 그 설정을 바꾸지 않고 `--dangerously-skip-permissions`도 쓰지 않는다. agy 1.5.7부터 기본 Agent Mode가 Auto로 바뀌어 CLI `/config`의 Tool Permission을 always proceed로 켜야 한다(앱 설정 TURBO와 별개, 2026-11-13 `agy changelog`의 1.5.7 항목으로 확인).
 - 이미 깐 프로젝트는 `install.mjs --upgrade`로 이 여섯 파일을 새것으로 받는다(이미 있는 클로드판 사본 `.claude/workflows/mullebanga.js`와 `.claude/agents/`의 역할 파일도 `--upgrade`가 맞춘다).
 
 멈췄을 때 `reason`의 앞말로 보고 사람이 할 일이다. 멈춘 작업은 도구를 되풀이해 부르지 않고 `reason`을 남기고 끝난다.

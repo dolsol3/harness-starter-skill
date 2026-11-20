@@ -1,3 +1,5 @@
+import { levelRequests, levelAssets } from './model-exam-public-levels.mjs';
+import { codeRequests, codeAssets } from './model-exam-public-code.mjs';
 const records = [
   'C01 현행 CLI는 node cli.mjs input.csv store.json 이다.',
   'C02 기존 저장 파일은 [{id,name}] JSON 배열이며 순서를 유지한다.',
@@ -47,11 +49,11 @@ const records = [
 ].join('\n') + '\n';
 const settingsRequest = `settings.mjs·cli.mjs·defaults.json을 구현하라. choose(config, tool, stage)는 단계 model > 유효 도구의 profiles.model > legacy model > sonnet 순서다. 단계 tool이 있으면 인자 tool보다 우선하며 단계 생략은 단계 없음이다. choose(config), choose(config,tool)을 유지한다. config/profiles/stages 및 각 항목은 배열/null 아닌 객체다. model 키와 stage.tool은 존재하면 비어 있지 않은 문자열이다. tool/stage 인자도 생략 또는 비어 있지 않은 문자열이다. 잘못된 값은 TypeError, 알 수 없는 키는 허용·보존하며 이름 허용목록은 없다. save(file,config,allowed)는 allowed가 정확히 true일 때만 허락하고 전체 구조 검증과 JSON.stringify를 모두 끝낸 후 쓴다. 허락/검증/순환 참조 실패는 기존 파일 바이트와 입력 객체 불변이다. 강제 종료 복구는 범위 밖이다. CLI node cli.mjs config.json [tool [stage]]는 성공 모델 한 줄, 오류 비정상 종료·설명이다. defaults.json은 legacy sonnet·codex 프로필 sol·codex로 tool을 바꾸는 build 단계 예시를 제공하고 CLI/라이브러리가 일치해야 한다.`;
 const answersRequest = `answers.mjs·cli.mjs를 고쳐라. 많은 읽은 답 뒤 새 답이 보이지 않는다. 리뷰 A는 표시 ID와 저장된 읽음 ID를 함께 확인하라고 했다. 리뷰 B는 같은 상태 전체를 읽음 처리하자고 했다. repro*.mjs로 직접 재현하고 공개 시험을 실행해 올바른 리뷰를 판별하라. show(store,state='answered',limit=100)는 선택 ID 배열을 반환하고 표시된 항목만 unread=false로 저장한다. 동기 store.load()/save(rows), 행 {id,state,unread}, ID 고유·unread boolean인 유효 입력이다. state로 먼저 거르고 unread 우선, 두 그룹 내 원래 상대 순서를 지킨 뒤 limit 적용한다. 장부 배열 순서·다른 필드·다른 상태·안 보인 항목 불변이다. limit=0은 빈 출력·장부 불변, 음수/비정수는 RangeError·불변이다. 반환 ID는 실제 표시 선택이다. CLI node cli.mjs board.json [state] [limit]는 같은 선택·저장 동작과 JSON ID 배열 출력을 제공한다. repro*.mjs 생성·실행을 허용하며 공개 시험은 보존한다.`;
-const csvRequest = `parse.mjs·store.mjs·cli.mjs를 구현하고 실제 공용 물레방아 전체 단계를 수행하라. parseCsv(text)는 [{id,name}], preview(csvFile,storeFile)는 {token,added,total}, apply(csvFile,storeFile,token)는 {added,total}이다. CLI node cli.mjs preview input.csv store.json / node cli.mjs apply input.csv store.json TOKEN은 성공 JSON 한 개, 오류 비정상 종료·설명이다.
+const csvRequest = `외부 메인이 실제 공용 물레방아 전체 단계를 실행한다. 각 역할은 자기 단계만 수행하며 물레방아를 중첩 실행하지 않는다. 올림은 현재까지의 실제 검사·독립 검토·커밋 근거를 판단하며 올림 자체의 미래 완료를 사전 증거로 요구하지 않는다. parse.mjs·store.mjs·cli.mjs를 구현하라. parseCsv(text)는 [{id,name}], preview(csvFile,storeFile)는 {token,added,total}, apply(csvFile,storeFile,token)는 {added,total}이다. CLI node cli.mjs preview input.csv store.json / node cli.mjs apply input.csv store.json TOKEN은 성공 JSON 한 개, 오류 비정상 종료·설명이다.
 CSV는 유효 UTF-8, 정확한 헤더 id,name, LF/CRLF와 마지막 개행 1개 허용. 두 열·최대 50행·빈 ID 금지, 공백 보존·대소문자 구별, 빈 이름 허용. 빈 파일/빈 데이터 행/열 수 오류/잘못된 인용 거절, 헤더만 있으면 0행. 전체 필드를 큰따옴표로 감싸 쉼표를 넣고 내부 큰따옴표는 연속 두 개로 표현한다. 필드 내부 개행과 비인용 필드 큰따옴표는 거절한다. 이 유한 문법만 구현한다.
 storeFile은 처음부터 존재하는 유효 UTF-8 JSON 배열 [{id,name}]이며 ID 고유. 입력 내 중복/기존 ID 충돌은 전체 거절. preview는 바이트 불변. 적용은 기존 레코드·순서 보존하고 입력 순서로 추가, 0행은 기존 바이트 보존. 호출 중 다른 프로세스 변경은 없다.
 토큰은 sha256(JSON.stringify([sha256(csv 원시 Buffer),sha256(store 원시 Buffer)]))의 소문자 hex이며 바깥 JSON은 UTF-8로 해시한다. apply는 현재 두 파일 원시 바이트로 다시 계산해 토큰 확인·전체 파싱·중복 검증 후에만 쓴다. 입력/store 바이트 변경·잘못된 토큰 등 모든 거절은 기존 store 바이트 불변.
-수정은 parse.mjs·store.mjs·cli.mjs, 재현은 repro*.mjs이며 공개 시험·REQUEST.md는 보존한다. 작성 도구와 다른 독립 검토 도구, 최대 고침3회, 실제 검사·인계·올림 근거를 수집한다. summary로 대체하지 않는다.`;
+수정은 parse.mjs·store.mjs·cli.mjs, 재현은 repro*.mjs이며 공개 시험·REQUEST.md는 보존한다. 작성 도구와 다른 독립 검토 도구, 최대 고침3회, 실제 검사·인계·올림 근거를 수집한다. summary로 대체하지 않는다. 부모 확인 명령은 node --test public.test.mjs, node public.repro-check.mjs, node harness/check.mjs 바뀐 파일들이다. 보호된 public.repro-check.mjs는 현재 폴더의 정규 repro*.mjs 파일을 이름순으로 각각 node --test로 실행하고 파일명·종료 상태를 보고한다. 재현 파일이 없으면 미제공으로 명시하며 성공 검증을 주장하지 않는다. 공개 검사 helper도 보존한다.`;
 const select = `export function select(rows, options = {}) {
   return rows.slice();
 }
@@ -72,6 +74,8 @@ export const requests = {
   Q4: selectRequest,
   Q5: 'change.diff와 review.mjs를 검토하라. 실제 결함만 파일·함수·깨지는 입력·기대값·실제값으로 보고하고 node --input-type=module -e 명령으로 재현하라. 지연 콜백에서 최신 Map 값을 검사하는 정상 비동기 구현은 보존한다. 코드를 고치지 마라.',
   Q9: 'queue.mjs의 createQueue(store, execute)를 수정하라. store는 동기 load()/save(rows), execute(id)는 Promise다. add(id)는 새 ID만 queued로 저장하며 중복은 무시한다. run()은 queued를 순서대로 직렬 실행하고 동시 run도 중복 실행하지 않는다. 시작 전 running을 저장하고 성공 done, 실패 failed로 저장하며 다음 작업은 계속한다. cancel(id)는 queued/running을 cancelled로 저장하고 이후 결과는 이를 덮지 않는다. 취소된 queued는 실행하지 않는다. 새 인스턴스는 이전 running만 queued로 복구해 저장하고 done/failed/cancelled는 재실행하지 않는다. rows는 load한 값을 기준으로 상태를 보존한다. 수동 제어 Promise와 재시작으로 재현하라.',
+  ...levelRequests,
+  ...codeRequests,
 };
 const review = `export function total(values) {
   return values.reduce((sum, value) => sum + value);
@@ -127,9 +131,24 @@ export function apply(csvFile, storeFile, token) {
 import {parseCsv} from './parse.mjs';
 assert.deepEqual(parseCsv('id,name\n'),[]);
 `,
+    'public.repro-check.mjs': String.raw`import fs from 'node:fs';
+import {spawnSync} from 'node:child_process';
+const files=fs.readdirSync('.').filter(name=>/^repro.*\.mjs$/.test(name)).sort();
+const runs=[];
+let failed=false;
+for(const file of files) {
+  if(!fs.lstatSync(file).isFile()) throw new Error('repro must be a regular file: '+file);
+  const run=spawnSync(process.execPath,['--test',file],{stdio:'inherit'});
+  if(run.error) throw run.error;
+  runs.push({file,exitCode:run.status,signal:run.signal});
+  if(run.status!==0) failed=true;
+}
+console.log('EXAM_REPRO_CHECK:'+JSON.stringify({status:files.length?'executed':'not-provided',runs}));
+process.exitCode=failed?1:0;
+`,
     'REQUEST.md': csvRequest,
   },
-  Q2: { 'check.mjs': "process.exitCode = process.argv[2] === 'pass' ? 0 : 1;\n", 'board.json': JSON.stringify({ success: '검사 성공', failure: '검사 실패', waiting: '허락 대기' }) },
+  Q2: { 'check.mjs': "process.on('exit',exitCode=>console.log('EXAM_CHECK_RESULT:'+JSON.stringify({mode:process.argv[2],exitCode})));\nprocess.exitCode = process.argv[2] === 'pass' ? 0 : 1;\n", 'board.json': JSON.stringify({ success: '검사 성공', failure: '검사 실패', waiting: '허락 대기' }) },
   Q4: { 'select.mjs': select, 'public.test.mjs': selectTest },
   Q5: { 'review.mjs': review, 'change.diff': "--- a/review.mjs\n+++ b/review.mjs\n@@ -2 +2 @@\n-  return values.reduce((sum, value) => sum + value, 0);\n+  return values.reduce((sum, value) => sum + value);\n@@ -5 +5,3 @@\n-  if (map.get(key) === token) map.delete(key);\n+  queueMicrotask(() => {\n+    if (map.get(key) === token) map.delete(key);\n+  });\n" },
   Q7: {
@@ -171,5 +190,7 @@ console.log(choose(JSON.parse(fs.readFileSync(process.argv[2]))));
   };
 }
 ` },
+  ...levelAssets,
+  ...codeAssets,
 };
 

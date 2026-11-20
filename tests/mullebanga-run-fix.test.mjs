@@ -117,8 +117,8 @@ test('결과 모양이 스키마와 다르면 결과없음으로 멈춘다', asy
 test('올림: 확인하지 못한 끝 기준이 있거나 번호가 모자라면 올리지 않고 멈춘다', async t => {
   const s = setup(t, { tools: ['codex', 'codex'] });
   s.scenario({
-    'T-1': { evidence: [{ payload: { unconfirmed: ['1번: 실행 못 함'] } }] },
-    'T-2': { evidence: [{ payload: { items: [] } }] },
+    'T-1': { review: [{ payload: { unconfirmed: ['1번: 실행 못 함'] } }] },
+    'T-2': { review: [{ payload: { items: [] } }] },
   });
   const res = await s.run(['--도구', 'codex', 'T-1', 'T-2']);
   stoppedAt(res.json[0], '올림', '1번: 실행 못 함');

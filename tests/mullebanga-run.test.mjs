@@ -11,7 +11,7 @@ test('순서대로 불리고 표준 출력은 JSON 하나, 진행은 표준 오�
   const docBefore = read(s.dir, 'docs/tasks/T-1.md');
   const res = await s.run(['--도구', 'codex', 'T-1']);
   assert.equal(res.status, 0, res.stderr);
-  assert.deepEqual(calledStages(s.called()), ['T-1:spec:codex', 'T-1:specReview:codex', 'T-1:build:codex', 'T-1:review:codex', 'T-1:other:agy', 'T-1:evidence:codex']);
+  assert.deepEqual(calledStages(s.called()), ['T-1:spec:codex', 'T-1:specReview:codex', 'T-1:build:codex', 'T-1:review:codex', 'T-1:other:agy']);
   assert.equal(res.json.length, 1);
   const [task] = res.json;
   assert.deepEqual(Object.keys(task), KEYS);

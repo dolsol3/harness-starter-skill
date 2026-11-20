@@ -11,6 +11,11 @@ export const halt = reason => {
 
 // 단계 설정 키: [기본 모델, 기본 깊이, ...별칭]. 클로드판(templates/workflows/mullebanga.js)과 같은 이름이다.
 const STAGES = {
+  조사: ['opus', 'medium'],
+  쪼개기: ['opus', 'high'],
+  고르기: ['haiku', 'medium'],
+  돌려보기: ['haiku', 'medium'],
+  한일적기: ['haiku', 'medium'],
   할일적기: ['sonnet', 'medium', '할 일 적기', '명세', 'spec'],
   맞춰보기: ['opus', 'medium', '대조', 'specReview'],
   만들기: ['sonnet', 'medium', '구현', 'build'],
@@ -24,6 +29,7 @@ export function readConfig(root) {
   const config = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
   const board = config.일감목록 ?? config.backlog ?? {};
   return {
+    auto: config.자동모델,
     stages: config.단계모델 ?? config.agents ?? config.models ?? {},
     profiles: config.도구별단계모델 ?? {},
     limits: board.동시상한 ?? board.한도 ?? board.limits ?? {},

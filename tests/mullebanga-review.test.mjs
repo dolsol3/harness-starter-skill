@@ -4,25 +4,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setup, observed, valueAfter, DEFAULT_CONFIG } from './review-fixture.mjs';
-
 const root = fileURLToPath(new URL('..', import.meta.url));
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const lines = file => read(file).split('\n').length - 1;
 const limits = (...names) => ({ 일감목록: { 동시상한: Object.fromEntries(names.map(name => [name, 1])) } });
 const review = (extra = {}) => ({ 단계모델: { 번갈아보기: { ...DEFAULT_CONFIG.단계모델.번갈아보기, ...extra } } });
-
 test('모듈은 reviewOther를 내보내고 허용한 것만 가져오며 관련 파일이 모두 300줄 이하다', () => {
   const text = read('templates/harness/mullebanga-review.mjs');
   const imports = [...text.matchAll(/^import .* from '([^']+)'/gm)].map(match => match[1]);
   assert.match(text, /export async function reviewOther/);
-  assert.deepEqual(imports.filter(name => !name.startsWith('node:')).sort(), ['./mullebanga-call.mjs', './mullebanga-prompts.mjs', './mullebanga-steps.mjs']);
+  assert.deepEqual(imports.filter(name => !name.startsWith('node:')).sort(), ['./mullebanga-call.mjs', './mullebanga-model.mjs', './mullebanga-prompts.mjs', './mullebanga-stats.mjs', './mullebanga-steps.mjs']);
   assert.ok(imports.every(name => name.startsWith('node:') || name.startsWith('./mullebanga-')));
   assert.doesNotMatch(text, /workflows\/mullebanga/);
   for (const file of ['templates/harness/mullebanga-review.mjs', 'templates/harness/mullebanga-call.mjs', 'tests/mullebanga-review.test.mjs', 'tests/mullebanga-review-sandbox.test.mjs', 'tests/review-fixture.mjs']) {
     assert.ok(lines(file) <= 300, `${file} ${lines(file)}줄`);
   }
 });
-
 test('후보 고르기: 작성 도구가 아니고 동시상한에 있는 첫 도구, 설정 별칭도 먹는다', async t => {
   const cases = [
     ['claude 작성이면 codex', DEFAULT_CONFIG, 'claude', 'codex'],
@@ -43,7 +40,6 @@ test('후보 고르기: 작성 도구가 아니고 동시상한에 있는 첫 �
     });
   }
 });
-
 // PATH에 없는 도구(여기서는 codex)는 고르지 않는다(Windows의 `.cmd` 쪽지만 있는 도구는 launcher가 node로 부르므로 있는 것으로 본다). 설정한 폴백도구(codex)를 못 쓰면 다음 후보(claude)로 잇는다.
 test('PATH에서 찾을 수 없는 도구는 고르지 않고, 설정한 폴백을 못 쓰면 다음 후보로 잇는다', async t => {
   const s = setup(t);
@@ -55,7 +51,6 @@ test('PATH에서 찾을 수 없는 도구는 고르지 않고, 설정한 폴백�
   const res = await s.review({ PATH: searchPath, FAKE_MODE: 'limit' }, { author: 'codex' });
   assert.deepEqual(res.attempts.map(a => a.tool), ['gemini', 'claude']);
 });
-
 test('고를 도구가 없으면 아무것도 부르지 않고 임시 폴더도 만들지 않는다', async t => {
   const s = setup(t);
   s.setConfig(limits('claude'));
@@ -66,7 +61,6 @@ test('고를 도구가 없으면 아무것도 부르지 않고 임시 폴더도 
   assert.deepEqual(s.called(), []);
   assert.deepEqual(fs.readdirSync(s.tmpRoot), []);
 });
-
 test('입력이 틀리면 던진다: 모르는 작성 도구, 상대 경로, 없는 작업 문서', async t => {
   const s = setup(t);
   await assert.rejects(s.review({}, { author: 'gpt' }), /모르는 작성 도구/);
@@ -75,7 +69,6 @@ test('입력이 틀리면 던진다: 모르는 작성 도구, 상대 경로, 없
   await assert.rejects(s.review({}, { id: 'T-99' }), /작업 문서 파일이 없다/);
   assert.deepEqual(s.called(), []);
 });
-
 test('복사본: 작업 워크트리가 아니고 원격이 없고 분리된 커밋이며 객체는 하드링크가 아니고 끝나면 지워진다', async t => {
   const s = setup(t);
   const mergeBase = s.git('merge-base', 'main', s.commit);
@@ -94,14 +87,12 @@ test('복사본: 작업 워크트리가 아니고 원격이 없고 분리된 커
   assert.equal(fs.existsSync(path.join(s.worktree, 'scribble.txt')), false);
   assert.deepEqual(fs.readdirSync(s.tmpRoot), []);
 });
-
 test('복사본은 도구가 실패해도 지워진다', async t => {
   const s = setup(t);
   const res = await s.review({ FAKE_MODE: 'fail' });
   assert.equal(res.tool, '');
   assert.deepEqual(fs.readdirSync(s.tmpRoot), []);
 });
-
 test('git이 실패하면 던지지 않고 검토 못 함으로 돌려준다', async t => {
   const s = setup(t);
   const res = await s.review({}, { commit: '0'.repeat(40) });
@@ -110,7 +101,6 @@ test('git이 실패하면 던지지 않고 검토 못 함으로 돌려준다', a
   assert.deepEqual(s.called(), []);
   assert.deepEqual(fs.readdirSync(s.tmpRoot), []);
 });
-
 test('codex 호출: 샌드박스·모델·깊이·복사본, HOME·USERPROFILE은 임시 홈, CODEX_HOME은 진짜 홈, 지시문에 작업 문서와 diff', async t => {
   const s = setup(t);
   const res = await s.review({ FAKE_WRITE: 'ignored.txt' });
@@ -126,7 +116,6 @@ test('codex 호출: 샌드박스·모델·깊이·복사본, HOME·USERPROFILE�
   assert.ok(seen.prompt.includes('HOME과 USERPROFILE을 ' + seen.env.HOME));
   assert.equal(res.findings.length, 1);
 });
-
 test('codex: CODEX_HOME 환경과 설정의 바깥모델·바깥추론이 따라간다', async t => {
   const s = setup(t);
   s.setConfig({ ...DEFAULT_CONFIG, ...review({ 바깥모델: 'gpt-x', 바깥추론: 'low' }) });
@@ -135,7 +124,6 @@ test('codex: CODEX_HOME 환경과 설정의 바깥모델·바깥추론이 따라
   assert.equal(valueAfter(seen.args, '-c'), 'model_reasoning_effort="low"');
   assert.equal(seen.env.CODEX_HOME, '/somewhere/codex');
 });
-
 test('claude 호출: acceptEdits, 샌드박스 설정, Bash 허용, 모델·깊이, HOME은 그대로', async t => {
   const s = setup(t);
   s.setConfig({ ...limits('claude', 'codex'), ...review({ 모델: 'sonnet', 깊이: 'low' }) });
@@ -149,7 +137,6 @@ test('claude 호출: acceptEdits, 샌드박스 설정, Bash 허용, 모델·깊�
   assert.equal(valueAfter(seen.args, '--effort'), 'low');
   assert.equal(seen.env.HOME, s.home);
 });
-
 test('폴백: codex가 한도 문구로 실패하면 gemini를 한 번 부르고 복사본은 처음 모양이다', async t => {
   const s = setup(t);
   const res = await s.review({ FAKE_MODE_CODEX: 'limit', FAKE_WRITE_CODEX: 'left.txt' });
@@ -161,20 +148,18 @@ test('폴백: codex가 한도 문구로 실패하면 gemini를 한 번 부르고
   assert.equal(seen.files.includes('left.txt'), false);
   assert.deepEqual(fs.readdirSync(s.tmpRoot), []);
 });
-
 test('폴백 사유: 시간 제한, 결과 칸이 틀림, 실행 실패', async t => {
   const cases = [['시간초과', 'sleep'], ['결과없음', 'notarray'], ['결과없음', 'badlevel'], ['실패', 'fail']];
   for (const [reason, mode] of cases) {
     await t.test(mode, async st => {
       const s = setup(st);
-      const res = await s.review({ FAKE_MODE_CODEX: mode }, { timeouts: { breaking: 3000, readOnly: 3000 } });
+      const res = await s.review({ FAKE_MODE_CODEX: mode }, mode === 'sleep' ? { timeouts: { breaking: 3000, readOnly: 3000 } } : {});
       assert.equal(res.tool, 'gemini');
       assert.deepEqual(res.attempts.map(a => a.tool), ['codex', 'gemini']);
       assert.match(res.attempts[0].detail, new RegExp(`^${reason}`));
     });
   }
 });
-
 test('폴백까지 실패하면 tool을 비우고 중간 하나로 돌려준다', async t => {
   const s = setup(t);
   const res = await s.review({ FAKE_MODE: 'fail' });
@@ -184,7 +169,6 @@ test('폴백까지 실패하면 tool을 비우고 중간 하나로 돌려준다'
   assert.equal(res.findings[0].level, '중간');
   assert.match(res.findings[0].text, /^다른 도구 검토 실패: /);
 });
-
 test('폴백이 없는 경우: 폴백도구가 동시상한 밖, 작성 도구, 이미 폴백도구를 골랐을 때', async t => {
   const cases = [
     ['동시상한 밖', limits('claude', 'codex'), 'claude', ['codex']],
@@ -201,27 +185,24 @@ test('폴백이 없는 경우: 폴백도구가 동시상한 밖, 작성 도구, 
     });
   }
 });
-
-test('읽기 전용 경로(sandbox-exec 없는 PATH): readonly 역할, HARNESS_READ_ONLY, 모델, 300초 제한', async t => {
+test('읽기 전용 경로(sandbox-exec 없는 PATH): readonly 역할, HARNESS_READ_ONLY, 모델, 900초 제한', async t => {
   const s = setup(t);
   const res = await s.review({ PATH: s.noSandboxPath }, { author: 'codex', timeouts: { breaking: 20000 } });
   const seen = observed(res);
   assert.equal(res.tool, 'gemini');
   assert.equal(valueAfter(seen.args, '--agent'), 'readonly');
   assert.equal(valueAfter(seen.args, '--model'), 'gemini-4-argon-medium');
-  assert.equal(valueAfter(seen.args, '--print-timeout'), '300s');
+  assert.equal(valueAfter(seen.args, '--print-timeout'), '900s');
   assert.equal(seen.env.HARNESS_READ_ONLY, '1');
   assert.equal(seen.args.includes('-w'), false);
   assert.equal(res.findings.length, 1);
 });
-
 test('읽기 전용 경로: breaker.md가 없으면 sandbox-exec가 있어도 readonly로 간다', async t => {
   const s = setup(t, { roles: ['readonly'] });
   const seen = observed(await s.review({}, { author: 'codex' }));
   assert.equal(valueAfter(seen.args, '--agent'), 'readonly');
   assert.equal(seen.env.HARNESS_READ_ONLY, '1');
 });
-
 test('읽기 전용 경로: readonly.md가 없으면 부르지 않고 검토 실패', async t => {
   const s = setup(t, { roles: ['breaker'] });
   const res = await s.review({ PATH: s.noSandboxPath }, { author: 'codex' });
@@ -229,7 +210,6 @@ test('읽기 전용 경로: readonly.md가 없으면 부르지 않고 검토 실
   assert.deepEqual(res.findings, [{ level: '중간', text: '다른 도구 검토 실패: 읽기 전용 역할 파일 없음' }]);
   assert.deepEqual(s.called(), []);
 });
-
 test('읽기 전용 경로: 복사본에 파일을 쓰면 높음 하나, 쓰지 않으면 없다', async t => {
   const s = setup(t);
   const clean = await s.review({ PATH: s.noSandboxPath }, { author: 'codex' });
@@ -239,7 +219,6 @@ test('읽기 전용 경로: 복사본에 파일을 쓰면 높음 하나, 쓰지 
   assert.deepEqual(dirty.findings.filter(f => f.level === '높음'), [{ level: '높음', text: '다른 도구 검토 뒤 복사본이 바뀜: edited.txt' }]);
   assert.equal(dirty.agentapiChanged, false);
 });
-
 test('codex·claude는 복사본에 파일을 써도 높음이 생기지 않는다', async t => {
   const s = setup(t);
   const codex = await s.review({ FAKE_WRITE: 'edited.txt' });
@@ -248,7 +227,6 @@ test('codex·claude는 복사본에 파일을 써도 높음이 생기지 않는�
   const claude = await s.review({ FAKE_WRITE: 'edited.txt' }, { author: 'codex' });
   assert.deepEqual([claude.tool, claude.findings.length], ['claude', 1]);
 });
-
 test('읽기 전용 경로: 도구가 실패해도 복사본이 바뀌었으면 높음이 남는다(주 검토 실패)', async t => {
   const s = setup(t);
   const res = await s.review({ PATH: s.noSandboxPath, FAKE_WRITE: 'edited.txt', FAKE_MODE: 'fail' }, { author: 'codex' });
@@ -256,7 +234,6 @@ test('읽기 전용 경로: 도구가 실패해도 복사본이 바뀌었으면 
   assert.equal(res.findings[0].level, '중간');
   assert.deepEqual(res.findings.filter(f => f.level === '높음'), [{ level: '높음', text: '다른 도구 검토 뒤 복사본이 바뀜: edited.txt' }]);
 });
-
 test('읽기 전용 폴백: 폴백 앞 복사본 초기화 뒤에도 높음이 최종 결과에 남는다(주 검토 실패, 폴백 성공)', async t => {
   const s = setup(t);
   s.setConfig({ ...DEFAULT_CONFIG, ...review({ 검토도구: 'gemini', 폴백도구: 'codex' }) });
@@ -265,9 +242,7 @@ test('읽기 전용 폴백: 폴백 앞 복사본 초기화 뒤에도 높음이 �
   assert.deepEqual(res.attempts.map(a => [a.tool, a.ok]), [['gemini', false], ['codex', true]]);
   assert.deepEqual(res.findings.filter(f => f.level === '높음'), [{ level: '높음', text: '다른 도구 검토 뒤 복사본이 바뀜: edited.txt' }]);
 });
-
 const all = limits('claude', 'codex', 'gemini');
-
 test('번갈아보기를 적지 않으면 gemini가 주 검토(--model gemini-4-argon-medium, --effort 없음), 한도로 실패하면 codex가 gpt-6.1-sol medium으로 폴백한다', async t => {
   const s = setup(t);
   s.setConfig(all);
@@ -281,7 +256,6 @@ test('번갈아보기를 적지 않으면 gemini가 주 검토(--model gemini-4-
   assert.equal(valueAfter(observed(first).args, '--model'), 'gemini-4-argon-medium');
   assert.equal(observed(first).args.includes('--effort'), false);
 });
-
 test('모델·추론은 자리가 아니라 도구로 고른다: 검토도구면 바깥 값, 폴백으로 불리면 폴백 값(없으면 바깥 값)', async t => {
   const s = setup(t);
   const cases = [
@@ -297,4 +271,21 @@ test('모델·추론은 자리가 아니라 도구로 고른다: 검토도구면
     assert.equal(res.attempts.length, 2, name);
     assert.equal(valueAfter(observed(res).args, flag), expected, name);
   }
+});
+
+test('명시 프로필의 바깥 검토·폴백 도구와 모델은 기본단계 자동에도 유지된다', async t => {
+  const s = setup(t);
+  s.setConfig({ ...limits('claude', 'codex', 'gemini'),
+    자동모델: { 사용: true, 프로필: '명시', 기본단계: '자동' },
+    도구별단계모델: { claude: { 번갈아보기: {
+      검토도구: 'codex', 폴백도구: 'gemini', 바깥모델: 'profile-codex', 바깥추론: 'low', 폴백모델: 'profile-gemini',
+    } } },
+  });
+  const first = await s.review({ PATH: s.noSandboxPath });
+  assert.equal(first.tool, 'codex');
+  assert.equal(valueAfter(observed(first).args, '-m'), 'profile-codex');
+  assert.equal(valueAfter(observed(first).args, '-c'), 'model_reasoning_effort="low"');
+  const fallback = await s.review({ PATH: s.noSandboxPath, FAKE_MODE_CODEX: 'limit' });
+  assert.deepEqual(fallback.attempts.map(a => [a.tool, a.ok]), [['codex', false], ['gemini', true]]);
+  assert.equal(valueAfter(observed(fallback).args, '--model'), 'profile-gemini');
 });

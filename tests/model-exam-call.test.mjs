@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { writeFakeTool } from './helpers.mjs';
 import { callExam } from '../scripts/model-exam-call.mjs';
-import { callTool } from '../templates/harness/mullebanga-call.mjs';
+import { callTool, callWritingGemini } from '../templates/harness/mullebanga-call.mjs';
 
 const FAKE = `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -105,8 +105,8 @@ test('claude: 최종 main-loop와 여러 모델의 사용량을 별도로 보존
   assert.equal(r.usage.perModel[1].missing.cacheRead, 'result.modelUsage["served-b"].cacheReadInputTokens 미제공');
   assert.equal(r.usage.perModel[1].missing.cacheWrite, 'result.modelUsage["served-b"].cacheCreationInputTokens 미제공');
   assert.equal(r.usage.perModel[1].missing.reasoning, 'result.modelUsage["served-b"].thinkingTokens 미제공');
-  assert.equal(r.toolExecutions.counts, null);
-  assert.match(r.toolExecutions.missingReason, /json/);
+  assert.deepEqual({ ...r.toolExecutions.counts }, {});
+  assert.match(r.toolExecutions.missingReason, /미수집/);
 });
 test('실패·시간초과에도 받은 usage와 stderr를 보존하며 부분 집계를 표시한다', async t => {
   const { call } = setup(t);
@@ -121,7 +121,7 @@ test('실패·시간초과에도 받은 usage와 stderr를 보존하며 부분 �
   }
   const failed = await call('codex', [{ type: 'turn.completed', usage: codexUsage }, { type: 'turn.failed' }]);
   assert.equal(failed.ok, false);
-  assert.equal(failed.detail, undefined);
+  assert.match(failed.detail, /turn.failed/);
   assert.equal(failed.usage.records[0].values.input, 100);
   const error = await call('claude', [{ type: 'result', is_error: true, usage: { input_tokens: 0, output_tokens: 0 } }]);
   assert.equal(error.ok, false);
@@ -198,4 +198,70 @@ test('Gemini 공식 스트림의 CLI 총량을 환산 없이 보존한다', asyn
   assert.equal(r.usage.records[0].nativeUsage.total_tokens, 11007);
   assert.deepEqual(r.usage.records[0].nativeUsage, usage);
   assert.equal(r.usage.records[0].source, 'result.result.usage');
+});
+
+test('시험 전용 Claude JSONL은 실제 tool_result만 세고 종결 result를 읽는다', async t => {
+  const { call } = setup(t);
+  const r = await call('claude', [
+    { type: 'assistant', message: { content: [
+      { type: 'tool_use', id: 'done', name: 'Bash', input: { command: 'node check.mjs pass' } },
+      { type: 'tool_use', id: 'pending', name: 'Bash', input: { command: 'never completed' } },
+    ] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'done', content: 'ok', is_error: false }] } },
+    { type: 'result', structured_output: { done: true }, usage: { input_tokens: 3, output_tokens: 2 } },
+  ]);
+  assert.equal(r.ok, true);
+  assert.equal(r.toolExecutions.counts.Bash, 1);
+  assert.equal(r.toolExecutions.partial, true);
+  assert.equal(r.evidence.commands[0].command, 'node check.mjs pass');
+  assert.ok(r.invocation.argv.includes('--verbose'));
+  assert.ok(r.invocation.argv.includes('stream-json'));
+});
+test('Codex Q3만 live 웹 인자를 넘기며 일반 호출은 보존한다', async t => {
+  const { options, dir } = setup(t);
+  const call = options('codex', [{ type: 'turn.completed', usage: codexUsage }], { liveWeb: true });
+  const r = await callExam(call, path.join(dir, 'live'));
+  assert.ok(r.invocation.argv.includes('web_search="live"'));
+});
+
+test('호출 종료 정리가 throw해도 실제 수집 스트림·usage와 실패 원인을 보존한다', async t => {
+  const {call,dir}=setup(t);
+  const remove=fs.rmSync;
+  fs.rmSync=(file,options)=>{
+    remove(file,options);
+    if(path.basename(file).startsWith('mullebanga-call-')) throw Object.assign(new Error('observed cleanup ENOTEMPTY'),{code:'ENOTEMPTY'});
+  };
+  let result;
+  try { result=await call('codex',[{type:'turn.completed',usage:codexUsage}]); }
+  finally { fs.rmSync=remove; }
+  assert.equal(result.ok,false);
+  assert.equal(result.code,'ENOTEMPTY');
+  assert.match(result.detail,/observed cleanup ENOTEMPTY/);
+  assert.equal(result.usage.records[0].values.input,100);
+  assert.equal(result.usage.partial,true);
+  assert.match(fs.readFileSync(path.join(dir,'raw0/stdout'),'utf8'),/turn.completed/);
+  assert.equal(fs.readFileSync(path.join(dir,'raw0/stderr'),'utf8'),'diagnostic');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir,'raw0/result.json'))).code,'ENOTEMPTY');
+});
+test('Gemini 임시 쓰기 폴더는 ENOTEMPTY 대상 재시도를 제한하고 영구 오류는 그대로 올린다', {skip:process.platform==='win32'}, async t => {
+  const {options,dir}=setup(t);
+  writeFakeTool(path.join(dir,'bin'),'sandbox-exec','#!/bin/sh\nshift 2\nexec "$@"\n');
+  const remove=fs.rmSync;
+  const seen=[];
+  let fail=false;
+  fs.rmSync=(file,opts)=>{
+    if(path.basename(file).startsWith('mullebanga-write-')) {
+      seen.push(opts);
+      fs.writeFileSync(path.join(file,'late-write'),'late CLI output');
+      assert.throws(()=>fs.rmdirSync(file),{code:'ENOTEMPTY'});
+      remove(file,opts);
+      if(fail) throw Object.assign(new Error('persistent cleanup failure'),{code:'ENOTEMPTY'});
+    } else remove(file,opts);
+  };
+  try {
+    assert.equal((await callWritingGemini(options('gemini',[agyFinal(agyUsage)]))).ok,true);
+    fail=true;
+    await assert.rejects(callWritingGemini(options('gemini',[agyFinal(agyUsage)])),{code:'ENOTEMPTY'});
+  } finally { fs.rmSync=remove; }
+  assert.deepEqual(seen,[{recursive:true,force:true,maxRetries:3,retryDelay:100},{recursive:true,force:true,maxRetries:3,retryDelay:100}]);
 });

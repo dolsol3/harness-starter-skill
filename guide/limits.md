@@ -102,7 +102,7 @@
   검토 환경의 임시 쓰기·listen EPERM 및 중첩 sandbox-exec 제한은 별도 native proof의 관련 100개 통과·설치/설치본 일치 확인과 구분한다.
   T-168도 검토 EPERM과 별도 native 20개 통과·Windows 전용 2개 건너뜀을 구분하며 전체 회귀 통과로 확대하지 않는다.
   Codex 기본 샌드박스 세션 안에서는 자식 `codex exec`가 모델을 부르기 전에 `Operation not permitted`로 실패한다(2026-10-24 실험). 시작할 때 미리 알아내는 일은 믿을 신호를 확인하지 못해 하지 않고, 첫 실패 이유를 그 작업에 남긴다. 사람 터미널이나 전체 접근 세션에서 부른다.
-  제미나이 쓰기는 이 맥의 전역 권한 설정(`always-proceed`)이 있어서 된다. 새 기계에서는 권한 확인에 걸려 그 단계가 멈춘다.
+  제미나이 쓰기는 이 맥의 전역 권한 설정(`always-proceed`, agy CLI `/config`의 Tool Permission)이 있어서 된다. 새 기계에서는 권한 확인에 걸려 그 단계가 멈춘다.
   바깥 검토 codex가 "cybersecurity risk"로 막혀 제미나이로 폴백된 일이 있다.
   (나) Windows. 공용 물레방아는 Windows에서 돌려 보지 않았다(미확인). 시험은 macOS에서 했고, 제미나이 쓰기 단계는 맥의 `sandbox-exec`를 쓰므로 맥이 아니면 그 단계가 멈춘다.
   (다) 지시문이 두 곳에 있다. 클로드판 `mullebanga.js`와 공용판 `mullebanga-prompts.mjs`에 비슷한 글이 따로 있다. 클로드판은 엔진 전용 문법이라 가져다 쓸 수 없어 따로 썼다(`docs/tasks/T-145.md`). 한쪽 지시문을 고치면 다른 쪽도 사람이 맞춰야 한다.
@@ -205,3 +205,20 @@
   (다) 고친 직후 명령을 실행하지 못했을 때의 알림은 오류 종류와 상관없이 Windows `.cmd` 안내를 붙인다(W-7).
 - W-33(Windows에서 물레방아 도구를 `detached` 없이 띄움)의 남은 낮음: `tests/windows-detached.test.mjs`는 `spawn(`이 적힌 한 줄만 정규식으로 봐서 옵션을 여러 줄로 나누거나 다른 변수로 빼면 놓친다. `mullebanga-git.mjs`의 '프로세스 그룹째 끝낸다' 주석은 Windows에서는 `taskkill /T` 트리 끄기라 말이 어긋난다. `run` 위 `wrap` 설명 주석이 같이 지워졌다.
 - W-34(업그레이드 때 켜져 있는 질문 페이지 서버 다시 켜기)의 남은 낮음(모두 재현 못 함): `끄기` 뒤 시험은 포트 무응답까지는 보지 않는다. `serverRunning`(`scripts/serve-restart.mjs`)은 `process.kill(pid,0)`만 봐서 재부팅 뒤 옛 pid가 다른 프로세스에 재할당되면 EPERM으로 업그레이드가 멈추거나 엉뚱하게 다시 켤 수 있다(`serve.mjs`의 `alive`는 토큰 응답과 `X-Harness-Pid`까지 본다). `--without=backlog`로 깔아 `backlog.mjs`가 없는데 살아 있는 `serve.json`이 있으면 다시 켜기가 모듈을 못 찾아 실패한다.
+- T-176 실전 모델 시험의 남은 낮음 지적(2026-11-04, 만들기 담당의 읽기 전용 간결함 자체 확인이며 새 독립 검토가 아니다). 동결 소스는 고치지 않았다.
+  (가) `scripts/model-exam-run.mjs`의 `runWorkflow`에 사용하지 않는 `prepared` 인자가 남아 있다. 인자·호출부 정리가 가능하지만 줄 감소는 없다.
+  (나) `guide/model-exam.md`의 Q2 `breaker`·Gemini 추출 미확인·Claude `is_error` 중심 설명은 현재 `exam` 역할과 native 명령·종료 상태·공개 검사 표식을 구분하는 계측 구현을 모두 반영하지 않는다. 옛 설명과 현재 구현의 차이이며 결과의 수집 누락을 뜻하지 않는다.
+  (다) 시간 초과 정리(`processRun`, 2026-11-13 codex 재검토)는 물레방아 자손의 ppid 사슬로 프로세스 그룹을 모은다. 실행 파일이 detached 일꾼을 띄우고 먼저 끝나면 사슬이 끊겨 그 일꾼은 정리에서 빠진다. 가짜 런처로만 재현했고 실제 CLI는 미확인이다.
+  (라) `processRun`의 `stop`은 `killTree`가 돌려주는 Windows `taskkill` 실패 설명을 버린다(2026-11-13 claude 독립 검토).
+  (마) 자손 그룹은 SIGTERM 때 한 번만 모으므로, 2초 유예 중 새로 뜬 detached CLI는 SIGKILL 대상에서 빠질 수 있다(추론, 재현 안 함).
+  (바) `/bin/ps`가 없는 배포판(NixOS 등)에서는 시간 초과 정리가 실행기를 오류로 멈춘다(이 맥·일반 Linux는 해당 없음).
+  (사) agy 1.5.8 출력(2026-11-13 out-gemini4 전체)에는 `read_url_content` 이벤트가 없고 `search_web`은 검색어만 남아(결과·URL 없음) Q3 열람 근거(`openedSources`)를 읽을 수 없다. 모델과 관계없이 Q3 sources는 0이며 채점 기준은 그대로 둔다(2026-11-13 T-188).
+  (아) 재채점(`--rescore`)은 결과 폴더의 `summary.json`을 덮어써 한 번 돌리면 이전 summary 점수는 남지 않는다(원본이 필요하면 사본에서 돌린다).(2026-11-13 T-188).
+  (자) 재판정 필요는 판정 파일 전체의 `answerHash`나 `reproductionHash`가 어긋날 때만 붙는다. 개별 `assessments[].answerHash`만 어긋나면 그 기준은 재판정 필요가 아니라 미채점으로만 보인다(2026-11-13 T-188 codex 바깥 검토).
+- T-189 단계별 난이도 문제의 남은 낮음 지적(2026-11-14 번갈아 보기, gemini). 고치지 않았다.
+  (가) 새 문제 Q11~Q23의 정답·오답 시험은 `tests/model-exam-levels.test.mjs`에 있어 끝 기준·`guide/model-exam.md`가 적은 `tests/model-exam-cases*.test.mjs` 꼴에 들지 않는다. `npm test`(`tests/*.test.mjs`)에는 들어 돈다.
+  (나) `guide/model-exam.md`의 `# 실전 10과제 시험 자산` 절 제목과 끝의 '실제 10과제 모델 시범…' 문장에 '10과제'가 남아 지금의 23문제와 맞지 않는다.
+  (다) 성적표 단계×난이도 칸의 회차가 모두 미채점이면 `0/0 · 미채점 1`로 보인다. 동작은 맞지만 `0/0`이 헷갈릴 수 있다.
+  (라) 단계×난이도 표는 한 문제의 10점을 그 문제의 칸(단계) 하나에 모두 넣는다. Q6·Q10처럼 기준이 여러 단계에 나뉜 문제는 단계별 표본표(`stageRows`)·반복 선발과 점수가 다르고, Q10의 '올림'은 이 표에 나오지 않는다(코드 읽기로 짚은 것, 재현 기록 없음).
+  (마) 4차 번갈아 보기(codex)의 중간 둘은 실제 풀이에 드문 경우라 시험 일정을 위해 고치지 않았다(2026-11-14 메인 결정). `scripts/model-exam-meter.mjs`의 재현 명령 인식이 아직 `repro[\w.-]*\.mjs`라 진입 재현 파일 이름에 한글이 들면 재현·실행 점수가 빠진다. Q23 숨은 검사는 같은 폴더 파일만 써서 잠금 키를 `path.basename`으로 잡은 틀린 구현도 통과한다. 성적표에서 이런 감점·만점이 보이면 답안을 직접 확인한다.
+  (바) Q22 memo 경계 검사는 쉼표 구분자 충돌만 본다. `|`·`:` 같은 다른 구분자를 이어붙인 키는 놓칠 수 있다(의심, 재현 없음).

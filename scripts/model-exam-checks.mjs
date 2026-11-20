@@ -1,3 +1,4 @@
+import { levelProbes } from './model-exam-checks-levels.mjs';
 const boardHarness = `function board(rows) {
   let data=structuredClone(rows);
   return {
@@ -191,19 +192,33 @@ h.q.add('a');
 h.q.add('b');
 const first = h.q.run();
 const second = h.q.run();
+await h.started(0);
 assert.deepEqual(h.calls, ['a']);
 assert.equal(h.data()[0].state, 'running');
 h.pending[0].resolve();
-await new Promise(setImmediate);
+await h.started(1);
 assert.deepEqual(h.calls, ['a','b']);
 h.pending[1].resolve();
 await Promise.all([first,second]);
-assert.deepEqual(h.data().map(r=>r.state), ['done','done']);`,
+assert.deepEqual(h.data().map(r=>r.state), ['done','done']);
+const reentrant = harness([],()=>{ reentrant.q.run(); });
+reentrant.q.add('a');
+reentrant.q.add('b');
+const completion = reentrant.q.run();
+await reentrant.started(0);
+assert.deepEqual(reentrant.calls,['a']);
+reentrant.pending[0].resolve();
+await reentrant.started(1);
+assert.deepEqual(reentrant.calls,['a','b']);
+reentrant.pending[1].resolve();
+await completion;
+assert.deepEqual(reentrant.data().map(r=>r.state),['done','done']);`,
     cancel: `const h = harness();
 h.q.add('a');
 h.q.add('b');
 h.q.cancel('b');
 const run = h.q.run();
+await h.started(0);
 h.q.cancel('a');
 h.pending[0].resolve();
 await run;
@@ -214,6 +229,7 @@ assert.equal(h.data()[0].state, 'queued');
 h.q.add('a');
 assert.equal(h.data().length, 4);
 const run = h.q.run();
+await h.started(0);
 h.pending[0].resolve();
 await run;
 assert.deepEqual(h.calls, ['a']);
@@ -222,23 +238,30 @@ assert.deepEqual(h.data().map(r=>r.state), ['done','done','failed','cancelled'])
 h.q.add('a');
 h.q.add('b');
 const run = h.q.run();
+await h.started(0);
 h.pending[0].reject(new Error('expected'));
-await new Promise(setImmediate);
+await h.started(1);
 assert.equal(h.data()[0].state, 'failed');
 h.pending[1].resolve();
 await run;
 assert.equal(h.data()[1].state, 'done');`,
   },
+  ...levelProbes,
 };
-export const queueHarness = `function harness(initial = []) {
+export const queueHarness = `function harness(initial = [], onStart = ()=>{}) {
   let data = structuredClone(initial);
   const calls = [], pending = [];
+  const waiting = new Map();
   const store = {load:()=>structuredClone(data), save:rows=>{data=structuredClone(rows);}};
   const execute = id => {
     calls.push(id);
-    return new Promise((resolve,reject)=>pending.push({resolve,reject}));
+    const promise = new Promise((resolve,reject)=>pending.push({resolve,reject}));
+    onStart(id);
+    waiting.get(calls.length-1)?.();
+    return promise;
   };
-  return {q:createQueue(store,execute),calls,pending,data:()=>data};
+  const started = index => calls.length > index ? Promise.resolve() : new Promise(resolve=>waiting.set(index,resolve));
+  return {q:createQueue(store,execute),calls,pending,started,data:()=>data};
 }
 `;
 
