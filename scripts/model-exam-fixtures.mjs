@@ -79,7 +79,7 @@ function installWorkflow(cwd, options) {
   fs.mkdirSync(path.join(cwd, '.claude/agents'), { recursive:true });
   for (const role of ['planner','reviewer','implementer']) {
     const source = fs.readFileSync(new URL(`../templates/agents/${role}.md`, import.meta.url), 'utf8');
-    fs.writeFileSync(path.join(cwd, `.claude/agents/${role}.md`), source.replace('- 확인 명령: <테스트·린트 명령>', `- 확인 명령: ${workflowChecks.map(command => '`' + command + '`').join(', ')}`));
+    fs.writeFileSync(path.join(cwd, `.claude/agents/${role}.md`), source.replace(/^- 확인 명령: .*$/m, `- 확인 명령: ${workflowChecks.map(command => '`' + command + '`').join(', ')}`));
   }
   fs.mkdirSync(path.join(cwd, 'docs/tasks'), { recursive:true });
   fs.writeFileSync(path.join(cwd, 'docs/tasks/T-1.md'), `## 사용자 원래 말\n\n${requests.Q10}\n\n## 어디까지·하지 않을 것\n\nparse.mjs·store.mjs·cli.mjs를 고치고 공개 시험은 보존한다. repro*.mjs 생성·실행 허용.\n`);

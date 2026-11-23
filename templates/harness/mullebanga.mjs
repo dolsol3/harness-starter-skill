@@ -88,7 +88,7 @@ async function matchSpec(ctx, state) {
   if (!review.passed || review.findings.some(finding => finding.level !== '낮음')) halt('맞춰보기 단계에서 멈춤: 높음·중간 지적이 있거나 사용자 원래 말 절이 없다');
 }
 
-const failureText = check => (check.output === undefined ? check.reason : `${check.command} (종료 코드 ${check.exitCode ?? '없음, 시간 초과'})\n${check.output}`);
+const failureText = check => (check.output === undefined ? check.reason : `${check.command} (종료 코드 ${check.exitCode ?? '없음'})\n${check.output}`);
 
 // 허락 질문이 답을 기다리는 동안은 그 작업에 쓰는 일(워크트리 만들기·만들기·고치기)을 시작하지 않는다. 도는 중에 질문이 생길 수 있어 쓰기 직전마다 일감 목록을 다시 본다.
 function haltIfWaiting(ctx, id) {
@@ -116,8 +116,9 @@ async function writeCode(ctx, state, step, prompt, schema) {
 // 확인 명령을 돌리고 통과했을 때만 message로 커밋한다. skipIfClean이면 통과한 뒤에도 바뀐 파일이 없을 때 state.commit(지금 HEAD)을 그대로 쓴다.
 // 확인 명령이 파일을 고칠 수 있어, 검사한 상태와 올릴 커밋이 같도록 커밋 여부는 통과한 뒤에 정한다.
 async function checkAndCommit(ctx, state, step, message, skipIfClean = false) {
-  const check = ctx.checks.length ? await runChecks(state.worktree, ctx.checks, { base: ctx.config.base, python: ctx.config.python }) : undefined;
+  const check = ctx.checks.length ? await runChecks(state.worktree, ctx.checks, { seconds: ctx.seconds, base: ctx.config.base, python: ctx.config.python }) : undefined;
   if (check) Object.assign(state, { checkPassed: check.ok, checkFailures: check.ok ? '' : failureText(check), checkReports: check.ok ? check.reports : undefined });
+  if (check?.timedOut) halt(`돌려보기 시간 초과: ${state.checkFailures}`);
   if (check && !check.ok) {
     if (enabled(ctx.config)) await markQuality(sampleId(ctx.root, state.id), false);
     return;
@@ -158,7 +159,7 @@ async function crossReview(ctx, state) {
   const ms = ctx.seconds && ctx.seconds * 1000;
   const [mine, other] = await Promise.all([
     callStep(ctx, state, STEPS.review, { cwd: state.worktree, prompt: reviewPrompt(ctx.root, id, ctx.config.base, state.commit, state.checkReports), schema: schemas.REVIEWED }),
-    reviewOther({ repo: ctx.root, id, worktree: state.worktree, commit: state.commit, base: ctx.config.base, author: state.writer, tool: ctx.tool, ...(ms && { timeouts: { breaking: ms, readOnly: ms } }) }),
+    reviewOther({ repo: ctx.root, id, worktree: state.worktree, commit: state.commit, reports: state.checkReports, base: ctx.config.base, author: state.writer, tool: ctx.tool, ...(ms && { timeouts: { breaking: ms, readOnly: ms } }) }),
   ]);
   const findings = [...(mine.ok ? mine.result.findings : []), ...other.findings];
   Object.assign(state, { reviewTool: other.tool, highs: findings.filter(finding => finding.level === '높음'), others: findings.filter(finding => finding.level !== '높음') });

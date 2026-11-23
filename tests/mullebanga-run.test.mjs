@@ -131,6 +131,22 @@ test('할 일 적기: 확인은 작업이 안 멈추고 기록은 남으며 빈 
   assert.equal(JSON.parse(read(s.dir, 'harness/backlog.json')).처리함.length, 1);
 });
 
+test('할 일 적기: 하이픈으로 시작하는 값을 그대로 남긴다', async t => {
+  const s = setup(t, { bareSpec: true });
+  const asks = [
+    { kind: '기록', option: '', title: '- 기록', description: '- 기록 설명', choices: '', recommend: '', reason: '- 기록 이유' },
+    { kind: '확인', option: '구조변경', title: '- 확인', description: '- 확인 설명', choices: '예=- 결과|아니오=유지', recommend: '예', reason: '- 확인 이유' },
+  ];
+  s.scenario({ 'T-1': { spec: [{ payload: { outcome: '썼음', asks, specText: '## 끝 기준\n\n1. 된다\n' } }] } });
+  const [task] = (await s.run(['--도구', 'codex', 'T-1'])).json;
+  assert.equal(task.raised, true);
+  const ledger = JSON.parse(read(s.dir, 'harness/backlog.json'));
+  const record = ledger.처리함[0];
+  assert.deepEqual([record.제목, record.설명, record.이유], ['- 기록', '- 기록 설명', '- 기록 이유']);
+  const question = ledger.질문[0];
+  assert.deepEqual([question.제목, question.설명, question.보기[0].결과, question.이유], ['- 확인', '- 확인 설명', '- 결과', '- 확인 이유']);
+});
+
 test('할 일 적기: 대기 질문이 있으면 asks 없이도 멈춘다', async t => {
   const s = setup(t);
   s.scenario({ 'T-1': { spec: [{ payload: { pendingQuestions: ['Q-9 [대기] 물음'] } }] } });

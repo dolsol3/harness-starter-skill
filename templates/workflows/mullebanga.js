@@ -69,7 +69,7 @@ const BUILT = schemaObj({
   commit: { type: 'string', description: '마지막 커밋 해시' },
 });
 const RESUMED = schemaObj({ ...BUILT.properties, stopReason: { type: 'string', description: '브랜치나 워크트리를 찾거나 만들 수 없어 멈췄으면 이유. 고쳤으면 빈 문자열' } });
-const CHECKED = schemaObj({ passed: { type: 'boolean' }, failures: { type: 'string', description: '실패한 명령과 출력. 통과면 빈 문자열' } });
+const CHECKED = schemaObj({ timedOut: { type: 'boolean', description: '확인 명령이 시간 제한으로 중단되면 true, 종료 코드 실패는 false' }, passed: { type: 'boolean' }, failures: { type: 'string', description: '실패한 명령과 출력. 통과면 빈 문자열' }, executions: { type: 'array', description: '통과·실패 모두 실제 실행한 확인 명령의 증거', items: schemaObj({ command: { type: 'string' }, cwd: { type: 'string' }, exitCode: { type: ['integer', 'null'], description: '종료 코드. 시간 초과로 없으면 null' }, output: { type: 'string', description: '명령의 실제 출력' } }) } });
 const FINDING = schemaObj({ level: { type: 'string', enum: ['높음', '중간', '낮음'] }, text: { type: 'string' } });
 const SPEC_REVIEWED = schemaObj({ passed: { type: 'boolean' }, findings: { type: 'array', items: FINDING } });
 const REVIEWED = schemaObj({ findings: { type: 'array', items: FINDING } });
@@ -107,11 +107,12 @@ const specReviewPrompt = id => [
   '높음·중간이 있으면 실패다. 통과 여부와 높음·중간·낮음 지적(없으면 빈 목록)을 돌려준다.',
 ].join('\n');
 
+const NO_REPEAT_TESTS = '확인 명령의 시험은 돌려보기에서 실행하므로 여기서 다시 실행하지 않는다. 변경 확인에 필요한 최소 재현만 한다. 전체 시험은 메인이 푸시 직전에 한 번 실행한다. 안내문과 다르면 이 지시가 우선한다.';
 const buildPrompt = id => [
   `작업 ${id}를 만든다. 먼저 \`node harness/backlog.mjs 보기 ${id}\`로 작업 문서를 읽는다.`,
   '지금 있는 곳은 이 작업의 워크트리다. `pwd`와 지금 브랜치 이름(worktree-wf_…)을 적어 둔다.',
   '이 워크트리에서 `git switch -c ai/<작업명>`으로 브랜치를 만들어 만들고 커밋한다.',
-  '이번에는 커밋까지만 한다. 올림은 하지 않는다: 돌려보기와 번갈아 보기가 끝난 뒤 따로 올린다. 병합·푸시도 하지 않는다.',
+  `${NO_REPEAT_TESTS} 이번에는 커밋까지만 한다. 올림은 하지 않는다: 돌려보기와 번갈아 보기가 끝난 뒤 따로 올린다. 병합·푸시도 하지 않는다.`,
   '워크트리 경로, 처음 브랜치, ai/ 브랜치, 마지막 커밋 해시를 돌려준다.',
 ].join('\n');
 
@@ -124,7 +125,7 @@ const resumePrompt = (id, spec) => [
   `1. \`git branch --contains ${spec.rejectedCommit}\`에서 \`ai/…\` 브랜치를 찾는다. \`ai/…\`가 없거나 둘 이상이면 멈춘다.`,
   '2. `git worktree list --porcelain`에서 그 브랜치가 열린 워크트리를 찾는다. 있으면 명령마다 `cd <워크트리> && <명령>` 한 줄로 쓴다. cd는 다음 명령까지 이어지지 않는다.',
   '3. 워크트리가 지워졌으면 메인 폴더에서 `git worktree add .claude/worktrees/<이름> <브랜치>`로 그 브랜치의 새 워크트리를 만들고 그 경로로 들어간다.',
-  '4. 그 브랜치에서 반려 사유만 고친다. 작업 문서의 다른 일은 다시 하지 않는다. 커밋까지만 하고 올림·병합·푸시는 하지 않는다.',
+  `4. 그 브랜치에서 반려 사유만 고친다. 작업 문서의 다른 일은 다시 하지 않는다. ${NO_REPEAT_TESTS} 커밋까지만 하고 올림·병합·푸시는 하지 않는다.`,
   '5. 워크트리 절대 경로, 반려 커밋을 담은 ai/ 브랜치, 처음 브랜치, 마지막 커밋 해시를 돌려준다.',
   '   처음 브랜치는 그 워크트리가 물레방아가 처음 만든 `.claude/worktrees/wf_<run>-N`이고 브랜치 `worktree-wf_<run>-N`이 아직 있으면 그 이름이다. 워크트리를 새로 만들었거나 그 브랜치가 없으면 빈 문자열이다.',
   '브랜치나 워크트리를 찾거나 만들 수 없으면 고치지 않고 stopReason에 이유를 적는다(다른 칸은 빈 문자열). 고쳤으면 stopReason은 빈 문자열이다.',
@@ -138,14 +139,14 @@ const checkPrompt = (id, work) => [
   inWorktree(work),
   '1. 메인 폴더(`git rev-parse --git-common-dir`의 부모)의 `.claude/agents/implementer.md`에서 `## 이 프로젝트`의 \'확인 명령\'을 읽어 그대로 돌린다.',
   `2. ${BASE}에서 바뀐 파일을 \`git diff --name-only --diff-filter=d <기본 브랜치>...HEAD\`로 구해 \`node harness/check.mjs <바뀐 파일...>\`을 돌린다.`,
-  '둘 다 통과했는지와, 실패했으면 실패한 명령과 출력을 돌려준다. 만들기 담당이 적은 결과는 믿지 않는다.',
+  '통과·실패 모두 실제 실행한 각 확인 명령을 executions에 담는다: command(명령), cwd(실행한 절대 경로), exitCode(종료 코드, 시간 초과로 없으면 null), output(실제 출력). 둘 다 통과했는지와, 실패했으면 실패한 명령과 출력을 failures로 돌려준다(통과면 빈 문자열). 시간 제한으로 중단되면 passed: false, timedOut: true로 돌려준다(종료 코드 실패는 timedOut: false). 만들기 담당이 적은 결과는 믿지 않는다.',
 ].join('\n');
 
 const reviewPrompt = (id, work) => [
   `작업 ${id}의 만든 코드를 살핀다. 워크트리 ${work.worktree}에서 브랜치 ${work.branch}의 커밋 ${work.commit}을 본다.`,
   inWorktree(work),
   `${BASE}과의 diff를 읽고 작업 문서의 끝 기준 번호마다 직접 확인한다. 고치지 않는다.`,
-  '지적마다 높음·중간·낮음을 붙여 돌려준다. 지적이 없으면 빈 목록을 돌려준다.',
+  `제공된 돌려보기 실행 증거(${JSON.stringify(work.check)})를 코드·작업 문서와 대조하고 시험을 직접 재실행하지 않는다. 증거로 확인하지 못한 것은 확인 못 함과 이유를 적는다. 이 지시가 역할 안내문의 직접 실행 지시보다 우선한다. 지적마다 높음·중간·낮음을 붙여 돌려준다. 지적이 없으면 빈 목록을 돌려준다.`,
 ].join('\n');
 
 // 다른 도구는 만든 코드가 있는 워크트리가 아니라 원격을 끊은 버릴 복사본에서 돌린다. 복사본 안 쓰기를 허락해도 워크트리와 진짜 홈은 그대로다.
@@ -162,7 +163,7 @@ const otherReviewPrompt = (id, work) => [
   '   이어서 `cd <임시>/copy && git remote remove origin`으로 원격을 끊고 `mkdir <임시>/home`을 만든다.',
   '   복사본 안의 명령도 `cd <임시>/copy && <명령>` 한 줄로 쓴다.',
   `3. 그 도구를 복사본에서 한 번만 부른다. 검토 요청에는 작업 ${id}의 작업 문서(\`node harness/backlog.mjs 보기 ${id}\`), ${BASE}과의 diff(\`cd <임시>/copy && git diff <기준> HEAD\`), 지적마다 높음·중간·낮음을 붙여 달라는 말을 넣는다.`,
-  '   추가 지시: 끝 기준 번호마다 코드를 깨뜨릴 입력·환경·순서를 직접 찾아 명령으로 재현한다. 재현한 것만 높음·중간으로, 재현하지 못한 의심은 낮음으로 적고 실행 못 했으면 \'실행 못 함\'과 이유를 적는다.',
+  `   추가 지시: 제공된 돌려보기 실행 증거(${JSON.stringify(work.check)})를 검토 요청에 넣는다. 기존 시험은 다시 실행하지 않는다. 전체 시험은 메인이 푸시 직전에 한 번 실행한다. 이 지시가 역할 안내문의 시험 실행 지시보다 우선한다. 끝 기준 번호마다 코드를 깨뜨릴 입력·환경·순서를 직접 찾아 명령으로 재현한다. 새로운 입력·환경·순서에 필요한 최소 명령만 쓴다. 재현한 것만 높음·중간으로, 재현하지 못한 의심은 낮음으로 적고 실행 못 했으면 '실행 못 함'과 이유를 적는다.`,
   '   시험·설치기를 돌릴 때는 HOME·USERPROFILE을 `<임시>/home`으로 주고, 복사본 밖 경로(작업 워크트리·진짜 홈)는 쓰지 않는다고 검토 요청에 적는다.',
   '   검토 요청은 프롬프트 파일 `<임시>/prompt.txt`에, 도구의 결과는 `<임시>/result.txt`에 둔다. 둘 다 복사본 밖이다.',
   '   gemini(`agy`)에는 stdin NDJSON으로 전달한다: `node -e \'process.stdout.write(JSON.stringify({event:"user",message:{content:process.getBuiltinModule("fs").readFileSync(0,"utf8")}})+"\\n")\' < <임시>/prompt.txt > <임시>/prompt.json`으로 `<임시>/prompt.json`을 만든다(경로는 node 인자로 넘기지 않는다). 결과(`result.txt`)는 NDJSON이라 마지막 `{"event":"result","result":{...}}` 줄의 `result`(conversation_id·status·response·usage)를 읽는다.',
@@ -190,7 +191,7 @@ const fixPrompt = (id, work, check, highs) => [
   check.passed ? '돌려보기는 통과했다.' : `돌려보기가 실패했다:\n${check.failures}`,
   ...highs.map(finding => `높음 지적: ${finding.text}`),
   '이 실패와 높음만 고친다. 중간·낮음은 고치지 않는다.',
-  '이번에는 커밋까지만 한다. 올림은 하지 않는다. 병합·푸시도 하지 않는다. 마지막 커밋 해시를 돌려준다.',
+  `${NO_REPEAT_TESTS} 이번에는 커밋까지만 한다. 올림은 하지 않는다. 병합·푸시도 하지 않는다. 마지막 커밋 해시를 돌려준다.`,
 ].join('\n');
 
 const raisePrompt = (id, work, tool) => [
@@ -253,7 +254,8 @@ async function inspect(work) {
   const { id } = work;
   for (let round = 1; ; round++) {
     const check = await agent(checkPrompt(id, work), { label: `돌려보기 ${id} ${round}번째`, phase: '돌려보기', ...stageModel('돌려보기'), schema: CHECKED });
-    const review = check.passed ? await crossReview(id, work, round) : { tool: '', findings: [], agentapiChanged: false };
+    if (check.timedOut) return stop({ ...work, check, checkPassed: false, checkFailures: check.failures, raised: false }, `돌려보기 시간 초과: ${check.failures}`);
+    const review = check.passed ? await crossReview(id, { ...work, check }, round) : { tool: '', findings: [], agentapiChanged: false };
     const highs = review.findings.filter(isHigh);
     const done = { ...work, check, tool: review.tool, highs, others: review.findings.filter(finding => !isHigh(finding)) };
     if (review.agentapiChanged) return stop(done, '다른 도구 검토 뒤 진짜 홈 agentapi가 바뀜: 고치지 않고 멈춘다. 사람이 본다');

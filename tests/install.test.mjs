@@ -46,6 +46,7 @@ test('preview writes nothing; apply installs every part; a second run changes no
   assert.ok(fs.existsSync(path.join(dir, 'harness/check.mjs')));
   const config = JSON.parse(read(dir, 'harness/config.json'));
   assert.deepEqual(config.kinds, {}, 'no limits until the skill procedure picks them per file kind');
+  assert.deepEqual([config.자동모델.사용, config.자동모델.프로필, config.자동모델.기본단계], [true, '자동', '자동']);
   assert.equal(config.maxFileLines, undefined);
   for (const skills of ['.agents/skills', '.claude/skills']) {
     assert.ok(fs.existsSync(path.join(dir, skills, 'lean-review/SKILL.md')), skills);
@@ -155,6 +156,13 @@ test('--upgrade swaps the old checker and old-shaped config.json only when asked
   assert.deepEqual(JSON.parse(read(dir, 'harness/config.json')), moved);
   assert.equal(spawnSync(process.execPath, ['harness/check.mjs', '--staged'], { cwd: dir }).status, 0);
   assert.match(install(dir, '--apply', '--upgrade'), /\[그대로\] harness\/check\.mjs\n\[그대로\] harness\/config\.json/);
+  for (const automatic of [undefined, { 사용: false, 프로필: '명시', 기본단계: '명시' }]) {
+    const config = { kinds: {}, ...(automatic && { 자동모델: automatic }) };
+    const file = path.join(dir, 'harness/config.json');
+    fs.writeFileSync(file, JSON.stringify(config));
+    install(dir, '--apply', '--upgrade');
+    assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), config);
+  }
 });
 
 test('the installed git hook blocks a commit that breaks the limits', t => {

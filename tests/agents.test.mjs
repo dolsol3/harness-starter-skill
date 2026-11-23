@@ -97,6 +97,13 @@ test('planner, implementer, and reviewer templates use easy Korean role titles, 
   assert.match(reviewer, /너는 살피기 담당이다.*클로드 legacy 기본은 `opus medium`.*클로드 메인이 안쪽 `opus medium`·바깥 `gemini`\(`gemini-4-argon-medium`\) 우선 → `codex`\(`gpt-6\.1-sol medium`\) 폴백, Codex 메인이 안쪽 `gpt-6\.1-sol medium`·바깥 `gemini`\(`gemini-4-argon-medium medium`\) 우선 → `claude`\(`opus medium`\) 폴백, Antigravity\(`gemini`\) 메인이 안쪽 `gemini-4-argon-medium medium`·바깥 `codex`\(`gpt-6\.1-sol medium`\) 우선 → `claude`\(`opus medium`\) 폴백/);
   assert.match(reviewer, /^- 맞춰보기:.*사용자가 정한 것/m);
   assert.match(reviewer, /^- 번갈아 보기:.*끝 기준 번호마다 명령을 직접 실행/m);
+  assert.match(reviewer, /^- 번갈아 보기:.*전체 확인 명령은 돌리지 않고 바뀐 곳에 맞는 명령만 직접 실행/m);
+  assert.match(reviewer, /^## 이 프로젝트\n- 확인 명령:.*\n- 전체 확인 명령:/m);
+  assert.match(read('planner.md'), /전체 확인 명령은 돌리지 않는다/);
+});
+
+test('planner writes 끝 기준 that can be checked from commit contents or 돌려보기 records without a fresh run', () => {
+  assert.match(read('planner.md'), /끝 기준은 커밋의 코드·파일 내용이나 돌려보기 기록\(확인 명령의 종료 코드·출력\)으로 확인할 수 있게 쓴다.*살피기가 새로 실행해야 하는 것은 끝 기준에 넣지 않고.*그 동작을 묶는 시험을 만들게 적는다/);
 });
 
 test('researcher template reflects external research priority/fallback, Antigravity retention, and numbered agy calls', () => {

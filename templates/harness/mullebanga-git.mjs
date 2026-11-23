@@ -99,16 +99,16 @@ function runShell(command, cwd, seconds) {
       timedOut = true;
       const failure = killTree(child, 'SIGKILL');
       // 끄지 못한 자식은 close가 오지 않을 수 있어, 기다리지 않고 남은 pid를 드러내며 바로 돌아온다.
-      if (failure) resolve({ exitCode: null, output: `${output}\n시간 초과: ${seconds}초 안에 끝나지 않았고 끄기에 실패해 pid ${child.pid}와 자손이 남았을 수 있다 (${failure})` });
+      if (failure) resolve({ timedOut, exitCode: null, output: `${output}\n시간 초과: ${seconds}초 안에 끝나지 않았고 끄기에 실패해 pid ${child.pid}와 자손이 남았을 수 있다 (${failure})` });
     }, seconds * 1000);
     child.on('error', error => {
       clearTimeout(timer);
-      resolve({ exitCode: null, output: error.message });
+      resolve({ timedOut, exitCode: null, output: error.message });
     });
     child.on('close', code => {
       clearTimeout(timer);
-      if (timedOut) resolve({ exitCode: null, output: `${output}\n시간 초과: ${seconds}초 안에 끝나지 않아 끝냈다` });
-      else resolve({ exitCode: code, output });
+      if (timedOut) resolve({ timedOut, exitCode: null, output: `${output}\n시간 초과: ${seconds}초 안에 끝나지 않아 끝냈다` });
+      else resolve({ timedOut, exitCode: code, output });
     });
   });
 }
@@ -137,7 +137,7 @@ export async function runChecks(worktree, commands, { seconds = 900, base = 'HEA
     command = withPython(command, python);
     const result = await runShell(command, worktree, seconds);
     if (result.exitCode !== 0) {
-      return { ok: false, command: template, exitCode: result.exitCode, output: result.output.trim().slice(-OUTPUT_TAIL) };
+      return { ok: false, timedOut: result.timedOut, command: template, exitCode: result.exitCode, output: result.output.trim().slice(-OUTPUT_TAIL) };
     }
     const text = result.output.trim();
     const limit = Math.min(800, outputLeft);

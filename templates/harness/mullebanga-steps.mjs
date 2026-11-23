@@ -106,10 +106,10 @@ export function inProgress(root) {
 
 // asks 한 줄을 허락·확인·기록 명령 인자로 바꾼다. 빈 칸은 옵션을 빼고, 기록에는 보기·추천이 없다.
 export function askArgs(id, ask) {
-  const option = (flag, value) => (value ? [flag, value] : []);
+  const option = (flag, value) => (value ? [`${flag}=${value}`] : []);
   const kindFlag = { 허락: '--행동', 확인: '--까닭' }[ask.kind];
   const choices = ask.kind === '기록' ? [] : [...option('--보기', ask.choices), ...option('--추천', ask.recommend)];
-  return [ask.kind, id, ask.title, ...(kindFlag ? option(kindFlag, ask.option) : []), ...option('--설명', ask.description), ...choices, ...option('--이유', ask.reason)];
+  return [ask.kind, id, ...(kindFlag ? option(kindFlag, ask.option) : []), ...option('--설명', ask.description), ...choices, ...option('--이유', ask.reason), '--', ask.title];
 }
 
 const docFile = (root, id) => path.join(root, 'docs', 'tasks', `${id}.md`);

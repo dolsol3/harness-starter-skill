@@ -73,7 +73,7 @@ test('SPEC·REVIEWED 칸: 작업 문서 글과 허락·확인·기록 줄, 살�
 
 test('specPrompt: 읽기 전용이라 asks·specText로 돌려받고 일감 목록 명령을 쓰라고 하지 않는다', t => {
   const text = specPrompt(rootWith(t), 'T-9');
-  for (const part of ['T-9', '보기 T-9', '`## 끝 기준`이 이미 있으면', '한 글자도 바꾸지 않', '파일을 쓰지 않고', 'asks', 'specText', '[대기]', '실험 필요']) assert.ok(text.includes(part), part);
+  for (const part of ['T-9', '보기 T-9', '`## 끝 기준`이 이미 있으면', '한 글자도 바꾸지 않', '파일을 쓰지 않고', 'asks', 'specText', '[대기]', '실험 필요', '비우지 않는다', '기록이면 option·choices·recommend는 빈 문자열']) assert.ok(text.includes(part), part);
   assert.doesNotMatch(text, /backlog\.mjs (허락|확인|기록)/);
   assert.ok(text.indexOf('planner 본문 끝') < text.indexOf('T-9'));
 });
@@ -101,10 +101,12 @@ test('buildPrompt: 커밋도 브랜치 바꾸기도 올림도 시키지 않고 �
   for (const re of NO_ACTION) assert.doesNotMatch(plain, re);
   assert.ok(plain.includes('커밋하지 않는다'));
   assert.ok(plain.includes('브랜치를 바꾸지 않는다'));
+  requireParts(plain, ['확인 명령의 시험은 돌려보기에서 실행', '여기서 다시 실행하지 않는다', '전체 시험은 메인이 푸시 직전에 한 번']);
   assert.ok(!plain.includes('반려 커밋'));
   const again = buildPrompt(root, 'T-9', { commit: 'def456', reason: '시험이 빠졌다' });
   assert.ok(again.includes('반려 커밋: def456'));
   assert.ok(again.includes('반려 사유: 시험이 빠졌다'));
+  requireParts(again, ['여기서 다시 실행하지 않는다']);
 });
 
 test('fixPrompt: 돌려보기 실패와 높음 지적만 담고 커밋하지 않게 한다', t => {
@@ -117,6 +119,7 @@ test('fixPrompt: 돌려보기 실패와 높음 지적만 담고 커밋하지 않
   for (const re of NO_ACTION) assert.doesNotMatch(text, re);
   assert.ok(text.includes('커밋하지 않는다'));
   assert.ok(text.includes('브랜치를 바꾸지 않는다'));
+  requireParts(text, ['확인 명령의 시험은 돌려보기에서 실행', '여기서 다시 실행하지 않는다', '필요한 최소 재현만']);
 });
 
 test('reviewPrompt: 읽기 전용이고 통과한 검사 기록을 전달하며 REVIEWED 모양으로 지적과 끝 기준 증거를 함께 돌려받는다', t => {
@@ -124,17 +127,29 @@ test('reviewPrompt: 읽기 전용이고 통과한 검사 기록을 전달하며 
   for (const part of ['파일을 쓰지 않고', 'abc123', 'findings', 'items', 'unconfirmed', 'JSON 한 덩어리', '"command":"npm test"']) assert.ok(text.includes(part), part);
   assert.doesNotMatch(text, /backlog\.mjs 올림/);
   assert.ok(text.indexOf('reviewer 본문 끝') < text.indexOf('abc123'));
+  requireParts(text, ['제공된 실행 증거를 코드·작업 문서와 대조', '시험을 직접 재실행하지 않는다', '증거로 확인되지 않는 번호와 이유']);
 });
 
 // 실제 역할과 프로젝트 지침을 합친 입력을 포착한다. 도구는 기존 가짜 실행기를 쓴다.
-async function workflowCalls() {
+async function workflowCalls({ rejectedCommit = '', failCheck = false } = {}) {
   const source = fs.readFileSync(new URL('../templates/workflows/mullebanga.js', import.meta.url), 'utf8');
   const body = source.replace(/^export const meta = \{[\s\S]*?\n\};\n/, '');
   const calls = [];
   const agent = async (prompt, options) => {
     calls.push({ prompt, ...options });
-    if (options.phase === '할 일 적기') return { outcome: '건너뜀', pendingQuestions: [], rejectedCommit: '' };
+    if (options.phase === '할 일 적기') return { outcome: '건너뜀', pendingQuestions: [], rejectedCommit, rejectedReason: '시험 누락' };
     if (options.phase === '만들기') return { worktree: '/repo/work', branch: 'ai/sample', commit: 'abc' };
+    if (options.phase === '돌려보기') {
+      assert.ok(options.schema.required.includes('executions'));
+      const executions = [
+        { command: 'node tests/area-tests.mjs sample.mjs', cwd: '/repo/work', exitCode: failCheck ? 1 : 0, output: failCheck ? '영역 시험 실패' : 'tests 3, pass 3, fail 0' },
+        { command: 'node harness/check.mjs sample.mjs', cwd: '/repo/work', exitCode: 0, output: '위반 없음' },
+      ];
+      for (const execution of executions) assert.deepEqual(Object.keys(execution).sort(), [...options.schema.properties.executions.items.required].sort());
+      const check = { timedOut: false, passed: !failCheck, failures: failCheck ? '영역 시험 실패' : '', executions };
+      failCheck = false;
+      return check;
+    }
     return { passed: true, findings: [], tool: 'gemini', raised: true };
   };
   const pipeline = (items, ...stages) => Promise.all(items.map(async item => {
@@ -146,6 +161,31 @@ async function workflowCalls() {
   );
   return calls;
 }
+
+test('Claude 만들기·이어 고치기·고치기는 시험을 돌려보기에 맡기고 살피기·깨뜨려 보기는 반복 실행하지 않는다', async () => {
+  const calls = await workflowCalls({ failCheck: true });
+  const resumed = await workflowCalls({ rejectedCommit: 'def456' });
+  for (const call of [...calls, ...resumed].filter(call => ['만들기', '고치기'].includes(call.phase))) {
+    requireParts(call.prompt, ['여기서 다시 실행하지 않는다', '필요한 최소 재현만', '전체 시험은 메인이 푸시 직전에 한 번']);
+  }
+  const reviews = calls.filter(call => call.phase === '번갈아 보기');
+  assert.equal(reviews.length, 2);
+  const checks = calls.filter(call => call.phase === '돌려보기');
+  for (const call of checks) requireParts(call.prompt, ['통과·실패 모두', 'executions', 'command', 'cwd', 'exitCode', 'output']);
+  for (const call of reviews) {
+    const evidence = JSON.parse(call.prompt.match(/제공된 돌려보기 실행 증거\(([^\n]+?)\)를/)[1]);
+    assert.equal(evidence.passed, true);
+    assert.equal(evidence.failures, '');
+    assert.deepEqual(evidence.executions, [
+      { command: 'node tests/area-tests.mjs sample.mjs', cwd: '/repo/work', exitCode: 0, output: 'tests 3, pass 3, fail 0' },
+      { command: 'node harness/check.mjs sample.mjs', cwd: '/repo/work', exitCode: 0, output: '위반 없음' },
+    ]);
+    requireParts(call.prompt, ['지시보다 우선한다']);
+  }
+  requireParts(reviews[0].prompt, ['시험을 직접 재실행하지 않는다']);
+  requireParts(reviews[1].prompt, ['기존 시험은 다시 실행하지 않는다']);
+  requireParts(reviews[1].prompt, ['새로운 입력·환경·순서', '필요한 최소 명령만 쓴다']);
+});
 
 const actualRole = role => fs.readFileSync(new URL(`../templates/agents/${role}.md`, import.meta.url), 'utf8');
 const requireParts = (text, parts) => {

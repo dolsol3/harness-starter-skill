@@ -50,6 +50,24 @@ test('돌려보기: 실패한 내용은 커밋하지 않아, HEAD와 비교하�
   assert.match(s.ledger('보기', 'T-1'), /^T-1 \[진행중\]/);
 });
 
+test('돌려보기: 제한 1초의 sleep은 고치기 없이 시간 초과로 멈춘다', async t => {
+  const s = setup(t, { checkLine: '- 확인 명령: `sleep 10`' });
+  const [task] = (await s.run(['--도구', 'codex', '--시간제한', '1', 'T-1'])).json;
+  stoppedAt(task, '돌려보기 시간 초과');
+  assert.deepEqual([task.fixes, task.raised, task.checkPassed, task.commit], [0, false, false, null]);
+  assert.match(task.checkFailures, /sleep 10.*\n시간 초과/s);
+  assert.equal(count(s, 'T-1:fix:codex'), 0);
+  assert.equal(count(s, 'T-1:review:codex'), 0);
+});
+
+test('돌려보기: 종료 코드 1이면 고치기를 한 번 호출하고 통과한다', async t => {
+  const s = setup(t);
+  s.scenario({ 'T-1': { build: [{ write: { FAIL: '실패' } }], fix: [{ write: { FAIL: null, 'fixed.txt': '고침' } }] } });
+  const [task] = (await s.run(['--도구', 'codex', 'T-1'])).json;
+  assert.deepEqual([task.fixes, task.raised, task.checkPassed], [1, true, true]);
+  assert.equal(count(s, 'T-1:fix:codex'), 1);
+});
+
 test('허락 대기: 맞춰보기 도중 허락 질문이 생기면 워크트리도 만들기도 없이 멈춘다', async t => {
   const s = setup(t);
   const ask = ['허락', 'T-1', '지워도 되나', '--행동', '삭제', '--설명', '설명', '--보기', '예=지움|아니오=둠', '--추천', '아니오', '--이유', '이유'];
@@ -124,4 +142,30 @@ test('올림: 확인하지 못한 끝 기준이 있거나 번호가 모자라면
   stoppedAt(res.json[0], '올림', '1번: 실행 못 함');
   stoppedAt(res.json[1], '올림', '1번 증거 없음');
   assert.match(s.ledger('보기', 'T-1'), /^T-1 \[진행중\]/);
+});
+
+test('클로드 워크플로: 확인 명령 시간 초과면 검토·고치기·올림 없이 멈춘다', async () => {
+  const source = fs.readFileSync(new URL('../templates/workflows/mullebanga.js', import.meta.url), 'utf8');
+  const body = source.replace(/^export const meta = \{[\s\S]*?\n\};\n/, '');
+  const script = new (async () => {}).constructor('agent', 'pipeline', 'parallel', 'phase', 'log', 'args', body);
+  const calls = [];
+  const replies = {
+    '할 일 적기': { outcome: '썼음', rejectedCommit: '', pendingQuestions: [] },
+    '맞춰보기': { passed: true, findings: [] },
+    '만들기': { worktree: '/tmp/work', branch: 'ai/T-1', commit: 'abc' },
+    '돌려보기': { passed: false, timedOut: true, failures: 'sleep 10 시간 초과' },
+  };
+  const agent = async (prompt, options) => {
+    calls.push(options.phase);
+    assert.ok(replies[options.phase], `예상 밖 호출: ${options.phase}`);
+    return replies[options.phase];
+  };
+  const pipeline = (items, ...stages) => Promise.all(items.map(async item => {
+    for (const stage of stages) item = await stage(item);
+    return item;
+  }));
+  const [task] = await script(agent, pipeline, null, () => {}, () => {}, ['T-1']);
+  stoppedAt(task, '돌려보기 시간 초과');
+  assert.deepEqual([task.fixes, task.raised, task.checkPassed], [0, false, false]);
+  assert.deepEqual(calls, ['할 일 적기', '맞춰보기', '만들기', '돌려보기']);
 });

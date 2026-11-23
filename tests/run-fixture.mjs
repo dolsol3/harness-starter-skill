@@ -45,6 +45,7 @@ export function setup(t, { tools = ['codex'], bareSpec = false, checkLine = '- �
   };
   editConfig(config => {
     delete config.도구별단계모델;
+    delete config.자동모델;
     config.일감목록 = { 동시상한: limits, 기본맡길곳: 'claude' };
     config.단계모델.번갈아보기 = { 모델: 'opus', 깊이: 'high', 검토도구: 'codex', 폴백도구: 'gemini', 폴백모델: 'gemini-4-argon-high' };
   });

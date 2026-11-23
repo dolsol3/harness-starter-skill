@@ -65,6 +65,7 @@ test('the breaker role tells the model to reproduce breaking inputs by command a
   assert.match(breaker, /재현한 것만 높음·중간으로 적고/);
   assert.match(breaker, /재현하지 못한 의심은 낮음으로 적고.*'실행 못 함'과 이유/);
   assert.match(breaker, /`HOME`과 `USERPROFILE`을 `<임시>\/home`으로 준다/);
+  assert.match(breaker, /전체 시험은 돌리지 않고 재현에 필요한 명령만 돌린다/);
 });
 
 test('the role tells the model to only read and to rate each finding high, medium or low', () => {

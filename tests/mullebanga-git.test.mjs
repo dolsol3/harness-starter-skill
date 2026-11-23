@@ -146,6 +146,7 @@ test('runChecks: 통과하면 ok, 처음 실패에서 멈추고 명령·종료 �
   assert.equal(result.ok, false);
   assert.equal(result.command, fail);
   assert.equal(result.exitCode, 3);
+  assert.equal(result.timedOut, false);
   assert.match(result.output, /boom/);
   assert.ok(!fs.existsSync(path.join(dir, 'third.txt')));
 });
@@ -244,6 +245,7 @@ test('runChecks: 시간 제한을 넘으면 손자 프로세스까지 끝내고 
   assert.ok(Date.now() - started < 3500);
   assert.equal(result.ok, false);
   assert.equal(result.exitCode, null);
+  assert.equal(result.timedOut, true);
   assert.match(result.output, /시간 초과/);
   const pid = Number(fs.readFileSync(pidFile, 'utf8'));
   await new Promise(resolve => setTimeout(resolve, 200));
