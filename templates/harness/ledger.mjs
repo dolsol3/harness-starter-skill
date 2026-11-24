@@ -3,7 +3,7 @@
 // 일감 목록은 메인 폴더의 harness/backlog.json 하나다. git에는 올리지 않는다(워크트리마다 사본이 생겨 상태가 갈라지므로).
 // 워크트리 안에서 불러도 git의 공용 .git 폴더(--git-common-dir)의 부모, 곧 메인 폴더를 찾아 같은 일감 목록을 쓴다.
 // git 명령은 부른 폴더에서 돌린다. 워크트리에서 HEAD를 말하면 그 워크트리의 HEAD다.
-// 상태는 할일 → 진행중 → 올림 → 완료로 간다. 올림은 반려로 진행중에 돌아올 수 있다. 필드 이름과 값은 화면에 그대로 보이므로 한글로 둔다.
+// 상태는 할일 → 진행중 → 올림 → 완료로 간다. 올림은 반려로 진행중에 돌아올 수 있다. 진행중·할일은 보류로 치워 두고 시작으로 진행중에 돌아온다(보류는 진행중도 할일도 아니라 어디서도 세지 않는다). 필드 이름과 값은 화면에 그대로 보이므로 한글로 둔다.
 // 일감 목록을 쓰는 명령은 withLock 안에서 읽기→바꾸기→저장을 한다. 저장은 임시 파일에 쓴 뒤 바꿔치기해서 읽는 쪽이 반쯤 쓴 일감 목록을 보지 않는다.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -150,8 +150,7 @@ function checkTool(tool, limits, id, what) {
   throw new Error(`${id} ${what} 거절: ${tool}은(는) 쓸 수 있는 도구가 아니다. harness/config.json의 backlog.limits에 적힌 도구만 쓴다(${names})`);
 }
 
-// 만들기를 맡길 도구를 적는다. --배정이 없으면 backlog.defaultTool을 쓴다. limits를 적지 않은 프로젝트는 이 규칙이 꺼져 있다.
-// 그 도구의 진행중 작업이 상한에 차면 거절한다. 올림이 된 작업은 세지 않는다.
+// 만들기를 맡길 도구를 적는다. --배정이 없으면 backlog.defaultTool을 쓴다. limits를 적지 않은 프로젝트는 이 규칙이 꺼져 있다. 그 도구의 진행중 작업이 상한에 차면 거절한다. 올림·보류인 작업은 세지 않는다.
 function assign(ledger, task, requested, { limits, defaultTool }) {
   if (!limits && !requested) return;
   const tool = requested || defaultTool;
@@ -184,11 +183,10 @@ function review(task, tool, limits) {
 }
 
 // 시작하려면 건드리는 곳과 끝을 확인하는 방법이 있어야 한다. 수정 작업은 원인과 고칠 방향도 있어야 한다.
-// 옵션은 비어 있는 칸만 채운다. 종류와 선행은 추가할 때 정한 그대로다. 거절하면 일감 목록은 저장되지 않는다.
-// 만들기를 맡을 도구(배정)는 backlog.limits를 적은 프로젝트에서만 정한다.
+// 옵션은 비어 있는 칸만 채운다. 종류와 선행은 추가할 때 정한 그대로다. 거절하면 일감 목록은 저장되지 않는다. 만들기를 맡을 도구(배정)는 backlog.limits를 적은 프로젝트에서만 정한다. 보류도 같은 검사로 되살리고 보류 칸은 지운다.
 export function start(ledger, id, fields, tools) {
   const task = find(ledger, id);
-  if (task.상태 !== '할일') throw new Error(`${id} 시작 거절: 이미 ${task.상태}이다`);
+  if (!['할일', '보류'].includes(task.상태)) throw new Error(`${id} 시작 거절: 이미 ${task.상태}이다`);
   noOpenQuestion(ledger, task, '시작');
   for (const name of 채울수있는칸) if (!task[name]?.length && fields[name]?.length) task[name] = fields[name];
   const needed = ['영역', '확인방법', ...(task.종류 === '수정' ? ['원인', '방향'] : [])];
@@ -199,7 +197,18 @@ export function start(ledger, id, fields, tools) {
   const blocked = blockedBy(ledger, task);
   if (blocked.length) throw new Error(`${id} 시작 거절: 먼저할일(선행 작업 ${blocked.join(', ')})이(가) 완료되지 않았다`);
   assign(ledger, task, fields.배정, tools);
+  for (const name of ['보류사유', '보류구분', '보류시각']) delete task[name];
   task.상태 = '진행중';
+  return task;
+}
+
+// 진행중·할일을 치워 둔다. 구분은 미룸(나중에 다시 한다)·대체(다른 작업이 대신한다)·취소(하지 않는다)이고, 상대 작업 번호는 사유에 적는다.
+export function hold(ledger, id, { 사유, 구분 = '미룸' }) {
+  const task = find(ledger, id);
+  if (!['진행중', '할일'].includes(task.상태)) throw new Error(`${id} 보류 거절: 진행중이나 할일인 작업만 보류한다(지금 ${task.상태})`);
+  if (!사유) throw new Error(`${id} 보류 거절: --사유가 필요하다`);
+  if (!['미룸', '대체', '취소'].includes(구분)) throw new Error(`${id} 보류 거절: --구분은 미룸·대체·취소 중 하나다(지금 ${구분})`);
+  Object.assign(task, { 상태: '보류', 보류사유: 사유, 보류구분: 구분, 보류시각: new Date().toISOString() });
   return task;
 }
 
@@ -260,8 +269,7 @@ export function overlaps(a, b) {
   return x === y || x.startsWith(`${y}/`) || y.startsWith(`${x}/`);
 }
 
-// 지금 같이 시작해도 되는 작업. 후보는 할일이고 선행이 모두 완료이며 답을 기다리는 질문이 없는 것이다. 다른 작업을 더 많이 막고 있는 것부터 보고,
-// 영역이 비었거나 이미 쓰는 곳(진행중·올림 작업, 앞서 고른 작업)과 겹치면 미룬다. 올림은 아직 병합 전이라 같은 곳을 건드리면 충돌한다.
+// 지금 같이 시작해도 되는 작업. 후보는 할일이고 선행이 모두 완료이며 답을 기다리는 질문이 없는 것이다. 다른 작업을 더 많이 막고 있는 것부터 보고, 영역이 비었거나 이미 쓰는 곳(진행중·올림 작업, 앞서 고른 작업)과 겹치면 미룬다. 올림은 아직 병합 전이라 같은 곳을 건드리면 충돌한다. 보류는 영역을 차지하지 않는다.
 export function ready(ledger) {
   const waiting = ledger.작업.filter(task => task.상태 === '할일');
   const taken = ledger.작업
@@ -284,7 +292,7 @@ export function ready(ledger) {
     else if (clash) deferred.push({ task, reason: `영역이 겹친다 (${clash.owner}의 ${clash.area})` });
     else {
       group.push({ task, blocks: blocks(task) });
-      taken.push(...task.영역.map(area => ({ area, owner: task.번호 })));
+      taken.push(...task.영역.map(area => ({ area, owner: `${task.번호}(할일)` })));
     }
   }
   deferred.sort((a, b) => waiting.indexOf(a.task) - waiting.indexOf(b.task));

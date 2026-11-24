@@ -65,9 +65,9 @@ test('준비 picks tasks that do not touch the same area, the ones blocking most
     'T-2 [할일] 기능 결제  영역: src/pay',
     'T-8 [할일] 기능 공지  영역: src/notice',
     '미룬 작업:',
-    'T-1 영역이 겹친다 (T-3의 src/core)',
+    'T-1 영역이 겹친다 (T-3(할일)의 src/core)',
     'T-4 선행 작업 T-3이(가) 완료되지 않았다',
-    'T-5 영역이 겹친다 (T-2의 src/pay)',
+    'T-5 영역이 겹친다 (T-2(할일)의 src/pay)',
     'T-6 영역이 비어 있다',
     'T-7 선행 작업 T-3이(가) 완료되지 않았다',
   ].join('\n'));
@@ -85,8 +85,8 @@ test('areas overlap when equal or when one is inside the other folder; a glob ta
   ok(dir, '추가', 'H', '--영역', 'lib2/y.js');
   const rows = ok(dir, '준비').split('\n');
   assert.deepEqual(rows.filter(row => row.startsWith('T-')).map(row => row.slice(0, 3)), ['T-1', 'T-3', 'T-5', 'T-7', 'T-2', 'T-4', 'T-6', 'T-8']);
-  assert.match(rows.find(row => row.startsWith('T-6')), /영역이 겹친다 \(T-1의 src\/a\/\*\*\)/);
-  assert.match(rows.find(row => row.startsWith('T-4')), /영역이 겹친다 \(T-1의 src\/a\/\*\*\)/);
+  assert.match(rows.find(row => row.startsWith('T-6')), /영역이 겹친다 \(T-1\(할일\)의 src\/a\/\*\*\)/);
+  assert.match(rows.find(row => row.startsWith('T-4')), /영역이 겹친다 \(T-1\(할일\)의 src\/a\/\*\*\)/);
 });
 
 test('areas of tasks that are 진행중 or 올림 count as taken, but 완료 ones do not', t => {
@@ -119,7 +119,7 @@ test('every area of a task counts, not only the first, for the tasks being picke
   ok(dir, '추가', '끝이 겹침', '--영역', 'src/z,src/a/y');
   const rows = ok(dir, '준비').split('\n');
   assert.deepEqual(rows.slice(1), ['T-1 [할일] 기능 둘  영역: src/a, src/b', '미룬 작업:',
-    'T-2 영역이 겹친다 (T-1의 src/b)', 'T-3 영역이 겹친다 (T-1의 src/a)']);
+    'T-2 영역이 겹친다 (T-1(할일)의 src/b)', 'T-3 영역이 겹친다 (T-1(할일)의 src/a)']);
   ok(dir, '시작', 'T-1');
   assert.match(ok(dir, '준비'), /T-2 영역이 겹친다 \(T-1\(진행중\)의 src\/b\)/);
 });

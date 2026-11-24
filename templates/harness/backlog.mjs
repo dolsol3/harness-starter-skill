@@ -2,12 +2,13 @@
 // 일감 목록 명령. 일감 목록 파일(harness/backlog.json)은 이 명령으로만 읽고 쓴다.
 //
 //   node harness/backlog.mjs 추가 "제목" [--종류 기능|수정] [--고칠곳|--영역 a,b] [--확인방법 "…"] [--먼저할일|--선행 T-1,T-2] [--원인 "…"] [--방향 "…"] [--모델 이름] [--깊이|--추론 단계]
-//   node harness/backlog.mjs 목록 [--상태 할일|진행중|올림|완료]
+//   node harness/backlog.mjs 목록 [--상태 할일|진행중|보류|올림|완료]
 //   node harness/backlog.mjs 다음                      지금 시작할 수 있는 첫 작업
 //   node harness/backlog.mjs 바로할일 (또는 준비)      지금 같이 시작해도 되는 작업(고칠곳이 겹치지 않는 것)과 미룬 이유
 //   node harness/backlog.mjs 보기 T-1                  작업 칸과 docs/tasks/T-1.md
 //   node harness/backlog.mjs 시작 T-1 [추가와 같은 옵션] [--맡길곳|--배정 도구]   비어 있는 칸을 채우며 시작한다. 도구는 config.json의 일감목록.동시상한(backlog.limits)에 적힌 것.
 //                                                      수정 작업의 영역이 최근 수정 커밋에 여러 번(덧대기.횟수/patch.times, 기본 3) 들어 있는 파일과 겹치면 주의 줄을 더 보인다(막지는 않는다)
+//   node harness/backlog.mjs 보류 T-1 --사유 "…" [--구분 미룸|대체|취소]   진행중·할일을 치워 둔다(구분 생략은 미룸). 보류는 고르기·동시 상한·영역 겹침·멈춤 훅에 세지 않는다. 시작 T-1로 되살린다
 //   node harness/backlog.mjs 올림 T-1 --커밋 <해시> --증거 "…" [--검토 도구]   도구가 둘 이상이면 작성한 도구와 다른 도구의 검토가 필요하다
 //   node harness/backlog.mjs 다시하기 (또는 반려) T-1 --사유 "…" [--모델 이름] [--깊이|--추론 단계]   올림을 진행중으로 돌려보낸다. 올릴 때 적은 커밋·증거·검토는 반려 기록으로 남고, 다시 올릴 때 새로 적는다
 //   node harness/backlog.mjs 완료 T-1                  올린 커밋이 기본 브랜치에 병합됐는지 확인하고 끝낸다
@@ -98,12 +99,12 @@ async function waitAnswer(root, limit = '55', times) {
   }
 }
 
-const LABEL = { 영역: '고칠곳 · 영역', 선행: '먼저할일 · 선행', 배정: '맡길곳 · 배정' };
+const LABEL = { 영역: '고칠곳 · 영역', 선행: '먼저할일 · 선행', 배정: '맡길곳 · 배정', 보류사유: '보류' };
 
 function detail(root, book, task) {
   const rows = [summary(task)];
   for (const name of ['영역', '선행']) if (task[name].length) rows.push(`${LABEL[name]}: ${task[name].join(', ')}`);
-  for (const name of ['확인방법', '원인', '방향', '배정', '모델', '깊이', '커밋', '증거', '검토']) if (task[name]) rows.push(`${LABEL[name] ?? name}: ${task[name]}`);
+  for (const name of ['확인방법', '원인', '방향', '보류사유', '보류구분', '보류시각', '배정', '모델', '깊이', '커밋', '증거', '검토']) if (task[name]) rows.push(`${LABEL[name] ?? name}: ${task[name]}`);
   rows.push(...(task.반려 ?? []).map(item => `반려: ${item.커밋.slice(0, 7)} ${item.사유}`));
   rows.push(...book.질문.filter(item => item.작업 === task.번호).map(item => `질문: ${questionLine(item)}`));
   const doc = path.join(root, 'docs/tasks', `${task.번호}.md`);
@@ -157,6 +158,11 @@ const commands = {
     writes: true,
     options: ['커밋', '증거', '검토'],
     run: ({ ledger: book, args: [id], values }) => ({ rows: [`올림: ${summary(ledger.submit(book, id, values, { limits }))}`] }),
+  },
+  보류: {
+    writes: true,
+    options: ['사유', '구분'],
+    run: ({ ledger: book, args: [id], values }) => ({ rows: [`보류: ${summary(ledger.hold(book, id, values))}`] }),
   },
   반려: {
     writes: true,

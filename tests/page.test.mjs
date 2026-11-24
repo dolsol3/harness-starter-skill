@@ -142,6 +142,15 @@ test('the patched files section lists each file with its fix commits, lights its
   assert.match(render(book(), at), /<h2 id="patch">덧댄 곳 0개<\/h2>[\s\S]*지금 없습니다\./);
 });
 
+test('deferred tasks fold with their details and older entries keep their reason', () => {
+  const html = section(render(book({ 작업: [
+    task({ 번호: 'T-2', 제목: '나중에', 상태: '보류', 보류사유: '조건 대기', 보류구분: '미룸', 보류시각: '2026-11-24T01:00:00.000Z' }),
+    task({ 번호: 'T-3', 제목: '옛 작업', 상태: '보류', 보류사유: '옛 사유' }),
+  ] }), at), 'progress');
+  assert.match(html, /<details><summary>보류 2개<\/summary>/);
+  inOrder(html, ['T-2', '나중에', '조건 대기', '미룸', '2026-11-24T01:00:00.000Z', 'T-3', '옛 작업', '옛 사유', '구분 정보 없음', '시각 정보 없음']);
+});
+
 test('the progress table shows the area and the tools, and marks a task with a waiting question', () => {
   const html = render(book({ 작업: [task({ 영역: ['src', 'docs'], 배정: 'claude', 검토: 'codex' })], 질문: [question()] }), at);
   assert.match(html, /<td>일 <span class="tag">Q-1 답 대기<\/span><\/td><td>src, docs<\/td><td>배정 claude, 검토 codex<\/td>/);

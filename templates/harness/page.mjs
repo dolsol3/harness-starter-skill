@@ -154,6 +154,11 @@ function patchTable(patched) {
   return rows.length ? `<table class="patch"><tr><th>파일</th><th>횟수</th><th>수정 커밋</th></tr>${rows.join('')}</table>` : empty('지금 없습니다.');
 }
 
+function deferred(tasks) {
+  const rows = tasks.map(task => `<tr><td class="ref">${esc(task.번호)}</td><td>${esc(task.제목)}</td><td>${esc(task.보류사유)}</td><td>${esc(task.보류구분 ?? '구분 정보 없음')}</td><td>${esc(task.보류시각 ?? '시각 정보 없음')}</td></tr>`);
+  return `<details><summary>보류 ${tasks.length}개</summary><table><tr><th>번호</th><th>제목</th><th>보류 사유</th><th>구분</th><th>시각</th></tr>${rows.join('')}</table></details>`;
+}
+
 function progress(book) {
   const groups = [['진행중', '진행중'], ['올림', '병합 대기 (브랜치에 올렸고 기본 브랜치에 병합되기를 기다림)'], ['할일', '할일'], ['완료', '완료']];
   const blocks = groups.map(([state, label]) => {
@@ -164,7 +169,8 @@ function progress(book) {
       ? `<details><summary>${label} ${tasks.length}개</summary>${table}</details>`
       : `<h3>${label} ${tasks.length}개</h3>${table}`;
   }).join('');
-  return blocks || empty('작업이 아직 없습니다.');
+  const held = book.작업.filter(task => task.상태 === '보류');
+  return blocks + (held.length ? deferred(held) : '') || empty('작업이 아직 없습니다.');
 }
 
 const answerCell = item => {

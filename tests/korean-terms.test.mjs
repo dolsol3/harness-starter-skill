@@ -27,7 +27,7 @@ test('추가 takes --고칠곳 and --먼저할일, and 바로할일 reports read
     'T-1 [할일] 기능 기반  고칠곳: src/core  막는 작업 1개',
     '미룬 작업:',
     'T-2 먼저할일 작업 T-1이(가) 완료되지 않았다',
-    'T-3 고칠곳이 겹친다 (T-1의 src/core)',
+    'T-3 고칠곳이 겹친다 (T-1(할일)의 src/core)',
     'T-4 고칠곳이 비어 있다',
   ].join('\n'));
   assert.match(ok(dir, '준비'), /영역: src\/core[\s\S]*T-2 선행 작업 T-1이\(가\) 완료되지 않았다/);

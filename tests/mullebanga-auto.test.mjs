@@ -16,6 +16,7 @@ const activate = s => s.editConfig(config => { config.자동모델 = auto; });
 const starts = s => s.called().filter(row => row.ph === 'start');
 const model = call => valueAfter(call.args, call.tool === 'codex' ? '-m' : '--model');
 const effort = call => valueAfter(call.args, call.tool === 'codex' ? '-c' : '--effort');
+const noSandbox = process.platform === 'win32' && '제미나이 쓰기는 맥 sandbox-exec가 필요하다';
 const initial = {
   codex: { 경량: ['gpt-6-luna', 'medium'], 구현: ['gpt-6.1-terra', 'high'], 추론: ['gpt-6.1-sol', 'high'] },
   claude: { 경량: ['haiku', 'medium'], 구현: ['sonnet', 'medium'], 추론: ['opus', 'medium'] },
@@ -213,7 +214,7 @@ test('사다리 밖 탐색 후보 실패 후 고치기는 주력부터 한 칸�
   }
 });
 
-test('Codex 메인·Gemini 작성의 자동 바깥 검토는 Codex 우선·Claude 폴백이다', async t => {
+test('Codex 메인·Gemini 작성의 자동 바깥 검토는 Codex 우선·Claude 폴백이다', { skip: noSandbox }, async t => {
   for (const failFirst of [false, true]) {
     const s = setup(t, { tools: ['gemini'] });
     activate(s);
